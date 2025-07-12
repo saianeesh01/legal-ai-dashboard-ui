@@ -34,11 +34,11 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
       return;
     }
 
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
       toast({
         title: "File too large",
-        description: "Please upload a file smaller than 10MB.",
+        description: "Please upload a file smaller than 50MB.",
         variant: "destructive",
       });
       return;
@@ -120,7 +120,7 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
             <span>Upload Document</span>
           </CardTitle>
           <CardDescription>
-            Upload a PDF or image file to analyze. Maximum file size: 10MB.
+            Upload a PDF or image file to analyze. Maximum file size: 50MB.
           </CardDescription>
         </CardHeader>
         <CardContent>
