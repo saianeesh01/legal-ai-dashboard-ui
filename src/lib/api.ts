@@ -10,16 +10,26 @@ export class ApiError extends Error {
 
 /** POST a file to /api/upload and return { job_id }. */
 export async function uploadFile(file: File): Promise<{ job_id: string }> {
+  console.log("uploadFile called with file:", file); // Log when function is called
   const fd = new FormData();
   fd.append("file", file);
 
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    body: fd,
-  });
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: fd,
+    });
 
-  if (!res.ok) throw new ApiError(res.status, await res.text());
-  return res.json();
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Upload failed:", errorText); // Log error for debugging
+      throw new ApiError(res.status, `Upload failed: ${errorText}`);
+    }
+    return res.json();
+  } catch (err) {
+    console.error("Unexpected error in uploadFile:", err);
+    throw err;
+  }
 }
 
 /**
@@ -48,4 +58,20 @@ export async function pollJobStatus(
 
     await new Promise((r) => setTimeout(r, interval));
   }
+}
+export async function queryDocument(
+  jobId: string,
+  question: string
+): Promise<{
+  answer: string;
+  context: { page: number; text: string }[];
+}> {
+  const res = await fetch("/api/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId, question }),
+  });
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
 }
