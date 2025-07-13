@@ -1,4 +1,6 @@
 import { users, jobs, type User, type InsertUser, type Job, type InsertJob } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -9,51 +11,44 @@ export interface IStorage {
   updateJob(id: string, updates: Partial<Job>): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private jobs: Map<string, Job>;
-  currentId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.jobs = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
 
   async createJob(insertJob: InsertJob): Promise<Job> {
-    const job: Job = { ...insertJob };
-    this.jobs.set(job.id, job);
+    const [job] = await db
+      .insert(jobs)
+      .values(insertJob)
+      .returning();
     return job;
   }
 
   async getJob(id: string): Promise<Job | undefined> {
-    return this.jobs.get(id);
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job || undefined;
   }
 
   async updateJob(id: string, updates: Partial<Job>): Promise<void> {
-    const job = this.jobs.get(id);
-    if (job) {
-      const updatedJob = { ...job, ...updates };
-      this.jobs.set(id, updatedJob);
-    }
+    await db
+      .update(jobs)
+      .set(updates)
+      .where(eq(jobs.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
