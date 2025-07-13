@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import FileUploader from "../components/FileUploader";
 import ResultsDashboard from "../components/ResultsDashboard";
