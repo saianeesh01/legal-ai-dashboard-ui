@@ -4,7 +4,7 @@
 
 This is a full-stack legal document analysis application built with React/TypeScript frontend and Express.js backend. The platform allows users to upload legal documents, get AI-powered analysis, and perform intelligent queries on document content. The application uses modern web technologies including React Query for state management, shadcn/ui for components, Tailwind CSS for styling, and Drizzle ORM with PostgreSQL for data persistence.
 
-**Migration Status**: Successfully migrated from Lovable to Replit on July 13, 2025. All core functionality is working including file uploads, job processing, and document analysis.
+**Migration Status**: Successfully migrated from Lovable to Replit on July 13, 2025. All core functionality is working including file uploads, job processing, document analysis, and AI-powered proposal classification.
 
 ## User Preferences
 
@@ -38,7 +38,9 @@ Preferred communication style: Simple, everyday language.
 - **ResultsDashboard**: Document analysis results display with charts and insights
 
 #### Backend Components
-- **Storage Interface**: Abstracted data layer with in-memory and database implementations
+- **Storage Interface**: Abstracted data layer with database implementation using PostgreSQL
+- **AI Analysis Engine**: Document classification system for proposal detection
+- **Query System**: Intelligent document querying with contextual responses
 - **Route Registration**: Modular route handling system
 - **Vite Integration**: Development server with HMR support
 
@@ -47,9 +49,11 @@ Preferred communication style: Simple, everyday language.
 1. **Document Upload**: Users upload legal documents through the FileUploader component
 2. **File Processing**: Backend receives files and creates processing jobs
 3. **Status Polling**: Frontend polls job status until processing is complete
-4. **Document Analysis**: Processed documents are analyzed for key legal insights
-5. **Query Processing**: Users can ask questions about uploaded documents
-6. **Results Display**: Analysis results and query responses are displayed in the dashboard
+4. **AI Analysis**: Documents are automatically analyzed to determine if they are proposals
+5. **Proposal Classification**: AI provides verdict (proposal/non-proposal) with confidence scores
+6. **Improvement Suggestions**: AI generates specific recommendations for document enhancement
+7. **Query Processing**: Users can ask questions about uploaded documents
+8. **Results Display**: Analysis results and query responses are displayed in the dashboard
 
 ## External Dependencies
 
@@ -91,5 +95,13 @@ Preferred communication style: Simple, everyday language.
 - **`shared/`**: Shared TypeScript types and database schema
 - **`migrations/`**: Database migration files
 - **Configuration files**: TypeScript, Tailwind, Vite, and Drizzle configs at root level
+
+## Recent Changes (July 13, 2025)
+
+- ✓ Integrated AI document analysis agent with proposal classification
+- ✓ Added automatic analysis that runs after document upload completion
+- ✓ Created intelligent query system with context-aware responses
+- ✓ Enhanced UI with AI analysis results display including verdict, confidence, and suggestions
+- ✓ Implemented proposal detection with improvement recommendations
 
 The application follows a monorepo structure with clear separation between frontend, backend, and shared code, making it easy to maintain and scale.
