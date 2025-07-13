@@ -49,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Simulate progress
       if (job.status === "PROCESSING") {
-        const newProgress = Math.min(job.progress + Math.random() * 20, 100);
+        const newProgress = Math.min(job.progress + Math.floor(Math.random() * 20), 100);
         const newStatus = newProgress >= 100 ? "DONE" : "PROCESSING";
         
         await storage.updateJob(jobId, { 
