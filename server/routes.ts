@@ -108,10 +108,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]
       };
 
+      // Store AI analysis results in database
+      await storage.updateJob(job_id, {
+        aiAnalysis: JSON.stringify(analysisResult)
+      });
+
       res.json(analysisResult);
     } catch (error) {
       console.error("Analysis error:", error);
       res.status(500).json({ error: "Analysis failed" });
+    }
+  });
+
+  // Get all processed documents
+  app.get("/api/documents", async (req, res) => {
+    try {
+      const jobs = await storage.getAllJobs();
+      
+      // Parse AI analysis from stored JSON
+      const documentsWithAnalysis = jobs.map(job => ({
+        ...job,
+        aiAnalysis: job.aiAnalysis ? JSON.parse(job.aiAnalysis) : null
+      }));
+
+      res.json(documentsWithAnalysis);
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
 

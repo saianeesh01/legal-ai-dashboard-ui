@@ -1,6 +1,6 @@
 import { users, jobs, type User, type InsertUser, type Job, type InsertJob } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -9,6 +9,7 @@ export interface IStorage {
   createJob(job: InsertJob): Promise<Job>;
   getJob(id: string): Promise<Job | undefined>;
   updateJob(id: string, updates: Partial<Job>): Promise<void>;
+  getAllJobs(): Promise<Job[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -48,6 +49,13 @@ export class DatabaseStorage implements IStorage {
       .update(jobs)
       .set(updates)
       .where(eq(jobs.id, id));
+  }
+
+  async getAllJobs(): Promise<Job[]> {
+    return await db
+      .select()
+      .from(jobs)
+      .orderBy(desc(jobs.createdAt));
   }
 }
 

@@ -14,6 +14,7 @@ export const jobs = pgTable("jobs", {
   fileSize: integer("file_size").notNull(),
   status: text("status").notNull(),
   progress: integer("progress").notNull().default(0),
+  aiAnalysis: text("ai_analysis"), // JSON string storing AI analysis results
   createdAt: text("created_at").notNull(),
   processedAt: text("processed_at"),
 });

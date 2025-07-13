@@ -94,3 +94,23 @@ export async function queryDocument(
   if (!res.ok) throw new ApiError(res.status, await res.text());
   return res.json();
 }
+
+export async function getAllDocuments(): Promise<Array<{
+  id: string;
+  fileName: string;
+  fileSize: number;
+  status: string;
+  progress: number;
+  createdAt: string;
+  processedAt?: string;
+  aiAnalysis?: {
+    verdict: "proposal" | "non-proposal";
+    confidence: number;
+    summary: string;
+    suggestions: string[];
+  };
+}>> {
+  const res = await fetch("/api/documents");
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}

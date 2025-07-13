@@ -26,7 +26,7 @@ import {
   Lightbulb
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { queryDocument, analyzeDocument, ApiError } from "@/lib/api";
+import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
 
 interface ResultsDashboardProps {
@@ -91,12 +91,35 @@ The document contains standard commercial lease provisions with some tenant-favo
     { month: "Jun 2024", count: 2 },
   ];
 
-  // Auto-analyze document when upload completes
+  // Auto-analyze document when upload completes or load existing analysis
   useEffect(() => {
     if (uploadResults?.jobId && !aiAnalysis && !searchMode) {
-      performAIAnalysis();
+      // Check if we're viewing an existing document by fetching its current state
+      fetchExistingAnalysis();
     }
   }, [uploadResults?.jobId]);
+
+  const fetchExistingAnalysis = async () => {
+    if (!uploadResults?.jobId) return;
+    
+    try {
+      // Try to get existing analysis first
+      const documents = await getAllDocuments();
+      const existingDoc = documents.find(doc => doc.id === uploadResults.jobId);
+      
+      if (existingDoc?.aiAnalysis) {
+        // Use existing analysis
+        setAiAnalysis(existingDoc.aiAnalysis);
+      } else if (existingDoc?.status === "DONE") {
+        // Trigger new analysis for completed document
+        performAIAnalysis();
+      }
+    } catch (error) {
+      console.error("Error fetching existing analysis:", error);
+      // Fallback to new analysis
+      performAIAnalysis();
+    }
+  };
 
   const performAIAnalysis = async () => {
     if (!uploadResults?.jobId) return;
