@@ -4,6 +4,8 @@
 
 This is a full-stack legal document analysis application built with React/TypeScript frontend and Express.js backend. The platform allows users to upload legal documents, get AI-powered analysis, and perform intelligent queries on document content. The application uses modern web technologies including React Query for state management, shadcn/ui for components, Tailwind CSS for styling, and Drizzle ORM with PostgreSQL for data persistence.
 
+**Migration Status**: Successfully migrated from Lovable to Replit on July 13, 2025. All core functionality is working including file uploads, job processing, and document analysis.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
