@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,13 @@ import {
   CheckCircle,
   AlertTriangle,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  Brain,
+  Target,
+  Lightbulb
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { queryDocument, ApiError } from "@/lib/api";
+import { queryDocument, analyzeDocument, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
 
 interface ResultsDashboardProps {
@@ -40,6 +43,8 @@ const ResultsDashboard = ({
   searchMode = false 
 }: ResultsDashboardProps) => {
   const [isQuerying, setIsQuerying] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Mock data for demo purposes
   const mockAnswer = queryResults?.answer || `This legal document appears to be a commercial lease agreement with several key provisions:
@@ -86,11 +91,51 @@ The document contains standard commercial lease provisions with some tenant-favo
     { month: "Jun 2024", count: 2 },
   ];
 
+  // Auto-analyze document when upload completes
+  useEffect(() => {
+    if (uploadResults?.jobId && !aiAnalysis && !searchMode) {
+      performAIAnalysis();
+    }
+  }, [uploadResults?.jobId]);
+
+  const performAIAnalysis = async () => {
+    if (!uploadResults?.jobId) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const analysis = await analyzeDocument(uploadResults.jobId);
+      setAiAnalysis(analysis);
+      
+      toast({
+        title: "AI Analysis Complete",
+        description: `Document classified as ${analysis.verdict} with ${Math.round(analysis.confidence * 100)}% confidence`,
+      });
+    } catch (error) {
+      console.error("Analysis error:", error);
+      toast({
+        title: "Analysis failed",
+        description: "Could not analyze document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleQuery = async (query: string) => {
+    if (!uploadResults?.jobId) {
+      toast({
+        title: "No document",
+        description: "Please upload a document first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsQuerying(true);
     
     try {
-      const results = await queryDocument(query);
+      const results = await queryDocument(uploadResults.jobId, query);
       onQueryResults(results);
       
       toast({
@@ -116,6 +161,68 @@ The document contains standard commercial lease provisions with some tenant-favo
 
   return (
     <div className="space-y-6">
+      {/* AI Analysis Results */}
+      {aiAnalysis && !searchMode && (
+        <Card className="shadow-elegant animate-scale-in">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Brain className="h-5 w-5 text-accent" />
+              <span>AI Analysis</span>
+              <Badge variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}>
+                {aiAnalysis.verdict === "proposal" ? "Proposal Document" : "Non-Proposal Document"}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              AI-powered document classification and insights ({Math.round(aiAnalysis.confidence * 100)}% confidence)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h4 className="font-semibold mb-2 flex items-center space-x-2">
+                <Target className="h-4 w-4" />
+                <span>Key Insights</span>
+              </h4>
+              <div className="prose prose-sm max-w-none">
+                <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                  {aiAnalysis.summary}
+                </pre>
+              </div>
+            </div>
+            
+            {aiAnalysis.suggestions && aiAnalysis.suggestions.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center space-x-2">
+                  <Lightbulb className="h-4 w-4" />
+                  <span>Improvement Suggestions</span>
+                </h4>
+                <ul className="space-y-2">
+                  {aiAnalysis.suggestions.map((suggestion, index) => (
+                    <li key={index} className="flex items-start space-x-2">
+                      <span className="bg-accent text-accent-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-medium mt-0.5">
+                        {index + 1}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{suggestion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading Analysis */}
+      {isAnalyzing && !searchMode && (
+        <Card className="shadow-elegant animate-scale-in">
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center space-y-2">
+              <Brain className="h-8 w-8 text-accent mx-auto animate-pulse" />
+              <p className="text-sm text-muted-foreground">Analyzing document with AI...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Document Info */}
       {uploadResults && !searchMode && (
         <Card className="shadow-elegant animate-scale-in">

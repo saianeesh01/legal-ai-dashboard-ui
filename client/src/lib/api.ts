@@ -25,7 +25,9 @@ export async function uploadFile(file: File): Promise<{ job_id: string }> {
       console.error("Upload failed:", errorText); // Log error for debugging
       throw new ApiError(res.status, `Upload failed: ${errorText}`);
     }
-    return res.json();
+    const result = await res.json();
+    console.log("Upload result:", result); // Log the result for debugging
+    return result;
   } catch (err) {
     console.error("Unexpected error in uploadFile:", err);
     throw err;
@@ -59,12 +61,29 @@ export async function pollJobStatus(
     await new Promise((r) => setTimeout(r, interval));
   }
 }
+export async function analyzeDocument(jobId: string): Promise<{
+  verdict: "proposal" | "non-proposal";
+  confidence: number;
+  summary: string;
+  suggestions: string[];
+}> {
+  const res = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
 export async function queryDocument(
   jobId: string,
   question: string
 ): Promise<{
   answer: string;
   context: { page: number; text: string }[];
+  confidence?: number;
 }> {
   const res = await fetch("/api/query", {
     method: "POST",
