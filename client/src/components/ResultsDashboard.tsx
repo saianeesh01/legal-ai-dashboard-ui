@@ -281,22 +281,27 @@ The document contains standard commercial lease provisions with some tenant-favo
       {/* Query Form */}
       <QueryForm onQuery={handleQuery} isLoading={isQuerying} />
 
-      {/* AI Analysis Results */}
-      {(queryResults || !searchMode) && (
+      {/* Query Results */}
+      {queryResults && (
         <Card className="shadow-elegant animate-fade-in">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              <span>AI Analysis</span>
+              <span>Query Response</span>
+              {queryResults.confidence && (
+                <Badge variant="outline">
+                  {Math.round(queryResults.confidence * 100)}% confidence
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
-              Key insights and findings from your document
+              AI-powered answer to your question
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="prose prose-sm max-w-none dark:prose-invert">
               <div className="whitespace-pre-wrap text-foreground leading-relaxed">
-                {mockAnswer}
+                {queryResults.answer}
               </div>
             </div>
           </CardContent>
@@ -305,7 +310,7 @@ The document contains standard commercial lease provisions with some tenant-favo
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Context Sources */}
-        {(queryResults || !searchMode) && (
+        {queryResults?.context && (
           <Card className="shadow-elegant animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -318,7 +323,7 @@ The document contains standard commercial lease provisions with some tenant-favo
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockContext.map((item, index) => (
+                {queryResults.context.map((item, index) => (
                   <div key={index} className="border-l-2 border-primary/20 pl-4 py-2">
                     <div className="flex items-center justify-between mb-2">
                       <Badge variant="outline" className="text-xs">
@@ -329,7 +334,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                       </Button>
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      {item.text.substring(0, 150)}...
+                      {item.text.length > 150 ? item.text.substring(0, 150) + "..." : item.text}
                     </p>
                   </div>
                 ))}
@@ -338,61 +343,63 @@ The document contains standard commercial lease provisions with some tenant-favo
           </Card>
         )}
 
-        {/* Deadline Chart */}
-        <Card className="shadow-elegant animate-fade-in">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span>Deadline Analysis</span>
-            </CardTitle>
-            <CardDescription>
-              Important dates and deadlines found in your document
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={deadlineData}>
-                  <XAxis 
-                    dataKey="month" 
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    fontSize={12}
-                  />
-                  <Tooltip 
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      color: 'hsl(var(--foreground))'
-                    }}
-                  />
-                  <Bar 
-                    dataKey="count" 
-                    fill="hsl(var(--primary))"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Next Deadline:</span>
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
-                  <span className="font-medium">March 15, 2024</span>
+        {/* Deadline Chart - only show when no query results or in non-search mode */}
+        {(!queryResults || !searchMode) && (
+          <Card className="shadow-elegant animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <span>Deadline Analysis</span>
+              </CardTitle>
+              <CardDescription>
+                Important dates and deadlines found in your document
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={deadlineData}>
+                    <XAxis 
+                      dataKey="month" 
+                      fontSize={12}
+                    />
+                    <YAxis 
+                      fontSize={12}
+                    />
+                    <Tooltip 
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '6px',
+                        color: 'hsl(var(--foreground))'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="count" 
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Next Deadline:</span>
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    <span className="font-medium">March 15, 2024</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Total Deadlines:</span>
+                  <span className="font-medium">13 identified</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total Deadlines:</span>
-                <span className="font-medium">13 identified</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
