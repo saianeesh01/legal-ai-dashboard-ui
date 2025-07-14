@@ -152,13 +152,16 @@ USER
 {context_sample}
 
 <<TASKS>>
-1. **Expanded summary** – 150-200 words that explain what the document is, its purpose, scope, target beneficiaries, funding ask, and key timeline items.  
-2. **Improvements** – up to 5 numbered suggestions that would make this proposal more persuasive, complete, or fundable.  
-3. **Recommended toolkit** – list the specific software, legal-tech libraries, or operational tools the clinic/proposal should incorporate (e.g., Clio, Docketwise, Lexis+), each with 1-sentence rationale.
+1. **Proposal Classification** – Determine if this is a proposal document. Output "proposal" or "non-proposal" with confidence score 0.0-1.0
+2. **Expanded summary** – 150-200 words that explain what the document is, its purpose, scope, target beneficiaries, funding ask, and key timeline items.  
+3. **Improvements** – up to 5 numbered suggestions that would make this proposal more persuasive, complete, or fundable.  
+4. **Recommended toolkit** – list the specific software, legal-tech libraries, or operational tools the clinic/proposal should incorporate (e.g., Clio, Docketwise, Lexis+), each with 1-sentence rationale.
 
 Return the result in **exactly** this JSON shape and nothing else:
 
 {{
+  "verdict": "<proposal | non-proposal>",
+  "confidence": 0.XX,
   "summary": "<paragraph>",
   "improvements": ["<text>", "..."],
   "toolkit": ["<tool> – <why>", "..."]
@@ -182,6 +185,8 @@ Return the result in **exactly** this JSON shape and nothing else:
                             ['proposal', 'request for proposal', 'rfp', 'bid', 'tender'])
             
             return {
+                "verdict": "proposal" if is_proposal else "non-proposal",
+                "confidence": 0.70 if is_proposal else 0.60,
                 "summary": "Document analysis completed with keyword detection method. This appears to be a legal document that may require further review for comprehensive analysis.",
                 "improvements": ["Consider adding more structured sections", "Include clear objectives", "Add timeline details", "Enhance document formatting", "Include executive summary"],
                 "toolkit": ["Clio – comprehensive legal practice management", "DocuSign – electronic signature management", "Lexis+ – legal research and analysis"]
@@ -190,6 +195,8 @@ Return the result in **exactly** this JSON shape and nothing else:
     except Exception as e:
         logger.error(f"AI analysis error: {e}")
         return {
+            "verdict": "non-proposal",
+            "confidence": 0.50,
             "summary": "Unable to complete full AI analysis due to processing error. Document requires manual review.",
             "improvements": ["Document requires manual review", "Check file format compatibility", "Ensure document is text-readable"],
             "toolkit": ["Manual review tools recommended"]

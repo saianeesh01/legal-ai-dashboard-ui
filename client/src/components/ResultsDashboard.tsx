@@ -195,6 +195,19 @@ The document contains standard commercial lease provisions with some tenant-favo
               <CardTitle className="flex items-center space-x-2">
                 <Brain className="h-5 w-5 text-primary" />
                 <span>AI Analysis Results</span>
+                {aiAnalysis.verdict && (
+                  <Badge 
+                    variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}
+                    className={aiAnalysis.verdict === "proposal" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                  >
+                    {aiAnalysis.verdict === "proposal" ? "✓ Proposal" : "✗ Non-Proposal"}
+                  </Badge>
+                )}
+                {aiAnalysis.confidence && (
+                  <Badge variant="outline">
+                    {Math.round(aiAnalysis.confidence * 100)}% confidence
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Comprehensive AI-powered document analysis and insights

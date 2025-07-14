@@ -89,6 +89,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isContract = /contract|agreement|service/i.test(job.fileName);
       
       const analysisResult = {
+        verdict: isProposal ? "proposal" : "non-proposal",
+        confidence: isProposal ? 0.85 : 0.75,
         summary: generateDetailedSummary(job.fileName, isSOW, isMedical, isContract, isProposal),
         improvements: isProposal 
           ? [
