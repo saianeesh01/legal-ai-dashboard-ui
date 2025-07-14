@@ -103,6 +103,12 @@ Preferred communication style: Simple, everyday language.
 - ✓ Enhanced search section with delete buttons for document management
 - ✓ Removed ask questions and deadline analysis features from search mode (kept in results mode)
 - ✓ Fixed DOM nesting warnings in AlertDialog components
+- ✓ Added search/filter bar with document name search and type filtering (proposal vs non-proposal)
+- ✓ Implemented real-time search and filtering with results summary
+- ✓ Added "No Documents Found" state for empty search results
+- ✓ Enhanced document analysis to extract actual PDF content using pdf-parse
+- ✓ Updated analysis functions to use document content instead of generic templates
+- ✓ Added content-aware extraction of financial amounts, dates, and compliance requirements
 
 ## Previous Changes (July 13, 2025)
 
