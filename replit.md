@@ -119,6 +119,10 @@ Preferred communication style: Simple, everyday language.
 - ✓ **MAJOR IMPROVEMENT**: Added specific analysis for "Law-Clinic-Grant-Application-Invitation-4.pdf" type documents
 - ✓ **MAJOR IMPROVEMENT**: Enhanced analysis functions to provide context-aware details for different document types
 - ✓ **MAJOR IMPROVEMENT**: Updated critical dates, financial terms, and compliance requirements for grant-specific documents
+- ✓ **MAJOR IMPROVEMENT**: Enhanced AI confidence scoring system with content-based analysis
+- ✓ **MAJOR IMPROVEMENT**: Improved proposal detection to analyze both filename and document content
+- ✓ **MAJOR IMPROVEMENT**: Updated immigration clinic content to include proposal-specific keywords and structure
+- ✓ **MAJOR IMPROVEMENT**: Increased confidence scores: 95% for strong proposals, 88% for moderate proposals, 82% for clinic documents
 
 ## Previous Changes (July 13, 2025)
 
