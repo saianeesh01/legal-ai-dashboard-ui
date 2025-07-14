@@ -17,6 +17,7 @@ export const jobs = pgTable("jobs", {
   aiAnalysis: text("ai_analysis"), // JSON string storing AI analysis results
   createdAt: text("created_at").notNull(),
   processedAt: text("processed_at"),
+  fileContent: text("file_content"), // Store file content for analysis
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
