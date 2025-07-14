@@ -109,6 +109,9 @@ Preferred communication style: Simple, everyday language.
 - ✓ Enhanced document analysis to extract actual PDF content using pdf-parse
 - ✓ Updated analysis functions to use document content instead of generic templates
 - ✓ Added content-aware extraction of financial amounts, dates, and compliance requirements
+- ✓ Replaced static bar chart with dynamic timeline visualization showing actual document dates
+- ✓ Improved critical dates display to show specific dates instead of generic statements
+- ✓ Added contextual badges for different types of timeline items (Launch, Payment, Review)
 
 ## Previous Changes (July 13, 2025)
 

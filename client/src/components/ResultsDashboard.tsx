@@ -4,14 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer 
-} from "recharts";
+// Chart imports removed - using timeline visualization instead
 import { 
   FileText, 
   Calendar, 
@@ -83,15 +76,7 @@ The document contains standard commercial lease provisions with some tenant-favo
     }
   ];
 
-  // Mock deadline data for the chart
-  const deadlineData = [
-    { month: "Jan 2024", count: 2 },
-    { month: "Feb 2024", count: 1 },
-    { month: "Mar 2024", count: 4 },
-    { month: "Apr 2024", count: 1 },
-    { month: "May 2024", count: 3 },
-    { month: "Jun 2024", count: 2 },
-  ];
+  // Timeline visualization now uses actual critical dates from AI analysis
 
   // Auto-analyze document when upload completes or load existing analysis
   useEffect(() => {
@@ -467,58 +452,60 @@ The document contains standard commercial lease provisions with some tenant-favo
           </Card>
         )}
 
-        {/* Deadline Chart - only show in results mode, not in search mode */}
-        {!searchMode && (
+        {/* Timeline Overview - only show in results mode, not in search mode */}
+        {!searchMode && aiAnalysis?.criticalDates && (
           <Card className="shadow-elegant animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <span>Deadline Analysis</span>
+                <Clock className="h-5 w-5 text-primary" />
+                <span>Timeline Overview</span>
               </CardTitle>
               <CardDescription>
-                Important dates and deadlines found in your document
+                Key dates and deadlines from your document
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={deadlineData}>
-                    <XAxis 
-                      dataKey="month" 
-                      fontSize={12}
-                    />
-                    <YAxis 
-                      fontSize={12}
-                    />
-                    <Tooltip 
-                      labelStyle={{ color: 'hsl(var(--foreground))' }}
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '6px',
-                        color: 'hsl(var(--foreground))'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="count" 
-                      fill="hsl(var(--primary))"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="space-y-4">
+                {aiAnalysis.criticalDates.map((date, index) => (
+                  <div key={index} className="relative">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex-shrink-0 w-3 h-3 bg-primary rounded-full"></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {date}
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            {date.includes('Launch') && (
+                              <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                                Launch
+                              </Badge>
+                            )}
+                            {date.includes('Payment') && (
+                              <Badge variant="outline" className="text-xs">
+                                Payment
+                              </Badge>
+                            )}
+                            {date.includes('Review') && (
+                              <Badge variant="secondary" className="text-xs">
+                                Review
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {index < aiAnalysis.criticalDates.length - 1 && (
+                      <div className="absolute left-1.5 top-6 w-0.5 h-4 bg-border"></div>
+                    )}
+                  </div>
+                ))}
               </div>
               
-              <div className="mt-4 space-y-2">
+              <div className="mt-6 pt-4 border-t border-border">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Next Deadline:</span>
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-4 w-4 text-warning" />
-                    <span className="font-medium">March 15, 2024</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Total Deadlines:</span>
-                  <span className="font-medium">13 identified</span>
+                  <span className="text-muted-foreground">Total Timeline Items:</span>
+                  <span className="font-medium">{aiAnalysis.criticalDates.length} identified</span>
                 </div>
               </div>
             </CardContent>
