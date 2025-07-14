@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
+import { EnhancedLegalClassifier, type ClassificationResult } from "./enhanced_classifier";
 // PDF text extraction temporarily disabled due to library compatibility issues
 // Will implement with a more Node.js compatible solution
 
@@ -592,89 +593,20 @@ This document requires manual content extraction for detailed analysis. The file
         return res.status(400).json({ error: "Document not ready for analysis" });
       }
 
-      // Enhanced content-based analysis - analyze both filename and content
+      // Enhanced evidence-based classification
       const fileContent = job.fileContent || '';
-      const fileName = job.fileName.toLowerCase();
-      const content = fileContent.toLowerCase();
+      const classificationResult: ClassificationResult = EnhancedLegalClassifier.classifyDocument(job.fileName, fileContent);
       
-      // Enhanced proposal detection using dataset builder keywords
-      const proposalKeywords = [
-        'proposal', 'rfp', 'request for proposal', 'bid', 'tender', 'funding request',
-        'grant application', 'project proposal', 'clinic proposal', 'service proposal',
-        'immigration proposal', 'legal clinic', 'funding opportunity', 'grant program',
-        'budget request', 'requested funding', 'deliverables', 'scope of work',
-        'implementation plan', 'program proposal', 'policy white paper', 'budget ask',
-        'funding initiative', 'program development', 'ngo funding pitch', 'university program proposal'
-      ];
-      
-      const negativeKeywords = [
-        'v.', 'opinion of the court', 'order granting', 'plaintiff', 'defendant',
-        'case caption', 'docket', 'court ruling', 'judgment', 'appeal', 'motion',
-        'brief', 'filing', 'opinion', 'ruling', 'decision', 'order'
-      ];
-      
-      const isProposalByFileName = proposalKeywords.some(keyword => fileName.includes(keyword));
-      const isProposalByContent = proposalKeywords.some(keyword => content.includes(keyword)) ||
-                                  content.includes('requesting funding') ||
-                                  content.includes('budget request') ||
-                                  content.includes('implementation plan') ||
-                                  content.includes('project timeline') ||
-                                  content.includes('expected outcomes');
-      
-      // Check for negative indicators (court documents, legal opinions, etc.)
-      const hasNegativeIndicators = negativeKeywords.some(keyword => 
-        fileName.includes(keyword) || content.includes(keyword)
-      );
-      
-      // Enhanced proposal detection with negative filtering
-      const isProposal = (isProposalByFileName || isProposalByContent) && !hasNegativeIndicators;
-      const isSOW = /sow|statement of work/i.test(fileName);
-      const isMedical = /obgyn|medical|healthcare|ob\/gyn|ob\+gyn/i.test(fileName);
-      const isContract = /contract|agreement|service/i.test(fileName);
-      
-      // Enhanced confidence scoring based on advanced analysis
-      let confidence = 0.75; // base confidence
-      
-      if (isProposal) {
-        // Count positive indicators
-        const positiveMatches = proposalKeywords.filter(keyword => 
-          fileName.includes(keyword) || content.includes(keyword)
-        ).length;
-        
-        confidence = 0.88; // base proposal confidence
-        
-        if (isProposalByFileName && isProposalByContent) {
-          confidence = 0.95; // highest confidence when both filename and content indicate proposal
-        } else if (positiveMatches >= 3) {
-          confidence = 0.92; // very high confidence with multiple positive indicators
-        } else if (positiveMatches >= 2) {
-          confidence = 0.90; // high confidence with moderate positive indicators
-        }
-        
-        // Boost confidence for specific funding-related terms
-        if (content.includes('funding request') || content.includes('budget request') || 
-            content.includes('requested funding') || content.includes('grant application')) {
-          confidence = Math.min(confidence + 0.03, 0.98);
-        }
-      } else {
-        // For non-proposals, check for negative indicators to boost confidence
-        const negativeMatches = negativeKeywords.filter(keyword => 
-          fileName.includes(keyword) || content.includes(keyword)
-        ).length;
-        
-        if (hasNegativeIndicators && negativeMatches >= 2) {
-          confidence = 0.90; // high confidence it's not a proposal
-        } else if (fileName.includes('clinic') || content.includes('clinic')) {
-          confidence = 0.82; // moderate confidence for clinic documents
-        } else if (fileName.includes('immigration') || content.includes('immigration')) {
-          confidence = 0.80; // moderate confidence for immigration documents
-        }
-      }
+      const isProposal = classificationResult.verdict === 'proposal';
+      const confidence = classificationResult.confidence;
+      const isSOW = /sow|statement of work/i.test(job.fileName.toLowerCase());
+      const isMedical = /obgyn|medical|healthcare|ob\/gyn|ob\+gyn/i.test(job.fileName.toLowerCase());
+      const isContract = /contract|agreement|service/i.test(job.fileName.toLowerCase());
       
       const detailedAnalysis = generateEnhancedAnalysis(job.fileName, fileContent, isProposal, isSOW, isMedical, isContract);
       
       const analysisResult = {
-        verdict: isProposal ? "proposal" : "non-proposal", 
+        verdict: classificationResult.verdict === 'undetermined' ? "non-proposal" : classificationResult.verdict,
         confidence: confidence,
         summary: detailedAnalysis.summary,
         improvements: detailedAnalysis.improvements,
@@ -683,7 +615,9 @@ This document requires manual content extraction for detailed analysis. The file
         documentType: determineDocumentType(job.fileName, isSOW, isMedical, isContract, isProposal),
         criticalDates: extractCriticalDatesFromContent(job.fileName, fileContent, isSOW),
         financialTerms: extractFinancialTermsFromContent(job.fileName, fileContent, isSOW, isMedical),
-        complianceRequirements: extractComplianceFromContent(job.fileName, fileContent, isMedical, isContract)
+        complianceRequirements: extractComplianceFromContent(job.fileName, fileContent, isMedical, isContract),
+        evidence: classificationResult.evidence,
+        reasoning: classificationResult.reasoning
       };
 
       await storage.updateJob(job_id, {

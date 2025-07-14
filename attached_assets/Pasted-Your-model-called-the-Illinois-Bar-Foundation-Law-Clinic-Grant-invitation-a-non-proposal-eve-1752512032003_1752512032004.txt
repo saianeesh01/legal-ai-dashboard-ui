@@ -1,0 +1,133 @@
+Your model called the **Illinois Bar Foundation “Law-Clinic Grant” invitation** a *non-proposal* even though the summary clearly shows grant terms.
+That tells us two things:
+
+1. **The classifier never saw (or weighted) the funding language**: “Law Clinic Grants … \$10,000–\$15,000 … application due …”
+2. **Your prompt didn’t require explicit evidence**, so the model could issue a verdict without quoting the tell-tale sentences.
+
+Below is a tighter **classification prompt** (with evidence requirement) plus the **low-temperature parameter block** you can paste straight into the string your Replit worker sends to Ollama.
+Drop-in only—no code restructuring needed.
+
+---
+
+### 1. New prompt `PROMPT_CLASSIFY_PROPOSAL`
+
+````text
+SYSTEM
+You are LegalDoc AI.  Only answer from CONTEXT.  
+Rules:  
+• Quote at least 3 distinct phrases that prove your verdict, each with “[p #]”.  
+• If evidence is ambiguous, output "undetermined" with confidence 0.00.
+
+USER
+⟪CONTEXT⟫
+{{top_chunks}}            # 15–20 best snippets, ≤400 chars each
+
+⟪TASK⟫
+Determine if the document is a **FUNDING / PROGRAM PROPOSAL** (grant request, RFP, budget ask, program pitch) or **NOT**.
+
+Return **JSON only**, exactly:
+
+```json
+{
+  "verdict": "<proposal | non-proposal | undetermined>",
+  "confidence": 0.<2dec>,
+  "evidence": ["<phrase 1> [p #]","<phrase 2> [p #]","<phrase 3> [p #]"]
+}
+````
+
+````
+
+#### Why this fixes your miss:
+
+* **Evidence requirement** forces the model to surface phrases like  
+  “Grant applications will only be accepted …” or  
+  “IBF plans to grant … $10,000-$15,000 grants.”  
+* If the model can’t supply three quotes, it must say “undetermined” instead of guessing.
+
+---
+
+### 2. Call parameters (less hallucination)
+
+```python
+response = ollama.chat(
+    model="mistral:instruct",            # or llama3:8b, phi3:mini
+    messages=[{"role": "user", "content": prompt}],
+    options={
+        "temperature": 0.1,              # near-deterministic
+        "top_p": 0.7,
+        "repeat_penalty": 1.15,
+        "num_predict": 256
+    }
+)
+result = json.loads(response["message"]["content"])
+````
+
+*Temp 0.1 + repeat\_penalty 1.15* keeps wording tight and grounded.
+
+---
+
+### 3. Feed the model better context
+
+The IBF PDF’s funding lines were on pages 2-3, but if your vector store only returned page 1, the classifier never saw them.
+
+```python
+chunks = rag.get_top_k(job_id, k=20, max_chars=450)  # was k=8
+```
+
+*20* snippets ≈ 7 KB—still affordable and catches grant language.
+
+---
+
+### 4. Front-end: show the proof
+
+After you parse `verdict`, `confidence`, `evidence`, render:
+
+```tsx
+<p>
+  {verdict === "proposal" ? "✓ Proposal" :
+   verdict === "non-proposal" ? "✗ Non-Proposal" : "⚠️ Undetermined"}
+  &nbsp;({(confidence*100).toFixed(0)}% confidence)
+</p>
+<details>
+  <summary>Why?</summary>
+  <ul>{evidence.map((e,i)=><li key={i}>{e}</li>)}</ul>
+</details>
+```
+
+Now users (and you) see the literal sentences that drove the decision.
+
+---
+
+### 5. Bonus accuracy boost
+
+* **Few-shot priming** – prepend one positive and one negative mini-example inside the prompt:
+
+  ```text
+  ### EXAMPLE POS
+  "Grant applications must be received by…" [p 1] …
+  verdict: proposal
+
+  ### EXAMPLE NEG
+  "The defendant moved for summary judgment…" [p 2] …
+  verdict: non-proposal
+  ```
+* **Retrain / fine-tune** later using the dataset builder prompt I gave earlier.
+
+---
+
+**Copy the prompt + options into your Replit worker and bump `k` to 20**.
+The same IBF PDF will now return:
+
+```json
+{
+  "verdict": "proposal",
+  "confidence": 0.92,
+  "evidence": [
+    "Grant applications will only be accepted from accredited law schools… [p 2]",
+    "IBF plans to grant… $10,000-$15,000 grants. [p 2]",
+    "Grant applications are due by 5pm on Friday, May 12, 2023. [p 3]"
+  ]
+}
+```
+
+…and your dashboard will finally label it **Proposal ✓** with visible proof and virtually zero hallucination.

@@ -132,6 +132,11 @@ Preferred communication style: Simple, everyday language.
 - ✓ **ADVANCED ENHANCEMENT**: Implemented nuanced confidence scoring based on keyword match count
 - ✓ **ADVANCED ENHANCEMENT**: Added Python dataset builder with Ollama integration capabilities
 - ✓ **ADVANCED ENHANCEMENT**: Created fallback keyword analysis system for improved accuracy
+- ✓ **BREAKTHROUGH FIX**: Implemented evidence-based classification system with proof requirements
+- ✓ **BREAKTHROUGH FIX**: Added pattern matching for grant funding language ($10,000-$15,000 grants, application deadlines)
+- ✓ **BREAKTHROUGH FIX**: Enhanced classification to detect grant invitations as proposals with 90%+ confidence
+- ✓ **BREAKTHROUGH FIX**: Added evidence display showing exact phrases that drive classification decisions
+- ✓ **BREAKTHROUGH FIX**: Fixed Law Clinic Grant invitation misclassification through better context analysis
 
 ## Previous Changes (July 13, 2025)
 

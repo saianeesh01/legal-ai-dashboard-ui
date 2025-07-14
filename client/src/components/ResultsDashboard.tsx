@@ -212,6 +212,29 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </div>
               </div>
 
+              {/* Evidence and Reasoning */}
+              {aiAnalysis.evidence && aiAnalysis.evidence.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center">
+                    <Search className="h-4 w-4 mr-2 text-primary" />
+                    Classification Evidence
+                  </h4>
+                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
+                    <p className="text-sm text-muted-foreground mb-3 font-medium">
+                      {aiAnalysis.reasoning}
+                    </p>
+                    <div className="space-y-2">
+                      {aiAnalysis.evidence.map((evidence, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-2 bg-white dark:bg-slate-800 rounded border">
+                          <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-sm">{evidence}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Key Findings */}
               {aiAnalysis.keyFindings && (
                 <div>
