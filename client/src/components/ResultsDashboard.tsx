@@ -195,38 +195,22 @@ The document contains standard commercial lease provisions with some tenant-favo
               <CardTitle className="flex items-center space-x-2">
                 <Brain className="h-5 w-5 text-primary" />
                 <span>AI Analysis Results</span>
-                <Badge 
-                  variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}
-                  className={aiAnalysis.verdict === "proposal" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
-                >
-                  {aiAnalysis.verdict === "proposal" ? "✓ Proposal" : "✗ Non-Proposal"}
-                </Badge>
-                <Badge variant="outline">
-                  {Math.round(aiAnalysis.confidence * 100)}% confidence
-                </Badge>
               </CardTitle>
               <CardDescription>
                 Comprehensive AI-powered document analysis and insights
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Document Type and Summary */}
+              {/* Expanded Summary */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold flex items-center">
-                    <FileText className="h-4 w-4 mr-2 text-primary" />
-                    Document Analysis
-                  </h4>
-                  {aiAnalysis.documentType && (
-                    <Badge variant="outline" className="text-xs">
-                      {aiAnalysis.documentType}
-                    </Badge>
-                  )}
-                </div>
+                <h4 className="font-semibold mb-3 flex items-center">
+                  <FileText className="h-4 w-4 mr-2 text-primary" />
+                  Expanded Summary
+                </h4>
                 <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="whitespace-pre-line text-sm text-muted-foreground leading-relaxed">
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
                     {aiAnalysis.summary}
-                  </div>
+                  </p>
                 </div>
               </div>
 
@@ -318,25 +302,43 @@ The document contains standard commercial lease provisions with some tenant-favo
               </Card>
             )}
 
-            {/* Improvement Suggestions */}
-            <Card className="shadow-elegant animate-fade-in">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2 text-base">
-                  <Lightbulb className="h-4 w-4 text-accent" />
-                  <span>Improvement Suggestions</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {aiAnalysis.suggestions.map((suggestion, index) => (
-                    <div key={index} className="flex items-start space-x-3 p-3 bg-accent/5 rounded-lg border border-accent/20">
-                      <Lightbulb className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">{suggestion}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Improvements */}
+            {aiAnalysis.improvements && aiAnalysis.improvements.length > 0 && (
+              <Card className="shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <Lightbulb className="h-4 w-4 text-accent" />
+                    <span>Suggestions to Improve</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc list-inside space-y-2">
+                    {aiAnalysis.improvements.map((improvement, index) => (
+                      <li key={index} className="text-sm">{improvement}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recommended Toolkit */}
+            {aiAnalysis.toolkit && aiAnalysis.toolkit.length > 0 && (
+              <Card className="shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span>Recommended Toolkit</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc list-inside space-y-2">
+                    {aiAnalysis.toolkit.map((tool, index) => (
+                      <li key={index} className="text-sm">{tool}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       )}

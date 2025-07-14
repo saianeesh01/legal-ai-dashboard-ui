@@ -112,7 +112,7 @@ def query_ollama(prompt: str, model: str = "llama3.2:3b") -> str:
                 "options": {
                     "temperature": 0.1,
                     "top_p": 0.9,
-                    "max_tokens": 1000
+                    "max_tokens": 2000
                 }
             },
             timeout=60
@@ -135,33 +135,33 @@ def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]
     chunks = chunk_text(text_content, 400)
     context_sample = '\n'.join(chunks[:10])  # Use first 10 chunks for analysis
     
+    # Calculate page count estimate
+    page_count = max(1, len(chunks) // 8)  # Estimate pages based on chunks
+    
     prompt = f"""
-SYSTEM: You are LegalDoc AI, a concise, citation-aware assistant.
-All answers must be derived only from the provided context.
-Never invent facts, statutes, or page numbers.
-When unsure, reply "I don't know from the context."
+SYSTEM
+You are LegalDoc AI, a concise, citation-aware assistant.  
+Answer strictly from the provided context; never hallucinate statutes or page numbers.
 
-USER:
-DOC_META:
-- file_name: {filename}
-- total_pages: estimated
+USER
+<<DOC_META>>
+• file_name: {filename}
+• total_pages: {page_count}
 
-CONTEXT:
+<<CONTEXT>>
 {context_sample}
 
-TASKS:
-1. Classify — Is this a *proposal* document?
-   • Output exactly "proposal" or "non-proposal" plus a 0-1 confidence score.
-2. Executive summary — ≤ 120 words, bullet style, plain English.
-3. Suggestions — up to 5 numbered fixes that would strengthen the document.
+<<TASKS>>
+1. **Expanded summary** – 150-200 words that explain what the document is, its purpose, scope, target beneficiaries, funding ask, and key timeline items.  
+2. **Improvements** – up to 5 numbered suggestions that would make this proposal more persuasive, complete, or fundable.  
+3. **Recommended toolkit** – list the specific software, legal-tech libraries, or operational tools the clinic/proposal should incorporate (e.g., Clio, Docketwise, Lexis+), each with 1-sentence rationale.
 
-Respond in the following single JSON block and nothing else:
+Return the result in **exactly** this JSON shape and nothing else:
 
 {{
-  "verdict": "<proposal | non-proposal>",
-  "confidence": 0.<2 decimals>,
-  "summary": "<bullet summary>",
-  "suggestions": ["<text>", ...]
+  "summary": "<paragraph>",
+  "improvements": ["<text>", "..."],
+  "toolkit": ["<tool> – <why>", "..."]
 }}
 """
 
@@ -182,19 +182,17 @@ Respond in the following single JSON block and nothing else:
                             ['proposal', 'request for proposal', 'rfp', 'bid', 'tender'])
             
             return {
-                "verdict": "proposal" if is_proposal else "non-proposal",
-                "confidence": 0.70 if is_proposal else 0.60,
-                "summary": "Document analysis completed with keyword detection method.",
-                "suggestions": ["Consider adding more structured sections", "Include clear objectives", "Add timeline details"]
+                "summary": "Document analysis completed with keyword detection method. This appears to be a legal document that may require further review for comprehensive analysis.",
+                "improvements": ["Consider adding more structured sections", "Include clear objectives", "Add timeline details", "Enhance document formatting", "Include executive summary"],
+                "toolkit": ["Clio – comprehensive legal practice management", "DocuSign – electronic signature management", "Lexis+ – legal research and analysis"]
             }
             
     except Exception as e:
         logger.error(f"AI analysis error: {e}")
         return {
-            "verdict": "non-proposal",
-            "confidence": 0.50,
-            "summary": "Unable to complete full AI analysis.",
-            "suggestions": ["Document requires manual review"]
+            "summary": "Unable to complete full AI analysis due to processing error. Document requires manual review.",
+            "improvements": ["Document requires manual review", "Check file format compatibility", "Ensure document is text-readable"],
+            "toolkit": ["Manual review tools recommended"]
         }
 
 @app.route('/health', methods=['GET'])

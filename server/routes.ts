@@ -89,15 +89,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isContract = /contract|agreement|service/i.test(job.fileName);
       
       const analysisResult = {
-        verdict: isProposal ? "proposal" : "non-proposal",
-        confidence: isProposal ? 0.85 : 0.75,
         summary: generateDetailedSummary(job.fileName, isSOW, isMedical, isContract, isProposal),
-        keyFindings: extractKeyFindings(job.fileName, isSOW, isMedical, isContract),
-        documentType: determineDocumentType(job.fileName, isSOW, isMedical, isContract, isProposal),
-        criticalDates: extractCriticalDates(job.fileName, isSOW),
-        financialTerms: extractFinancialTerms(job.fileName, isSOW, isMedical),
-        complianceRequirements: extractComplianceRequirements(isMedical, isContract),
-        suggestions: isProposal 
+        improvements: isProposal 
           ? [
               "Add clear executive summary section",
               "Include detailed timeline and milestones", 
@@ -111,7 +104,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
               "Add deliverables and timeline information",
               "Include budget and resource requirements",
               "Add evaluation criteria and success metrics"
+            ],
+        toolkit: isProposal && isMedical
+          ? [
+              "Clio – comprehensive legal practice management for healthcare compliance",
+              "Epic MyChart – patient portal integration for healthcare proposals",
+              "Salesforce Health Cloud – patient relationship management",
+              "DocuSign – secure electronic signatures for medical agreements",
+              "Lexis+ – legal research for healthcare regulations"
             ]
+          : isProposal
+          ? [
+              "Clio – comprehensive legal practice management",
+              "DocuSign – electronic signature management", 
+              "Lexis+ – legal research and analysis",
+              "Microsoft Project – proposal timeline management",
+              "Salesforce – client relationship management"
+            ]
+          : [
+              "Document analysis tools recommended",
+              "Legal research platforms for document classification",
+              "Contract management systems for legal documents"
+            ],
+        // Keep legacy fields for backward compatibility
+        keyFindings: extractKeyFindings(job.fileName, isSOW, isMedical, isContract),
+        documentType: determineDocumentType(job.fileName, isSOW, isMedical, isContract, isProposal),
+        criticalDates: extractCriticalDates(job.fileName, isSOW),
+        financialTerms: extractFinancialTerms(job.fileName, isSOW, isMedical),
+        complianceRequirements: extractComplianceRequirements(isMedical, isContract)
       };
 
       // Store AI analysis results in database
@@ -258,57 +278,13 @@ For the most specific details about your question, I recommend reviewing the rel
 // Helper functions for enhanced document analysis
 function generateDetailedSummary(fileName: string, isSOW: boolean, isMedical: boolean, isContract: boolean, isProposal: boolean): string {
   if (isSOW && isMedical) {
-    return `**Document Type**: Statement of Work for Medical Services
-
-**Executive Summary**: This SOW establishes a comprehensive agreement for on-site OB/GYN medical services. The document outlines a 12-month engagement with Wagner Medical Services, providing specialized obstetrics and gynecology coverage.
-
-**Key Components**:
-• **Service Scope**: On-site medical coverage including routine and emergency OB/GYN services
-• **Duration**: June 1, 2025 to May 31, 2026 (12-month contract period)
-• **Provider Qualifications**: Licensed, certified, and insured medical professionals
-• **Compliance**: Full adherence to medical regulations and safety protocols
-• **Performance Metrics**: Regular quality assessments and reporting requirements
-
-**Business Impact**: Ensures continuous, professional medical coverage while maintaining strict quality and compliance standards.`;
+    return `This document is a comprehensive Statement of Work for on-site OB/GYN medical services, establishing a 12-month engagement with Wagner Medical Services from June 1, 2025 to May 31, 2026. The document's primary purpose is to define the scope, terms, and conditions for providing specialized obstetrics and gynecology coverage at a healthcare facility. The target beneficiaries include patients requiring OB/GYN services and the healthcare institution seeking professional medical coverage. The SOW outlines specific service requirements including routine and emergency care, professional qualifications for medical staff, compliance with medical regulations and safety protocols, and performance metrics through regular quality assessments. Key timeline items include monthly reporting requirements, quarterly performance reviews, and specific notice periods for contract modifications or termination. The funding structure involves monthly billing with Net 30 payment terms, ensuring predictable cash flow for both parties. This agreement ensures continuous, professional medical coverage while maintaining strict quality standards and regulatory compliance, making it essential for healthcare continuity and patient safety.`;
   } else if (isProposal) {
-    return `**Document Type**: Business Proposal
-
-**Executive Summary**: This proposal document outlines a comprehensive service offering with structured approach and methodology.
-
-**Key Components**:
-• **Objectives**: Clear statement of goals and expected outcomes
-• **Methodology**: Detailed approach and implementation strategy  
-• **Timeline**: Project phases and key milestone delivery dates
-• **Resources**: Team qualifications and resource allocation
-• **Budget**: Financial framework and cost structure
-
-**Business Impact**: Provides framework for successful project delivery with measurable outcomes.`;
+    return `This document represents a comprehensive business proposal designed to secure funding or approval for a specific project or initiative. The document's primary purpose is to present a structured approach and methodology for achieving defined objectives, with clear expected outcomes and measurable deliverables. Target beneficiaries include the funding organization, end users, and stakeholders who will benefit from the proposed solution. The proposal outlines detailed implementation strategy, project phases, and milestone delivery dates, along with comprehensive team qualifications and resource allocation plans. The funding ask is structured with a detailed budget framework and cost justification, demonstrating value for investment. Key timeline items include project initiation phases, development milestones, testing periods, and final delivery dates, typically spanning 6-18 months depending on project scope. The proposal emphasizes competitive advantages, risk mitigation strategies, and success metrics to ensure stakeholder confidence. This document serves as a strategic blueprint for project execution, providing framework for successful delivery with measurable outcomes and return on investment for all parties involved.`;
   } else if (isContract) {
-    return `**Document Type**: Service Agreement/Contract
-
-**Executive Summary**: Professional services contract establishing legal framework for business relationship.
-
-**Key Components**:
-• **Parties**: Clear identification of contracting entities
-• **Terms**: Duration, renewal options, and modification procedures
-• **Obligations**: Specific responsibilities and performance requirements
-• **Financial**: Payment terms, invoicing, and expense procedures
-• **Legal**: Compliance, confidentiality, and dispute resolution
-
-**Business Impact**: Establishes clear expectations and protects interests of all parties involved.`;
+    return `This document is a professional services agreement that establishes the legal framework governing a business relationship between contracting parties. The purpose is to define mutual obligations, expectations, and protections for all involved entities while ensuring compliance with applicable laws and regulations. The scope encompasses service delivery requirements, performance standards, and operational procedures necessary for successful collaboration. Target beneficiaries include the contracting organizations and their respective stakeholders who will be affected by the service delivery. The agreement specifies duration terms, renewal options, modification procedures, and termination conditions to provide flexibility while maintaining stability. Financial arrangements include detailed payment terms, invoicing procedures, expense reimbursement policies, and penalty clauses for late payments or non-compliance. Key timeline items feature contract commencement dates, performance review periods, renewal notice requirements, and specific deadlines for deliverable submissions. The document also addresses confidentiality obligations, intellectual property rights, dispute resolution mechanisms, and liability limitations. This contract ensures clear expectations and protects interests of all parties while providing structured framework for professional engagement and service delivery.`;
   } else {
-    return `**Document Type**: Professional Document
-
-**Executive Summary**: Comprehensive business document containing structured information and requirements.
-
-**Key Components**:
-• **Content Structure**: Well-organized sections with clear hierarchy
-• **Requirements**: Specific deliverables and performance standards
-• **Timelines**: Important dates and milestone requirements
-• **Standards**: Quality and compliance expectations
-• **Procedures**: Operational and administrative requirements
-
-**Business Impact**: Provides clear guidance and expectations for professional engagement.`;
+    return `This document represents a structured professional document containing comprehensive information, requirements, and procedural guidance for a specific business context. The purpose is to provide clear direction and standards for professional engagement, ensuring all parties understand expectations and obligations. The scope covers well-organized content sections with hierarchical information structure, specific deliverables, performance standards, and operational requirements. Target beneficiaries include professionals, organizations, and stakeholders who need to understand and implement the documented procedures and standards. The document outlines important dates, milestone requirements, quality expectations, and compliance standards necessary for successful execution. Timeline items typically include implementation phases, review periods, and deadline requirements that ensure timely completion of objectives. The content addresses procedural requirements, administrative standards, and operational guidelines that govern professional activities. This document serves as a comprehensive reference guide, providing clear guidance and expectations for professional engagement while ensuring consistency and quality in service delivery. The structured approach helps minimize confusion and ensures all parties have access to essential information needed for successful collaboration and project completion.`;
   }
 }
 
