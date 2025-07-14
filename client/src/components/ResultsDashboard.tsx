@@ -23,7 +23,9 @@ import {
   ExternalLink,
   Brain,
   Target,
-  Lightbulb
+  Lightbulb,
+  DollarSign,
+  Shield
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
@@ -184,54 +186,159 @@ The document contains standard commercial lease provisions with some tenant-favo
 
   return (
     <div className="space-y-6">
-      {/* AI Analysis Results */}
+      {/* Enhanced AI Analysis */}
       {aiAnalysis && !searchMode && (
-        <Card className="shadow-elegant animate-scale-in">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Brain className="h-5 w-5 text-accent" />
-              <span>AI Analysis</span>
-              <Badge variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}>
-                {aiAnalysis.verdict === "proposal" ? "Proposal Document" : "Non-Proposal Document"}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              AI-powered document classification and insights ({Math.round(aiAnalysis.confidence * 100)}% confidence)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="font-semibold mb-2 flex items-center space-x-2">
-                <Target className="h-4 w-4" />
-                <span>Key Insights</span>
-              </h4>
-              <div className="prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                  {aiAnalysis.summary}
-                </pre>
-              </div>
-            </div>
-            
-            {aiAnalysis.suggestions && aiAnalysis.suggestions.length > 0 && (
+        <div className="space-y-6">
+          {/* Main Analysis Card */}
+          <Card className="shadow-elegant animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <span>AI Analysis Results</span>
+                <Badge 
+                  variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}
+                  className={aiAnalysis.verdict === "proposal" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                >
+                  {aiAnalysis.verdict === "proposal" ? "✓ Proposal" : "✗ Non-Proposal"}
+                </Badge>
+                <Badge variant="outline">
+                  {Math.round(aiAnalysis.confidence * 100)}% confidence
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Comprehensive AI-powered document analysis and insights
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Document Type and Summary */}
               <div>
-                <h4 className="font-semibold mb-2 flex items-center space-x-2">
-                  <Lightbulb className="h-4 w-4" />
-                  <span>Improvement Suggestions</span>
-                </h4>
-                <ul className="space-y-2">
-                  {aiAnalysis.suggestions.map((suggestion, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="bg-accent text-accent-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-medium mt-0.5">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{suggestion}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold flex items-center">
+                    <FileText className="h-4 w-4 mr-2 text-primary" />
+                    Document Analysis
+                  </h4>
+                  {aiAnalysis.documentType && (
+                    <Badge variant="outline" className="text-xs">
+                      {aiAnalysis.documentType}
+                    </Badge>
+                  )}
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="whitespace-pre-line text-sm text-muted-foreground leading-relaxed">
+                    {aiAnalysis.summary}
+                  </div>
+                </div>
               </div>
+
+              {/* Key Findings */}
+              {aiAnalysis.keyFindings && (
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center">
+                    <Target className="h-4 w-4 mr-2 text-accent" />
+                    Key Findings
+                  </h4>
+                  <div className="grid gap-2">
+                    {aiAnalysis.keyFindings.map((finding, index) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm">{finding}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Detailed Analysis Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Critical Dates */}
+            {aiAnalysis.criticalDates && (
+              <Card className="shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span>Critical Dates</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {aiAnalysis.criticalDates.map((date, index) => (
+                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                        <span className="text-sm font-medium">{date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+
+            {/* Financial Terms */}
+            {aiAnalysis.financialTerms && (
+              <Card className="shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    <span>Financial Terms</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {aiAnalysis.financialTerms.map((term, index) => (
+                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-green-50 dark:bg-green-950/20">
+                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                        <span className="text-sm font-medium">{term}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Compliance Requirements */}
+            {aiAnalysis.complianceRequirements && (
+              <Card className="shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <span>Compliance Requirements</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {aiAnalysis.complianceRequirements.map((req, index) => (
+                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-purple-50 dark:bg-purple-950/20">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
+                        <span className="text-sm font-medium">{req}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Improvement Suggestions */}
+            <Card className="shadow-elegant animate-fade-in">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-base">
+                  <Lightbulb className="h-4 w-4 text-accent" />
+                  <span>Improvement Suggestions</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {aiAnalysis.suggestions.map((suggestion, index) => (
+                    <div key={index} className="flex items-start space-x-3 p-3 bg-accent/5 rounded-lg border border-accent/20">
+                      <Lightbulb className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">{suggestion}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       )}
 
       {/* Loading Analysis */}
