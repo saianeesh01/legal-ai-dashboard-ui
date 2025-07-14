@@ -1,0 +1,74 @@
+Below is a **ready‑to‑paste prompt template** you can drop straight into the
+string your Replit worker sends to the model **immediately after OCR +
+vector‑search**.
+It turns the LLM into a **multi‑label document‑type classifier** and
+returns JSON your router can branch on.
+
+---
+
+### `PROMPT_DOC_TYPE_CLASSIFIER`
+
+````text
+SYSTEM
+You are LegalDoc AI, an evidence‑based classifier.  
+Use ONLY the provided CONTEXT.  
+If evidence is insufficient, return "undetermined" with 0.00 confidence.
+
+USER
+⟪META⟫
+file_name: {{file_name}}
+total_pages: {{page_count}}
+
+⟪CONTEXT⟫
+{{top_chunks}}        # 15–20 snippets, ≤400 chars each
+
+⟪TASK⟫
+Classify this document into ONE of the following types:
+
+1. **proposal**            – funding request, RFP, grant application, budget ask
+2. **nta**                 – Notice to Appear, charging document (Form I‑862)
+3. **motion**              – immigration motion, brief, or memorandum of law
+4. **ij_decision**         – immigration judge / BIA / federal appellate opinion
+5. **form**                – immigration form (I‑589, I‑765, I‑130, etc.) or intake questionnaire
+6. **country_report**      – country‑condition / human‑rights report or article
+7. **other**
+
+Return JSON ONLY, nothing else:
+
+```json
+{
+  "document_type": "<proposal | nta | motion | ij_decision | form | country_report | other | undetermined>",
+  "confidence": 0.<two_decimals>,
+  "evidence": [
+    "<quoted phrase 1> [p #]",
+    "<phrase 2> [p #]",
+    "<phrase 3> [p #]"
+  ]
+}
+````
+
+````
+
+---
+
+### Suggested call options
+
+```python
+response = ollama.chat(
+    model="mistral:instruct",   # or llama3:8b
+    messages=[{"role": "user", "content": prompt}],
+    options={
+        "temperature": 0.15,
+        "top_p": 0.7,
+        "repeat_penalty": 1.15,
+        "num_predict": 300
+    }
+)
+result = json.loads(response["message"]["content"])
+````
+
+---
+
+Plug this prompt into Replit, route on `result["document_type"]`, and you
+can keep your **proposal analyzer** while unlocking the six new
+immigration‑defense modules without further prompt engineering.

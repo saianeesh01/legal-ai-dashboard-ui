@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_classifier";
+import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -409,37 +410,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Document not ready for analysis" });
       }
 
-      // Smart AI-powered classification using actual content with court document detection
+      // Enhanced multi-label classification with court document detection
       const fileContent = job.fileContent || '';
       const smartResult: SmartClassificationResult = SmartLegalClassifier.analyzeDocument(job.fileName, fileContent);
+      const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(job.fileName, fileContent);
       
-      const isProposal = smartResult.verdict === 'proposal';
-      const confidence = smartResult.confidence;
-      const isUndetermined = smartResult.verdict === 'undetermined';
+      // Use multi-label classification for primary categorization
+      const isProposal = multiLabelResult.document_type === 'proposal';
+      const confidence = multiLabelResult.confidence;
+      const isUndetermined = multiLabelResult.document_type === 'undetermined';
+      const documentCategory = multiLabelResult.document_type;
       
       // Log classification details for debugging
-      console.log(`Classification result for ${job.fileName}:`);
-      console.log(`  Verdict: ${smartResult.verdict}`);
+      console.log(`Enhanced classification result for ${job.fileName}:`);
+      console.log(`  Document Type: ${documentCategory}`);
       console.log(`  Confidence: ${confidence}`);
-      console.log(`  Evidence: ${smartResult.evidence}`);
-      console.log(`  Court indicators: ${smartResult.contentAnalysis.hasCourtIndicators}`);
-      console.log(`  Litigation terms: ${smartResult.contentAnalysis.hasLitigationTerms}`);
+      console.log(`  Evidence: ${multiLabelResult.evidence}`);
+      console.log(`  Smart Classifier Court indicators: ${smartResult.contentAnalysis.hasCourtIndicators}`);
+      console.log(`  Smart Classifier Litigation terms: ${smartResult.contentAnalysis.hasLitigationTerms}`);
       
-      // Generate analysis based on actual content
+      // Generate enhanced analysis based on multi-label classification
       const analysisResult = {
-        verdict: smartResult.verdict,
+        verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
         confidence: confidence,
-        summary: generateSummary(job.fileName, fileContent, isProposal),
-        improvements: generateImprovements(isProposal, smartResult.contentAnalysis),
-        toolkit: generateToolkit(isProposal),
-        keyFindings: extractKeyFindings(fileContent),
-        documentType: determineDocumentType(job.fileName, fileContent, isProposal),
+        documentCategory: documentCategory,
+        summary: generateEnhancedSummary(job.fileName, fileContent, isProposal, documentCategory),
+        improvements: generateCategorySpecificImprovements(documentCategory, smartResult.contentAnalysis),
+        toolkit: generateCategorySpecificToolkit(documentCategory),
+        keyFindings: extractCategorySpecificFindings(fileContent, documentCategory),
+        documentType: determineEnhancedDocumentType(job.fileName, fileContent, documentCategory),
         criticalDates: extractCriticalDates(fileContent),
         financialTerms: extractFinancialTerms(fileContent),
         complianceRequirements: extractComplianceRequirements(fileContent),
-        evidence: smartResult.evidence,
-        reasoning: smartResult.reasoning,
-        contentAnalysis: smartResult.contentAnalysis
+        evidence: multiLabelResult.evidence,
+        reasoning: multiLabelResult.reasoning,
+        contentAnalysis: smartResult.contentAnalysis,
+        multiLabelAnalysis: {
+          documentType: multiLabelResult.document_type,
+          confidence: multiLabelResult.confidence,
+          evidence: multiLabelResult.evidence,
+          pageReferences: multiLabelResult.pageReferences
+        }
       };
 
       await storage.updateJob(job_id, {
@@ -545,6 +556,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 // Helper functions for content analysis
+function generateEnhancedSummary(fileName: string, content: string, isProposal: boolean, documentCategory: string): string {
+  // Enhanced summary generation based on document category
+  switch (documentCategory) {
+    case 'nta':
+      return generateNTASummary(fileName, content);
+    case 'motion':
+      return generateMotionSummary(fileName, content);
+    case 'ij_decision':
+      return generateIJDecisionSummary(fileName, content);
+    case 'form':
+      return generateFormSummary(fileName, content);
+    case 'country_report':
+      return generateCountryReportSummary(fileName, content);
+    case 'proposal':
+      return generateProposalSummary(fileName, content);
+    default:
+      return generateSummary(fileName, content, isProposal);
+  }
+}
+
+function generateNTASummary(fileName: string, content: string): string {
+  return `NOTICE TO APPEAR (NTA) ANALYSIS
+
+Document: ${fileName}
+Document Type: Immigration Court Notice to Appear (Form I-862)
+
+DOCUMENT OVERVIEW
+This Notice to Appear formally initiates removal proceedings against the respondent. The document contains charging allegations and establishes the Immigration Court's jurisdiction over the case.
+
+KEY COMPONENTS
+- Respondent identification and biographical information
+- Charging allegations and immigration law violations
+- Court hearing date, time, and location
+- Respondent's rights and obligations
+- Legal basis for removal proceedings
+
+LEGAL IMPLICATIONS
+The NTA serves as the foundational charging document in removal proceedings. It must contain specific factual allegations and legal charges to establish the court's jurisdiction. Any defects in the NTA may be grounds for termination of proceedings.
+
+NEXT STEPS
+- Respondent must appear at scheduled hearing
+- Legal representation should be secured
+- Response to charges must be prepared
+- Evidence gathering for potential defenses`;
+}
+
+function generateMotionSummary(fileName: string, content: string): string {
+  return `IMMIGRATION MOTION ANALYSIS
+
+Document: ${fileName}
+Document Type: Legal Motion or Brief
+
+DOCUMENT OVERVIEW
+This legal motion presents arguments and requests specific relief from the Immigration Court or administrative body. The document follows formal legal briefing standards and includes supporting legal authorities.
+
+KEY COMPONENTS
+- Statement of relief requested
+- Factual background and procedural history
+- Legal arguments and analysis
+- Supporting evidence and documentation
+- Conclusion and prayer for relief
+
+LEGAL STRATEGY
+The motion advances specific legal arguments supported by case law, statutes, and regulations. Success depends on the strength of legal precedent and factual support provided.
+
+PROCEDURAL REQUIREMENTS
+- Proper service on opposing counsel
+- Compliance with filing deadlines
+- Supporting documentation requirements
+- Hearing scheduling if required`;
+}
+
+function generateIJDecisionSummary(fileName: string, content: string): string {
+  return `IMMIGRATION JUDGE DECISION ANALYSIS
+
+Document: ${fileName}
+Document Type: Immigration Court Decision or Order
+
+DOCUMENT OVERVIEW
+This judicial decision resolves immigration proceedings and determines the respondent's immigration status. The decision includes legal findings, factual determinations, and final orders.
+
+KEY COMPONENTS
+- Factual findings and credibility determinations
+- Legal conclusions and precedent application
+- Final order (granted/denied relief)
+- Appeal rights and deadline information
+- Compliance requirements if applicable
+
+LEGAL IMPACT
+The decision establishes the respondent's immigration status and may grant or deny requested relief. Adverse decisions may be appealed to the Board of Immigration Appeals within 30 days.
+
+IMPLEMENTATION REQUIREMENTS
+- Compliance with any court orders
+- Appeal filing if applicable
+- Status adjustment procedures if relief granted
+- Departure arrangements if removal ordered`;
+}
+
+function generateFormSummary(fileName: string, content: string): string {
+  return `IMMIGRATION FORM ANALYSIS
+
+Document: ${fileName}
+Document Type: Immigration Form or Application
+
+DOCUMENT OVERVIEW
+This immigration form facilitates the application process for specific immigration benefits or status adjustments. The form contains required information and supporting documentation.
+
+KEY COMPONENTS
+- Applicant biographical information
+- Immigration history and status
+- Specific benefit or relief requested
+- Supporting documentation requirements
+- Filing instructions and procedures
+
+PROCESSING REQUIREMENTS
+- Complete and accurate information
+- Required supporting evidence
+- Proper filing fees
+- Submission to appropriate office
+- Follow-up on case status
+
+COMPLIANCE CONSIDERATIONS
+- Deadline compliance for submissions
+- Truth and accuracy requirements
+- Documentation authentication
+- Legal representation advisability`;
+}
+
+function generateCountryReportSummary(fileName: string, content: string): string {
+  return `COUNTRY CONDITIONS REPORT ANALYSIS
+
+Document: ${fileName}
+Document Type: Country Conditions or Human Rights Report
+
+DOCUMENT OVERVIEW
+This report provides comprehensive information about conditions in a specific country relevant to immigration proceedings. The report serves as evidence for asylum, withholding, and CAT claims.
+
+KEY COMPONENTS
+- Political and security conditions
+- Human rights situation
+- Government protection capabilities
+- Persecution patterns and targets
+- Recent developments and trends
+
+EVIDENTIARY VALUE
+Country reports provide essential background evidence for protection claims. The credibility and recency of the report affects its evidentiary weight in immigration proceedings.
+
+STRATEGIC USE
+- Supporting asylum applications
+- Demonstrating changed country conditions
+- Establishing persecution patterns
+- Rebutting government position`;
+}
+
+function generateProposalSummary(fileName: string, content: string): string {
+  return generateSummary(fileName, content, true);
+}
+
 function generateSummary(fileName: string, content: string, isProposal: boolean): string {
   const contentLength = content.length;
   const lowerContent = content.toLowerCase();
@@ -1178,6 +1347,286 @@ function getTargetAudienceAndStakeholders(fileName: string, content: string): { 
   }
   
   return { primaryAudience, secondaryAudiences };
+}
+
+function generateCategorySpecificImprovements(documentCategory: string, contentAnalysis: any): string[] {
+  switch (documentCategory) {
+    case 'nta':
+      return [
+        'Review charging allegations for accuracy and completeness',
+        'Identify potential jurisdictional defects or due process violations',
+        'Assess respondent\'s eligibility for relief from removal',
+        'Prepare comprehensive response to each allegation',
+        'Gather supporting evidence for potential defenses'
+      ];
+    case 'motion':
+      return [
+        'Strengthen legal arguments with additional case law citations',
+        'Expand factual record with supporting documentation',
+        'Address potential counterarguments preemptively',
+        'Ensure compliance with local court rules and procedures',
+        'Include comprehensive prayer for relief'
+      ];
+    case 'ij_decision':
+      return [
+        'Analyze decision for appealable errors of law or fact',
+        'Assess compliance with procedural due process requirements',
+        'Review credibility determinations for clear error',
+        'Identify potential grounds for motion to reopen',
+        'Prepare appeal brief if decision is adverse'
+      ];
+    case 'form':
+      return [
+        'Verify completeness and accuracy of all information',
+        'Ensure proper supporting documentation is included',
+        'Review filing requirements and deadlines',
+        'Confirm proper signatures and notarization',
+        'Prepare for potential requests for additional evidence'
+      ];
+    case 'country_report':
+      return [
+        'Verify currency and reliability of information sources',
+        'Cross-reference with other country condition reports',
+        'Identify specific persecution patterns relevant to case',
+        'Assess government protection capabilities',
+        'Update with most recent developments'
+      ];
+    case 'proposal':
+      return generateImprovements(true, contentAnalysis);
+    default:
+      return generateImprovements(false, contentAnalysis);
+  }
+}
+
+function generateCategorySpecificToolkit(documentCategory: string): string[] {
+  switch (documentCategory) {
+    case 'nta':
+      return [
+        'Immigration Court Practice Manual',
+        'BIA Practice Manual and Precedent Decisions',
+        'Immigration and Nationality Act (INA)',
+        'Code of Federal Regulations (CFR) Title 8',
+        'EOIR Operating Policies and Procedures Memoranda'
+      ];
+    case 'motion':
+      return [
+        'Federal Rules of Civil Procedure',
+        'Local Immigration Court Rules',
+        'Legal brief templates and formatting guides',
+        'Case law research databases (Westlaw, Lexis)',
+        'Immigration law practice guides'
+      ];
+    case 'ij_decision':
+      return [
+        'BIA Appeal Procedures Manual',
+        'Federal Circuit Court Rules',
+        'Administrative record compilation guidelines',
+        'Appeal brief templates and requirements',
+        'Deadline calculation tools'
+      ];
+    case 'form':
+      return [
+        'USCIS Form Instructions and Filing Tips',
+        'Immigration Benefits Application Guidelines',
+        'Supporting Documentation Checklists',
+        'Filing Fee Schedules and Payment Methods',
+        'Case Status Tracking Systems'
+      ];
+    case 'country_report':
+      return [
+        'State Department Country Reports on Human Rights',
+        'UNHCR Country of Origin Information',
+        'Immigration Research databases',
+        'Academic and NGO country analysis',
+        'Recent news and development tracking'
+      ];
+    case 'proposal':
+      return generateToolkit(true);
+    default:
+      return generateToolkit(false);
+  }
+}
+
+function extractCategorySpecificFindings(content: string, documentCategory: string): string[] {
+  switch (documentCategory) {
+    case 'nta':
+      return extractNTAFindings(content);
+    case 'motion':
+      return extractMotionFindings(content);
+    case 'ij_decision':
+      return extractIJDecisionFindings(content);
+    case 'form':
+      return extractFormFindings(content);
+    case 'country_report':
+      return extractCountryReportFindings(content);
+    case 'proposal':
+      return extractKeyFindings(content);
+    default:
+      return extractKeyFindings(content);
+  }
+}
+
+function extractNTAFindings(content: string): string[] {
+  const findings: string[] = [];
+  
+  // Look for charging allegations
+  const chargingPatterns = [
+    /charged?\s+(?:with|under)\s+(?:section|§)\s*\d+/i,
+    /removable\s+(?:as|under)/i,
+    /inadmissible\s+(?:as|under)/i,
+    /violation\s+of\s+(?:section|§)/i
+  ];
+  
+  for (const pattern of chargingPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Charging allegation identified: ${matches[0]}`);
+    }
+  }
+  
+  // Look for hearing information
+  const hearingPatterns = [
+    /hearing\s+(?:date|time|location)/i,
+    /appear\s+(?:on|at)\s+(?:\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/i,
+    /immigration\s+court/i
+  ];
+  
+  for (const pattern of hearingPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Hearing information: ${matches[0]}`);
+    }
+  }
+  
+  return findings.length > 0 ? findings : ['Standard NTA structure identified'];
+}
+
+function extractMotionFindings(content: string): string[] {
+  const findings: string[] = [];
+  
+  // Look for relief requested
+  const reliefPatterns = [
+    /(?:motion|petition)\s+(?:to|for)\s+(\w+(?:\s+\w+)*)/i,
+    /respectfully\s+(?:moves|requests|asks)\s+(?:the\s+court\s+)?(?:to|for)\s+(\w+(?:\s+\w+)*)/i,
+    /relief\s+(?:requested|sought):\s*(.+)/i
+  ];
+  
+  for (const pattern of reliefPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Relief requested: ${matches[1] || matches[0]}`);
+    }
+  }
+  
+  // Look for legal standards
+  const legalPatterns = [
+    /legal\s+standard/i,
+    /burden\s+of\s+proof/i,
+    /standard\s+of\s+review/i
+  ];
+  
+  for (const pattern of legalPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Legal standard addressed: ${matches[0]}`);
+    }
+  }
+  
+  return findings.length > 0 ? findings : ['Legal motion structure identified'];
+}
+
+function extractIJDecisionFindings(content: string): string[] {
+  const findings: string[] = [];
+  
+  // Look for decision outcomes
+  const decisionPatterns = [
+    /(?:asylum|withholding|cat)\s+(?:is\s+)?(?:granted|denied|sustained|overruled)/i,
+    /removal\s+(?:is\s+)?(?:granted|denied|terminated|ordered)/i,
+    /respondent\s+(?:is|has)\s+(?:ordered|found|determined)/i
+  ];
+  
+  for (const pattern of decisionPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Decision outcome: ${matches[0]}`);
+    }
+  }
+  
+  // Look for appeal rights
+  const appealPatterns = [
+    /appeal\s+rights/i,
+    /board\s+of\s+immigration\s+appeals/i,
+    /thirty\s+\(?30\)?\s+days?/i
+  ];
+  
+  for (const pattern of appealPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Appeal information: ${matches[0]}`);
+    }
+  }
+  
+  return findings.length > 0 ? findings : ['Immigration judge decision structure identified'];
+}
+
+function extractFormFindings(content: string): string[] {
+  const findings: string[] = [];
+  
+  // Look for form identifiers
+  const formPatterns = [
+    /form\s+i-\d{3}/i,
+    /(?:application|petition)\s+for\s+(.+)/i,
+    /part\s+\d+\.\s+(.+)/i
+  ];
+  
+  for (const pattern of formPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Form element: ${matches[0]}`);
+    }
+  }
+  
+  return findings.length > 0 ? findings : ['Immigration form structure identified'];
+}
+
+function extractCountryReportFindings(content: string): string[] {
+  const findings: string[] = [];
+  
+  // Look for country conditions
+  const countryPatterns = [
+    /(?:political|security|human\s+rights)\s+(?:conditions|situation)/i,
+    /persecution\s+(?:of|against)/i,
+    /government\s+(?:protection|response)/i,
+    /recent\s+developments/i
+  ];
+  
+  for (const pattern of countryPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      findings.push(`Country condition: ${matches[0]}`);
+    }
+  }
+  
+  return findings.length > 0 ? findings : ['Country conditions report structure identified'];
+}
+
+function determineEnhancedDocumentType(fileName: string, content: string, documentCategory: string): string {
+  switch (documentCategory) {
+    case 'nta':
+      return 'Notice to Appear (NTA)';
+    case 'motion':
+      return 'Immigration Motion/Brief';
+    case 'ij_decision':
+      return 'Immigration Judge Decision';
+    case 'form':
+      return 'Immigration Form';
+    case 'country_report':
+      return 'Country Conditions Report';
+    case 'proposal':
+      return 'Funding Proposal';
+    default:
+      return determineDocumentType(fileName, content, documentCategory === 'proposal');
+  }
 }
 
 function generateImprovements(isProposal: boolean, contentAnalysis: any): string[] {

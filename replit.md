@@ -160,6 +160,13 @@ Preferred communication style: Simple, everyday language.
 - ✓ **CRITICAL FIX**: Added 'undetermined' classification for documents with insufficient evidence
 - ✓ **CRITICAL FIX**: Enhanced classifier to require evidence before high-confidence classification
 - ✓ **CRITICAL FIX**: Improved reasoning to clearly explain court document vs proposal distinctions
+- ✓ **MAJOR ENHANCEMENT**: Implemented multi-label document classification system for immigration law
+- ✓ **MAJOR ENHANCEMENT**: Added specialized categorization for NTA, motions, IJ decisions, forms, and country reports
+- ✓ **MAJOR ENHANCEMENT**: Created category-specific analysis functions with immigration law expertise
+- ✓ **MAJOR ENHANCEMENT**: Enhanced summaries with document-type specific legal analysis and requirements
+- ✓ **MAJOR ENHANCEMENT**: Added immigration-specific improvement suggestions and compliance toolkits
+- ✓ **MAJOR ENHANCEMENT**: Integrated evidence-based classification with page references and legal citations
+- ✓ **MAJOR ENHANCEMENT**: Expanded system beyond proposal detection to comprehensive legal document analysis
 
 ## Previous Changes (July 13, 2025)
 
