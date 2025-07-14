@@ -31,6 +31,53 @@ interface ResultsDashboardProps {
   searchMode?: boolean;
 }
 
+// Helper functions for multi-label document type display
+const getDocumentTypeLabel = (verdict: string): string => {
+  switch (verdict) {
+    case 'proposal':
+      return '📄 Proposal';
+    case 'nta':
+      return '⚖️ Notice to Appear (NTA)';
+    case 'motion':
+      return '📋 Motion/Brief';
+    case 'ij_decision':
+      return '⚖️ Immigration Judge Decision';
+    case 'form':
+      return '📝 Immigration Form';
+    case 'country_report':
+      return '🌍 Country Report';
+    case 'other':
+      return '📄 Other Legal Document';
+    case 'undetermined':
+      return '❓ Undetermined';
+    default:
+      return verdict === 'proposal' ? '✓ Proposal' : '✗ Non-Proposal';
+  }
+};
+
+const getDocumentTypeBadgeClass = (verdict: string): string => {
+  switch (verdict) {
+    case 'proposal':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'nta':
+      return 'bg-red-100 text-red-800 border-red-200';
+    case 'motion':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'ij_decision':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'form':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'country_report':
+      return 'bg-teal-100 text-teal-800 border-teal-200';
+    case 'other':
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+    case 'undetermined':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    default:
+      return verdict === 'proposal' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  }
+};
+
 const ResultsDashboard = ({ 
   uploadResults, 
   queryResults, 
@@ -182,10 +229,10 @@ The document contains standard commercial lease provisions with some tenant-favo
                 <span>AI Analysis Results</span>
                 {aiAnalysis.verdict && (
                   <Badge 
-                    variant={aiAnalysis.verdict === "proposal" ? "default" : "secondary"}
-                    className={aiAnalysis.verdict === "proposal" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                    variant="default"
+                    className={getDocumentTypeBadgeClass(aiAnalysis.verdict)}
                   >
-                    {aiAnalysis.verdict === "proposal" ? "✓ Proposal" : "✗ Non-Proposal"}
+                    {getDocumentTypeLabel(aiAnalysis.verdict)}
                   </Badge>
                 )}
                 {aiAnalysis.confidence && (

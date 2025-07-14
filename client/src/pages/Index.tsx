@@ -22,6 +22,76 @@ import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Tr
 import { getAllDocuments, deleteDocument } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
+// Helper functions for multi-label document type display
+const getDocumentTypeLabel = (verdict: string): string => {
+  switch (verdict) {
+    case 'proposal':
+      return 'Proposal';
+    case 'nta':
+      return 'Notice to Appear (NTA)';
+    case 'motion':
+      return 'Motion/Brief';
+    case 'ij_decision':
+      return 'Immigration Judge Decision';
+    case 'form':
+      return 'Immigration Form';
+    case 'country_report':
+      return 'Country Report';
+    case 'other':
+      return 'Other Legal Document';
+    case 'undetermined':
+      return 'Undetermined';
+    default:
+      return verdict === 'proposal' ? 'Proposal' : 'Non-Proposal';
+  }
+};
+
+const getDocumentTypeBadgeClass = (verdict: string): string => {
+  switch (verdict) {
+    case 'proposal':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'nta':
+      return 'bg-red-100 text-red-800 border-red-200';
+    case 'motion':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'ij_decision':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'form':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'country_report':
+      return 'bg-teal-100 text-teal-800 border-teal-200';
+    case 'other':
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+    case 'undetermined':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    default:
+      return verdict === 'proposal' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  }
+};
+
+const getDocumentTypeIcon = (verdict: string) => {
+  switch (verdict) {
+    case 'proposal':
+      return <CheckCircle className="h-3 w-3 mr-1" />;
+    case 'nta':
+      return <AlertCircle className="h-3 w-3 mr-1" />;
+    case 'motion':
+      return <FileText className="h-3 w-3 mr-1" />;
+    case 'ij_decision':
+      return <CheckCircle className="h-3 w-3 mr-1" />;
+    case 'form':
+      return <FileText className="h-3 w-3 mr-1" />;
+    case 'country_report':
+      return <FileText className="h-3 w-3 mr-1" />;
+    case 'other':
+      return <FileText className="h-3 w-3 mr-1" />;
+    case 'undetermined':
+      return <AlertCircle className="h-3 w-3 mr-1" />;
+    default:
+      return verdict === 'proposal' ? <CheckCircle className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />;
+  }
+};
+
 const Index = () => {
   const [currentView, setCurrentView] = useState("upload");
   const [queryResults, setQueryResults] = useState(null);
@@ -29,7 +99,7 @@ const Index = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "proposal" | "non-proposal">("all");
+  const [filterType, setFilterType] = useState<"all" | "proposal" | "nta" | "motion" | "ij_decision" | "form" | "country_report" | "other" | "undetermined">("all");
   
   const queryClient = useQueryClient();
 
@@ -99,9 +169,7 @@ const Index = () => {
   // Filter documents based on search query and type
   const filteredDocuments = documents?.filter((document) => {
     const matchesSearch = document.fileName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === "all" || 
-      (filterType === "proposal" && document.aiAnalysis?.verdict === "proposal") ||
-      (filterType === "non-proposal" && document.aiAnalysis?.verdict === "non-proposal");
+    const matchesType = filterType === "all" || document.aiAnalysis?.verdict === filterType;
     
     return matchesSearch && matchesType;
   }) || [];
@@ -182,15 +250,21 @@ const Index = () => {
                       
                       {/* Filter Select */}
                       <div className="sm:w-48">
-                        <Select value={filterType} onValueChange={(value: "all" | "proposal" | "non-proposal") => setFilterType(value)}>
+                        <Select value={filterType} onValueChange={(value: "all" | "proposal" | "nta" | "motion" | "ij_decision" | "form" | "country_report" | "other" | "undetermined") => setFilterType(value)}>
                           <SelectTrigger className="w-full">
                             <Filter className="h-4 w-4 mr-2" />
                             <SelectValue placeholder="Filter by type" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Documents</SelectItem>
-                            <SelectItem value="proposal">Proposals Only</SelectItem>
-                            <SelectItem value="non-proposal">Non-Proposals Only</SelectItem>
+                            <SelectItem value="proposal">📄 Proposals</SelectItem>
+                            <SelectItem value="nta">⚖️ Notice to Appear (NTA)</SelectItem>
+                            <SelectItem value="motion">📋 Motions/Briefs</SelectItem>
+                            <SelectItem value="ij_decision">⚖️ Immigration Judge Decisions</SelectItem>
+                            <SelectItem value="form">📝 Immigration Forms</SelectItem>
+                            <SelectItem value="country_report">🌍 Country Reports</SelectItem>
+                            <SelectItem value="other">📄 Other Legal Documents</SelectItem>
+                            <SelectItem value="undetermined">❓ Undetermined</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -218,7 +292,7 @@ const Index = () => {
                         <span className="text-xs">
                           {searchQuery && `"${searchQuery}"`}
                           {searchQuery && filterType !== "all" && " • "}
-                          {filterType !== "all" && `${filterType === "proposal" ? "Proposals" : "Non-Proposals"} only`}
+                          {filterType !== "all" && `${getDocumentTypeLabel(filterType)} only`}
                         </span>
                       )}
                     </div>
@@ -282,24 +356,11 @@ const Index = () => {
                         <div className="flex items-center space-x-2">
                           <FileText className="h-5 w-5 text-primary" />
                           <Badge 
-                            variant={document.aiAnalysis?.verdict === "proposal" ? "default" : "secondary"}
-                            className={`${
-                              document.aiAnalysis?.verdict === "proposal" 
-                                ? "bg-green-100 text-green-800 border-green-200" 
-                                : "bg-red-100 text-red-800 border-red-200"
-                            }`}
+                            variant="default"
+                            className={getDocumentTypeBadgeClass(document.aiAnalysis?.verdict || 'undetermined')}
                           >
-                            {document.aiAnalysis?.verdict === "proposal" ? (
-                              <>
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Proposal
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Non-Proposal
-                              </>
-                            )}
+                            {getDocumentTypeIcon(document.aiAnalysis?.verdict || 'undetermined')}
+                            {getDocumentTypeLabel(document.aiAnalysis?.verdict || 'undetermined')}
                           </Badge>
                         </div>
                         <div className="flex items-center space-x-2">

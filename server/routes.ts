@@ -431,7 +431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate enhanced analysis based on multi-label classification
       const analysisResult = {
-        verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
+        verdict: multiLabelResult.document_type, // Use the actual document type instead of binary classification
         confidence: confidence,
         documentCategory: documentCategory,
         summary: generateEnhancedSummary(job.fileName, fileContent, isProposal, documentCategory),
