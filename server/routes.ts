@@ -374,19 +374,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let fileContent = '';
       try {
         if (req.file.mimetype === 'application/pdf') {
-          // Extract actual PDF content using pdf-parse
+          // Extract actual PDF content using multiple parsing strategies
           try {
-            const pdfParse = require('pdf-parse');
-            const pdfBuffer = req.file.buffer;
-            const pdfData = await pdfParse(pdfBuffer);
-            fileContent = pdfData.text || '';
-          
-            console.log(`Extracted PDF content for ${req.file.originalname}:`);
-            console.log(`Content length: ${fileContent.length} characters`);
-            console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
-          } catch (pdfError) {
-            console.log(`PDF parsing failed for ${req.file.originalname}:`, pdfError);
-            // Provide detailed filename-based content for classification when PDF parsing fails
+            console.log(`Attempting PDF parsing for ${req.file.originalname}, buffer size: ${req.file.buffer.length}`);
+            
+            let pdfParseSuccess = false;
+            
+            // Strategy 1: Try pdf-parse
+            try {
+              const pdfParse = (await import('pdf-parse')).default;
+              const pdfBuffer = req.file.buffer;
+              
+              // Validate PDF buffer
+              if (!pdfBuffer || pdfBuffer.length === 0) {
+                throw new Error('Empty PDF buffer');
+              }
+              
+              // Try with different parsing options
+              const pdfData = await pdfParse(pdfBuffer);
+              fileContent = pdfData.text || '';
+              
+              if (fileContent && fileContent.trim().length > 50) {
+                console.log(`Successfully extracted PDF content for ${req.file.originalname}:`);
+                console.log(`Content length: ${fileContent.length} characters`);
+                console.log(`Number of pages: ${pdfData.numpages || 'unknown'}`);
+                console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
+                pdfParseSuccess = true;
+              } else {
+                console.log('PDF parsed but extracted minimal text content');
+              }
+            } catch (pdfParseError) {
+              console.log(`pdf-parse failed: ${pdfParseError.message || pdfParseError}`);
+            }
+            
+            // Strategy 2: If pdf-parse failed or returned minimal content, try pdfjs-dist
+            if (!pdfParseSuccess) {
+              try {
+                console.log('Attempting fallback PDF parsing with pdfjs-dist...');
+                const pdfjsLib = await import('pdfjs-dist');
+                
+                // Load the PDF document
+                const typedArray = new Uint8Array(req.file.buffer);
+                const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+                
+                let extractedText = '';
+                
+                // Extract text from each page
+                for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 10); pageNum++) { // Limit to first 10 pages
+                  const page = await pdf.getPage(pageNum);
+                  const textContent = await page.getTextContent();
+                  const pageText = textContent.items.map((item: any) => item.str).join(' ');
+                  extractedText += pageText + '\n';
+                }
+                
+                if (extractedText && extractedText.trim().length > 50) {
+                  fileContent = extractedText;
+                  console.log(`Successfully extracted PDF content with pdfjs-dist for ${req.file.originalname}:`);
+                  console.log(`Content length: ${fileContent.length} characters`);
+                  console.log(`Number of pages: ${pdf.numPages}`);
+                  console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
+                  pdfParseSuccess = true;
+                }
+              } catch (pdfjsError) {
+                console.log(`pdfjs-dist parsing failed: ${pdfjsError.message || pdfjsError}`);
+              }
+            }
+            
+            // If both parsing methods failed or returned minimal content
+            if (!pdfParseSuccess) {
+              console.log('All PDF parsing methods failed or returned minimal content, using filename-based content');
+              fileContent = generateClassificationFriendlyContent(req.file.originalname, req.file.size);
+            }
+            
+          } catch (generalError) {
+            console.log(`General PDF parsing error for ${req.file.originalname}:`, generalError.message || generalError);
             fileContent = generateClassificationFriendlyContent(req.file.originalname, req.file.size);
           }
           
