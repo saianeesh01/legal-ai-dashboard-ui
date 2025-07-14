@@ -335,14 +335,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
           } catch (pdfError) {
             console.log(`PDF parsing failed for ${req.file.originalname}:`, pdfError);
-            // Create detailed content based on filename for better analysis
-            fileContent = generateDetailedContentFromFilename(req.file.originalname, req.file.size);
+            // Use minimal file description only to avoid data leakage
+            fileContent = `Document: ${req.file.originalname}. File type: PDF. Content extraction failed.`;
           }
           
-          // If PDF extraction failed or returned minimal content, enhance with filename analysis
+          // If PDF extraction failed or returned minimal content, use basic file info
           if (!fileContent || fileContent.trim().length < 100) {
-            console.log('PDF extraction failed or returned minimal content, generating enhanced content');
-            fileContent = generateDetailedContentFromFilename(req.file.originalname, req.file.size);
+            console.log('PDF extraction failed or returned minimal content, using basic file info');
+            fileContent = `Document: ${req.file.originalname}. File type: PDF. Size: ${req.file.size} bytes. Content not available for analysis.`;
           }
         } else if (req.file.mimetype.startsWith('text/')) {
           fileContent = req.file.buffer.toString('utf8');
@@ -557,6 +557,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 // Helper functions for content analysis
 function generateEnhancedSummary(fileName: string, content: string, isProposal: boolean, documentCategory: string): string {
+  // Check if content extraction failed to prevent data leakage
+  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return `DOCUMENT ANALYSIS UNAVAILABLE
+
+Document: ${fileName}
+Status: Content extraction failed
+
+The document could not be analyzed because the content could not be extracted from the PDF file. This could be due to:
+- Password protection or security restrictions
+- Corrupted or damaged file format  
+- Scanned image-only PDF without text layer
+- Technical parsing limitations
+
+To get a proper analysis, please:
+1. Ensure the PDF is not password protected
+2. Try re-uploading the document
+3. Convert scanned PDFs to text-searchable format
+4. Contact support if the issue persists
+
+Document type classification and detailed analysis require readable text content.`;
+  }
+
   // Enhanced summary generation based on document category
   switch (documentCategory) {
     case 'nta':
@@ -1713,6 +1735,11 @@ function generateToolkit(isProposal: boolean): string[] {
 }
 
 function extractKeyFindings(content: string): string[] {
+  // Check if content extraction failed to prevent data leakage
+  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return ["Content extraction failed - unable to analyze document findings"];
+  }
+
   const findings: string[] = [];
   const lowerContent = content.toLowerCase();
   
@@ -1769,7 +1796,7 @@ function extractKeyFindings(content: string): string[] {
     findings.push("Legal clinic operations and volunteer coordination systems");
   }
   
-  return findings.length > 0 ? findings : ["Document structure and content framework established for detailed analysis"];
+  return findings.length > 0 ? findings : ["No specific findings could be extracted from the document content"];
 }
 
 function determineDocumentType(fileName: string, content: string, isProposal: boolean): string {
@@ -1799,6 +1826,10 @@ function determineDocumentType(fileName: string, content: string, isProposal: bo
 }
 
 function extractCriticalDates(content: string): string[] {
+  // Check if content extraction failed to prevent data leakage
+  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return ["Content extraction failed - unable to extract dates"];
+  }
   const dates: string[] = [];
   const lowerContent = content.toLowerCase();
   
@@ -1859,6 +1890,10 @@ function extractCriticalDates(content: string): string[] {
 }
 
 function extractFinancialTerms(content: string): string[] {
+  // Check if content extraction failed to prevent data leakage
+  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return ["Content extraction failed - unable to extract financial terms"];
+  }
   const terms: string[] = [];
   const lowerContent = content.toLowerCase();
   
@@ -1979,6 +2014,10 @@ function getPercentageContext(content: string, percent: string): string | null {
 }
 
 function extractComplianceRequirements(content: string): string[] {
+  // Check if content extraction failed to prevent data leakage
+  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return ["Content extraction failed - unable to extract compliance requirements"];
+  }
   const requirements: string[] = [];
   const lowerContent = content.toLowerCase();
   
