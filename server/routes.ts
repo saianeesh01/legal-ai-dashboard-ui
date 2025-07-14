@@ -300,10 +300,19 @@ function generateClassificationFriendlyContent(fileName: string, fileSize: numbe
     content += 'Document Type: Immigration Notice to Appear (Form I-862)\n';
     content += 'Legal Document Category: Immigration Court Proceedings\n';
     content += 'Purpose: Formal notice initiating removal proceedings\n';
-  } else if (lowerFileName.includes('motion') && (lowerFileName.includes('reopen') || lowerFileName.includes('reconsider'))) {
+  } else if (lowerFileName.includes('motion')) {
     content += 'Document Type: Immigration Motion\n';
     content += 'Legal Document Category: Immigration Court Motion\n';
-    content += 'Purpose: Motion to reopen or reconsider immigration case\n';
+    if (lowerFileName.includes('reopen')) {
+      content += 'Purpose: Motion to reopen immigration proceedings\n';
+      content += 'Motion Type: Motion to Reopen\n';
+    } else if (lowerFileName.includes('reconsider')) {
+      content += 'Purpose: Motion to reconsider previous decision\n';
+      content += 'Motion Type: Motion to Reconsider\n';
+    } else {
+      content += 'Purpose: Legal motion filing in immigration court\n';
+      content += 'Motion Type: Immigration Motion\n';
+    }
   } else if (lowerFileName.includes('i-589') || lowerFileName.includes('asylum')) {
     content += 'Document Type: Immigration Form I-589 (Asylum Application)\n';
     content += 'Legal Document Category: Immigration Form\n';

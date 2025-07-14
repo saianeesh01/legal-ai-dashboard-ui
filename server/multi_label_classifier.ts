@@ -217,13 +217,39 @@ export class MultiLabelDocumentClassifier {
       { pattern: /respectfully\s+(?:moves|requests)/i, weight: 0.15, description: "respectfully moves language" },
       { pattern: /relief\s+(?:requested|sought)/i, weight: 0.15, description: "relief requested" },
       { pattern: /legal\s+standard/i, weight: 0.10, description: "legal standard reference" },
-      { pattern: /argument\s+(?:and\s+)?analysis/i, weight: 0.10, description: "argument and analysis section" }
+      { pattern: /argument\s+(?:and\s+)?analysis/i, weight: 0.10, description: "argument and analysis section" },
+      { pattern: /motion.*(?:reopen|reconsider)/i, weight: 0.35, description: "motion to reopen/reconsider" },
+      { pattern: /reopen.*proceedings/i, weight: 0.20, description: "reopen proceedings language" },
+      { pattern: /reconsider.*decision/i, weight: 0.20, description: "reconsider decision language" }
     ];
     
-    // Filename boost for motions
-    if (/motion|brief|memorandum|memo/i.test(fileName)) {
-      confidence += 0.12;
-      evidence.push(`Filename suggests motion: "${fileName}"`);
+    // Enhanced filename boost for motions - check both filename patterns and specific motion types
+    const fileNameLower = fileName.toLowerCase();
+    if (/motion/i.test(fileName)) {
+      confidence += 0.40; // Strong boost for "motion" in filename
+      evidence.push(`Filename clearly indicates motion document: "${fileName}"`);
+      
+      // Additional boost for specific motion types
+      if (/reopen/i.test(fileName)) {
+        confidence += 0.20;
+        evidence.push(`Motion to reopen identified in filename`);
+      }
+      if (/reconsider/i.test(fileName)) {
+        confidence += 0.20;
+        evidence.push(`Motion to reconsider identified in filename`);
+      }
+    } else if (/brief|memorandum|memo/i.test(fileName)) {
+      confidence += 0.20;
+      evidence.push(`Filename suggests legal brief/memorandum: "${fileName}"`);
+    }
+    
+    // Check filename for motion patterns first
+    for (const { pattern, weight, description } of motionPatterns) {
+      if (pattern.test(fileNameLower)) {
+        confidence += weight;
+        evidence.push(`${description}: detected in filename "${fileName}"`);
+        pageReferences.push(`[filename]`);
+      }
     }
     
     for (const chunk of chunks) {
