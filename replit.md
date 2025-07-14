@@ -137,6 +137,15 @@ Preferred communication style: Simple, everyday language.
 - ✓ **BREAKTHROUGH FIX**: Enhanced classification to detect grant invitations as proposals with 90%+ confidence
 - ✓ **BREAKTHROUGH FIX**: Added evidence display showing exact phrases that drive classification decisions
 - ✓ **BREAKTHROUGH FIX**: Fixed Law Clinic Grant invitation misclassification through better context analysis
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Significantly expanded document summary system with detailed analysis for all document types
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Enhanced key findings extraction with 15+ specific categories (grant/funding, service delivery, client population, etc.)
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Expanded financial terms analysis with contextual extraction, ranges, percentages, and budget categories
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Comprehensive compliance requirements analysis with legal, regulatory, and professional standards
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Enhanced critical dates extraction with relative dates, grant-specific dates, and service schedules
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Dramatically expanded improvement suggestions with 20+ specific recommendations for proposals and non-proposals
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Added specialized analysis for Immigration Law, Veterans Services, and Legal Clinic documents
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Improved confidence scoring with multiple evidence types and filename-based boosts (12-20% additional confidence)
+- ✓ **COMPREHENSIVE ENHANCEMENT**: Enhanced document type classification with confidence scoring and evidence integration
 
 ## Previous Changes (July 13, 2025)
 

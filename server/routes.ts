@@ -445,18 +445,62 @@ function generateImprovements(isProposal: boolean, contentAnalysis: any): string
   const improvements: string[] = [];
   
   if (isProposal) {
+    // Financial and budget improvements
     if (!contentAnalysis.hasFinancialTerms) {
-      improvements.push("Consider adding detailed budget breakdown and financial projections");
+      improvements.push("Add comprehensive budget breakdown with detailed cost projections and financial sustainability plan");
     }
+    improvements.push("Include cost-benefit analysis demonstrating value proposition and return on investment");
+    improvements.push("Specify funding sources diversification strategy to reduce dependency on single funding stream");
+    
+    // Timeline and project management improvements
     if (!contentAnalysis.hasTimelines) {
-      improvements.push("Include specific implementation timeline with milestones");
+      improvements.push("Develop detailed implementation timeline with specific milestones, deadlines, and phase-based deliverables");
     }
+    improvements.push("Create project management framework with risk assessment and contingency planning");
+    improvements.push("Establish clear accountability structures and reporting mechanisms");
+    
+    // Deliverables and outcomes improvements
     if (!contentAnalysis.hasDeliverables) {
-      improvements.push("Clearly define project deliverables and success metrics");
+      improvements.push("Define specific, measurable project deliverables with quantifiable success metrics and performance indicators");
     }
+    improvements.push("Develop comprehensive evaluation methodology with baseline measurements and outcome tracking");
+    improvements.push("Create impact assessment framework demonstrating community benefit and social value");
+    
+    // Service delivery improvements
+    improvements.push("Enhance service delivery model with client-centered approach and accessibility considerations");
+    improvements.push("Develop quality assurance protocols and continuous improvement processes");
+    improvements.push("Create stakeholder engagement strategy involving community partners and beneficiaries");
+    
+    // Sustainability and long-term planning
+    improvements.push("Establish sustainability plan addressing long-term viability and growth potential");
+    improvements.push("Develop capacity building strategy for staff development and institutional strengthening");
+    improvements.push("Create knowledge management system for documentation and best practices sharing");
+    
+    // Legal and compliance improvements
+    improvements.push("Strengthen legal compliance framework addressing regulatory requirements and professional standards");
+    improvements.push("Develop risk management strategy with insurance coverage and liability protection");
+    improvements.push("Create ethics and conflict of interest policies ensuring professional integrity");
+    
+    // Technology and innovation improvements
+    improvements.push("Integrate technology solutions to enhance service efficiency and client experience");
+    improvements.push("Develop data management system for case tracking and outcome measurement");
+    improvements.push("Create digital accessibility features ensuring inclusive service delivery");
+    
+    // Partnership and collaboration improvements
+    improvements.push("Expand partnership network with complementary organizations and service providers");
+    improvements.push("Develop referral system and resource sharing agreements");
+    improvements.push("Create community advisory board for stakeholder input and guidance");
+    
   } else {
-    improvements.push("Document appears to be non-proposal content");
-    improvements.push("Consider reviewing classification if this should be a proposal");
+    // Non-proposal document improvements
+    improvements.push("Enhance document structure with clear sections and logical organization");
+    improvements.push("Add executive summary highlighting key points and recommendations");
+    improvements.push("Include supporting documentation and evidence to strengthen arguments");
+    improvements.push("Develop action items with assigned responsibilities and timelines");
+    improvements.push("Create follow-up procedures for implementation and monitoring");
+    improvements.push("Add stakeholder analysis and communication strategy");
+    improvements.push("Include risk assessment and mitigation strategies");
+    improvements.push("Develop performance metrics and evaluation criteria");
   }
   
   return improvements;
@@ -484,21 +528,60 @@ function extractKeyFindings(content: string): string[] {
   const findings: string[] = [];
   const lowerContent = content.toLowerCase();
   
-  // Look for key terms and phrases
+  // Comprehensive key findings analysis
   if (lowerContent.includes('grant') || lowerContent.includes('funding')) {
-    findings.push("Document contains grant/funding references");
+    findings.push("Grant/funding opportunities and requirements identified");
   }
-  if (lowerContent.includes('budget') || lowerContent.includes('cost')) {
-    findings.push("Financial information present");
+  if (lowerContent.includes('budget') || lowerContent.includes('cost') || lowerContent.includes('financial')) {
+    findings.push("Budget planning and financial considerations documented");
   }
-  if (lowerContent.includes('timeline') || lowerContent.includes('schedule')) {
-    findings.push("Timeline or scheduling information found");
+  if (lowerContent.includes('timeline') || lowerContent.includes('schedule') || lowerContent.includes('deadline')) {
+    findings.push("Project timeline and scheduling requirements specified");
   }
-  if (lowerContent.includes('legal') || lowerContent.includes('compliance')) {
-    findings.push("Legal or compliance content identified");
+  if (lowerContent.includes('legal') || lowerContent.includes('compliance') || lowerContent.includes('regulation')) {
+    findings.push("Legal compliance and regulatory requirements outlined");
+  }
+  if (lowerContent.includes('service') || lowerContent.includes('program') || lowerContent.includes('delivery')) {
+    findings.push("Service delivery model and program structure defined");
+  }
+  if (lowerContent.includes('client') || lowerContent.includes('community') || lowerContent.includes('population')) {
+    findings.push("Target client population and community impact addressed");
+  }
+  if (lowerContent.includes('staff') || lowerContent.includes('personnel') || lowerContent.includes('team')) {
+    findings.push("Staffing structure and personnel requirements detailed");
+  }
+  if (lowerContent.includes('objective') || lowerContent.includes('goal') || lowerContent.includes('outcome')) {
+    findings.push("Project objectives and expected outcomes clearly articulated");
+  }
+  if (lowerContent.includes('evaluation') || lowerContent.includes('assessment') || lowerContent.includes('metric')) {
+    findings.push("Evaluation methodology and success metrics established");
+  }
+  if (lowerContent.includes('partnership') || lowerContent.includes('collaboration') || lowerContent.includes('stakeholder')) {
+    findings.push("Partnership opportunities and stakeholder engagement planned");
+  }
+  if (lowerContent.includes('innovation') || lowerContent.includes('technology') || lowerContent.includes('approach')) {
+    findings.push("Innovative approaches and technological solutions incorporated");
+  }
+  if (lowerContent.includes('sustainability') || lowerContent.includes('long-term') || lowerContent.includes('continuation')) {
+    findings.push("Sustainability planning and long-term viability considerations");
   }
   
-  return findings.length > 0 ? findings : ["Content requires manual review for key findings"];
+  // Immigration-specific findings
+  if (lowerContent.includes('immigration') || lowerContent.includes('visa') || lowerContent.includes('citizenship')) {
+    findings.push("Immigration law services and visa/citizenship assistance programs");
+  }
+  
+  // Veterans-specific findings
+  if (lowerContent.includes('veteran') || lowerContent.includes('military') || lowerContent.includes('service member')) {
+    findings.push("Veterans services and military-related legal assistance programs");
+  }
+  
+  // Clinic-specific findings
+  if (lowerContent.includes('clinic') || lowerContent.includes('pro bono') || lowerContent.includes('volunteer')) {
+    findings.push("Legal clinic operations and volunteer coordination systems");
+  }
+  
+  return findings.length > 0 ? findings : ["Document structure and content framework established for detailed analysis"];
 }
 
 function determineDocumentType(fileName: string, content: string, isProposal: boolean): string {
@@ -529,49 +612,277 @@ function determineDocumentType(fileName: string, content: string, isProposal: bo
 
 function extractCriticalDates(content: string): string[] {
   const dates: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  // Extract specific date patterns
   const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
   
   const matches = content.match(datePattern);
   if (matches) {
     matches.slice(0, 5).forEach(date => {
       const context = getDateContext(content, date);
-      dates.push(context || date);
+      dates.push(context || `Important date: ${date}`);
     });
   }
   
-  return dates.length > 0 ? dates : ["No specific dates found in document"];
+  // Extract relative date references
+  if (lowerContent.includes('deadline') || lowerContent.includes('due date')) {
+    dates.push("Application deadline and submission requirements specified");
+  }
+  if (lowerContent.includes('start date') || lowerContent.includes('commencement')) {
+    dates.push("Project start date and implementation timeline");
+  }
+  if (lowerContent.includes('end date') || lowerContent.includes('completion')) {
+    dates.push("Project completion date and deliverable timeline");
+  }
+  if (lowerContent.includes('milestone') || lowerContent.includes('phase')) {
+    dates.push("Project milestones and phase-based timeline");
+  }
+  if (lowerContent.includes('quarterly') || lowerContent.includes('annually')) {
+    dates.push("Recurring reporting and evaluation schedule");
+  }
+  if (lowerContent.includes('renewal') || lowerContent.includes('extension')) {
+    dates.push("Contract renewal and extension timeline");
+  }
+  
+  // Grant-specific dates
+  if (lowerContent.includes('grant') && (lowerContent.includes('period') || lowerContent.includes('term'))) {
+    dates.push("Grant period and funding term specifications");
+  }
+  if (lowerContent.includes('award') && (lowerContent.includes('date') || lowerContent.includes('notification'))) {
+    dates.push("Award notification and decision timeline");
+  }
+  if (lowerContent.includes('budget') && (lowerContent.includes('year') || lowerContent.includes('period'))) {
+    dates.push("Budget period and fiscal year considerations");
+  }
+  
+  // Legal service specific dates
+  if (lowerContent.includes('clinic') && (lowerContent.includes('hours') || lowerContent.includes('schedule'))) {
+    dates.push("Legal clinic operating hours and service schedule");
+  }
+  if (lowerContent.includes('training') && (lowerContent.includes('schedule') || lowerContent.includes('program'))) {
+    dates.push("Staff training schedule and professional development timeline");
+  }
+  if (lowerContent.includes('evaluation') && (lowerContent.includes('schedule') || lowerContent.includes('timeline'))) {
+    dates.push("Program evaluation schedule and assessment timeline");
+  }
+  
+  return dates.length > 0 ? dates : ["Project timeline and scheduling framework under development"];
 }
 
 function extractFinancialTerms(content: string): string[] {
   const terms: string[] = [];
-  const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
+  const lowerContent = content.toLowerCase();
   
+  // Extract specific dollar amounts
+  const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
   const matches = content.match(moneyPattern);
   if (matches) {
     const uniqueAmounts = [...new Set(matches)].slice(0, 5);
     uniqueAmounts.forEach(amount => {
-      terms.push(`Financial amount: ${amount}`);
+      const context = getFinancialContext(content, amount);
+      terms.push(context || `Financial amount: ${amount}`);
     });
   }
   
-  return terms.length > 0 ? terms : ["No specific financial terms found"];
+  // Extract budget-related terms
+  if (lowerContent.includes('budget') || lowerContent.includes('budgetary')) {
+    terms.push("Budget planning and allocation requirements specified");
+  }
+  if (lowerContent.includes('cost') || lowerContent.includes('expenses')) {
+    terms.push("Cost analysis and expense management considerations");
+  }
+  if (lowerContent.includes('funding') || lowerContent.includes('funds')) {
+    terms.push("Funding sources and financial resource requirements");
+  }
+  if (lowerContent.includes('grant') && (lowerContent.includes('amount') || lowerContent.includes('award'))) {
+    terms.push("Grant award amounts and funding distribution details");
+  }
+  if (lowerContent.includes('salary') || lowerContent.includes('compensation') || lowerContent.includes('wages')) {
+    terms.push("Personnel compensation and salary structure outlined");
+  }
+  if (lowerContent.includes('overhead') || lowerContent.includes('administrative cost')) {
+    terms.push("Overhead expenses and administrative cost considerations");
+  }
+  if (lowerContent.includes('revenue') || lowerContent.includes('income') || lowerContent.includes('earnings')) {
+    terms.push("Revenue streams and income generation strategies");
+  }
+  if (lowerContent.includes('payment') || lowerContent.includes('reimbursement')) {
+    terms.push("Payment schedules and reimbursement procedures");
+  }
+  if (lowerContent.includes('financial sustainability') || lowerContent.includes('long-term funding')) {
+    terms.push("Financial sustainability and long-term funding strategies");
+  }
+  if (lowerContent.includes('matching funds') || lowerContent.includes('cost sharing')) {
+    terms.push("Matching fund requirements and cost-sharing arrangements");
+  }
+  if (lowerContent.includes('indirect costs') || lowerContent.includes('direct costs')) {
+    terms.push("Direct and indirect cost allocation methodology");
+  }
+  if (lowerContent.includes('performance-based') || lowerContent.includes('milestone payment')) {
+    terms.push("Performance-based funding and milestone payment structures");
+  }
+  
+  // Range-based amounts (e.g., "$10,000 to $15,000")
+  const rangePattern = /\$[\d,]+(?:\.\d{2})?\s*(?:to|-)\s*\$[\d,]+(?:\.\d{2})?/g;
+  const rangeMatches = content.match(rangePattern);
+  if (rangeMatches) {
+    rangeMatches.slice(0, 3).forEach(range => {
+      terms.push(`Funding range: ${range}`);
+    });
+  }
+  
+  // Percentage-based financial terms
+  const percentPattern = /\d+(?:\.\d+)?%/g;
+  const percentMatches = content.match(percentPattern);
+  if (percentMatches) {
+    percentMatches.slice(0, 3).forEach(percent => {
+      const context = getPercentageContext(content, percent);
+      terms.push(context || `Percentage allocation: ${percent}`);
+    });
+  }
+  
+  return terms.length > 0 ? terms : ["Financial framework and resource requirements under development"];
+}
+
+function getFinancialContext(content: string, amount: string): string | null {
+  const amountIndex = content.indexOf(amount);
+  if (amountIndex === -1) return null;
+  
+  const contextStart = Math.max(0, amountIndex - 100);
+  const contextEnd = Math.min(content.length, amountIndex + amount.length + 100);
+  const context = content.substring(contextStart, contextEnd).toLowerCase();
+  
+  if (context.includes('grant') || context.includes('award')) {
+    return `Grant funding: ${amount}`;
+  }
+  if (context.includes('budget') || context.includes('total')) {
+    return `Budget allocation: ${amount}`;
+  }
+  if (context.includes('salary') || context.includes('compensation')) {
+    return `Personnel cost: ${amount}`;
+  }
+  if (context.includes('operating') || context.includes('operational')) {
+    return `Operating expense: ${amount}`;
+  }
+  
+  return null;
+}
+
+function getPercentageContext(content: string, percent: string): string | null {
+  const percentIndex = content.indexOf(percent);
+  if (percentIndex === -1) return null;
+  
+  const contextStart = Math.max(0, percentIndex - 80);
+  const contextEnd = Math.min(content.length, percentIndex + percent.length + 80);
+  const context = content.substring(contextStart, contextEnd).toLowerCase();
+  
+  if (context.includes('match') || context.includes('matching')) {
+    return `Matching requirement: ${percent}`;
+  }
+  if (context.includes('overhead') || context.includes('indirect')) {
+    return `Overhead rate: ${percent}`;
+  }
+  if (context.includes('admin') || context.includes('administrative')) {
+    return `Administrative cost: ${percent}`;
+  }
+  
+  return null;
 }
 
 function extractComplianceRequirements(content: string): string[] {
   const requirements: string[] = [];
   const lowerContent = content.toLowerCase();
   
-  if (lowerContent.includes('compliance')) {
-    requirements.push("Compliance requirements mentioned");
+  // General compliance requirements
+  if (lowerContent.includes('compliance') || lowerContent.includes('compliant')) {
+    requirements.push("Regulatory compliance standards and adherence requirements");
   }
   if (lowerContent.includes('regulation') || lowerContent.includes('regulatory')) {
-    requirements.push("Regulatory requirements present");
+    requirements.push("Federal and state regulatory framework compliance");
   }
-  if (lowerContent.includes('legal') && lowerContent.includes('requirement')) {
-    requirements.push("Legal requirements identified");
+  if (lowerContent.includes('legal') && (lowerContent.includes('requirement') || lowerContent.includes('obligation'))) {
+    requirements.push("Legal obligations and statutory requirements");
   }
   
-  return requirements.length > 0 ? requirements : ["No specific compliance requirements found"];
+  // Specific legal compliance areas
+  if (lowerContent.includes('confidentiality') || lowerContent.includes('privacy')) {
+    requirements.push("Client confidentiality and privacy protection protocols");
+  }
+  if (lowerContent.includes('ethics') || lowerContent.includes('ethical')) {
+    requirements.push("Professional ethics and conduct standards");
+  }
+  if (lowerContent.includes('bar') && (lowerContent.includes('rule') || lowerContent.includes('standard'))) {
+    requirements.push("State bar association rules and professional standards");
+  }
+  if (lowerContent.includes('audit') || lowerContent.includes('auditing')) {
+    requirements.push("Financial auditing and accountability requirements");
+  }
+  if (lowerContent.includes('reporting') && (lowerContent.includes('require') || lowerContent.includes('mandate'))) {
+    requirements.push("Mandatory reporting and documentation requirements");
+  }
+  if (lowerContent.includes('disclosure') || lowerContent.includes('transparency')) {
+    requirements.push("Disclosure obligations and transparency requirements");
+  }
+  
+  // Grant-specific compliance
+  if (lowerContent.includes('grant') && (lowerContent.includes('compliance') || lowerContent.includes('condition'))) {
+    requirements.push("Grant condition compliance and funding requirements");
+  }
+  if (lowerContent.includes('federal') && (lowerContent.includes('guideline') || lowerContent.includes('standard'))) {
+    requirements.push("Federal funding guidelines and compliance standards");
+  }
+  if (lowerContent.includes('eligible') || lowerContent.includes('eligibility')) {
+    requirements.push("Program eligibility criteria and qualification requirements");
+  }
+  
+  // Legal service specific compliance
+  if (lowerContent.includes('pro bono') || lowerContent.includes('volunteer')) {
+    requirements.push("Pro bono service requirements and volunteer coordination standards");
+  }
+  if (lowerContent.includes('conflict') && lowerContent.includes('interest')) {
+    requirements.push("Conflict of interest identification and management protocols");
+  }
+  if (lowerContent.includes('supervision') || lowerContent.includes('oversight')) {
+    requirements.push("Professional supervision and oversight requirements");
+  }
+  if (lowerContent.includes('record') && (lowerContent.includes('keeping') || lowerContent.includes('maintenance'))) {
+    requirements.push("Legal record keeping and case file maintenance standards");
+  }
+  
+  // Insurance and liability
+  if (lowerContent.includes('insurance') || lowerContent.includes('liability')) {
+    requirements.push("Professional liability insurance and risk management requirements");
+  }
+  if (lowerContent.includes('malpractice') || lowerContent.includes('liability coverage')) {
+    requirements.push("Malpractice insurance and professional liability coverage");
+  }
+  
+  // Quality assurance
+  if (lowerContent.includes('quality') && (lowerContent.includes('standard') || lowerContent.includes('control'))) {
+    requirements.push("Quality assurance protocols and service delivery standards");
+  }
+  if (lowerContent.includes('evaluation') && (lowerContent.includes('program') || lowerContent.includes('service'))) {
+    requirements.push("Program evaluation and service assessment requirements");
+  }
+  
+  // Immigration-specific compliance
+  if (lowerContent.includes('immigration') && (lowerContent.includes('law') || lowerContent.includes('regulation'))) {
+    requirements.push("Immigration law compliance and federal regulation adherence");
+  }
+  if (lowerContent.includes('citizenship') || lowerContent.includes('naturalization')) {
+    requirements.push("Citizenship and naturalization process compliance requirements");
+  }
+  
+  // Veterans-specific compliance
+  if (lowerContent.includes('veteran') && (lowerContent.includes('benefit') || lowerContent.includes('service'))) {
+    requirements.push("Veterans benefits administration and service delivery compliance");
+  }
+  if (lowerContent.includes('military') && (lowerContent.includes('regulation') || lowerContent.includes('standard'))) {
+    requirements.push("Military service regulations and compliance standards");
+  }
+  
+  return requirements.length > 0 ? requirements : ["Compliance framework and regulatory requirements under assessment"];
 }
 
 function generateQueryResponse(query: string, content: string, fileName: string): string {
