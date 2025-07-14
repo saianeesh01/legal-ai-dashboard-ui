@@ -6,6 +6,8 @@ import ResultsDashboard from "../components/ResultsDashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2, Filter, X } from "lucide-react";
 import { getAllDocuments, deleteDocument } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
@@ -26,6 +28,8 @@ const Index = () => {
   const [uploadResults, setUploadResults] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<"all" | "proposal" | "non-proposal">("all");
   
   const queryClient = useQueryClient();
 
@@ -92,6 +96,21 @@ const Index = () => {
     }
   };
 
+  // Filter documents based on search query and type
+  const filteredDocuments = documents?.filter((document) => {
+    const matchesSearch = document.fileName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = filterType === "all" || 
+      (filterType === "proposal" && document.aiAnalysis?.verdict === "proposal") ||
+      (filterType === "non-proposal" && document.aiAnalysis?.verdict === "non-proposal");
+    
+    return matchesSearch && matchesType;
+  }) || [];
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterType("all");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar currentView={currentView} setCurrentView={setCurrentView} />
@@ -143,6 +162,71 @@ const Index = () => {
               </p>
             </div>
 
+            {/* Search and Filter Controls */}
+            {documents && documents.length > 0 && (
+              <div className="mb-8">
+                <Card className="shadow-elegant">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* Search Input */}
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          placeholder="Search documents by name..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 pr-4"
+                        />
+                      </div>
+                      
+                      {/* Filter Select */}
+                      <div className="sm:w-48">
+                        <Select value={filterType} onValueChange={(value: "all" | "proposal" | "non-proposal") => setFilterType(value)}>
+                          <SelectTrigger className="w-full">
+                            <Filter className="h-4 w-4 mr-2" />
+                            <SelectValue placeholder="Filter by type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Documents</SelectItem>
+                            <SelectItem value="proposal">Proposals Only</SelectItem>
+                            <SelectItem value="non-proposal">Non-Proposals Only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Clear Filters Button */}
+                      {(searchQuery || filterType !== "all") && (
+                        <Button 
+                          variant="outline" 
+                          size="default"
+                          onClick={clearFilters}
+                          className="sm:w-auto"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Results Summary */}
+                    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                      <span>
+                        Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
+                      </span>
+                      {(searchQuery || filterType !== "all") && (
+                        <span className="text-xs">
+                          {searchQuery && `"${searchQuery}"`}
+                          {searchQuery && filterType !== "all" && " • "}
+                          {filterType !== "all" && `${filterType === "proposal" ? "Proposals" : "Non-Proposals"} only`}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {!documents || documents.length === 0 ? (
               <div className="text-center py-20">
                 <div className="bg-card rounded-xl p-8 shadow-elegant max-w-md mx-auto">
@@ -160,9 +244,34 @@ const Index = () => {
                   </Button>
                 </div>
               </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="bg-card rounded-xl p-8 shadow-elegant max-w-md mx-auto">
+                  <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h2 className="text-xl font-semibold mb-2">No Documents Found</h2>
+                  <p className="text-muted-foreground mb-6">
+                    No documents match your current search criteria. Try adjusting your search terms or filters.
+                  </p>
+                  <Button 
+                    onClick={clearFilters}
+                    variant="outline"
+                    className="mr-2"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Filters
+                  </Button>
+                  <Button 
+                    onClick={() => setCurrentView("upload")}
+                    className="bg-gradient-primary hover:bg-primary-hover transition-smooth"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Document
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {documents.map((document) => (
+                {filteredDocuments.map((document) => (
                   <Card 
                     key={document.id}
                     className="shadow-elegant hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105"
