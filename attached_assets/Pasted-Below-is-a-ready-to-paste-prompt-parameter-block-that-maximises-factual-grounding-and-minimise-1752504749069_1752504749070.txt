@@ -1,0 +1,92 @@
+Below is a **ready-to-paste prompt + parameter block** that maximises factual grounding and minimises hallucination when your worker calls `ollama.chat()` (or the OpenAI/Anthropic SDK).
+Drop it into the string you build right after you have collected your top OCR/RAG snippets.
+
+---
+
+### 1  Prompt template (`PROMPT_PROPOSAL_CLASSIFIER`)
+
+````text
+SYSTEM
+You are LegalDoc AI, a strict evidence-based assistant.  
+Rules:  
+•   Rely ONLY on the provided CONTEXT.  
+•   Quote at least THREE concrete phrases, numbers, or dates to justify your answer.  
+•   Always cite with “[p N]” using the source page number.  
+•   If evidence is insufficient, output "undetermined" with confidence 0.00.
+
+USER
+⟪META⟫
+file_name: {{file_name}}
+total_pages: {{page_count}}
+
+⟪CONTEXT⟫
+{{top_chunks}}          # 12–20 highest-score snippets, each ≤400 chars
+
+⟪TASK⟫
+1. Decide whether this document is **a funding or program PROPOSAL** or **not**.  
+2. Provide a short EVIDENCE section listing the phrases that drove your verdict.  
+3. Output JSON exactly like this — no extra keys, no markdown:
+
+```json
+{
+  "verdict": "<proposal | non-proposal | undetermined>",
+  "confidence": 0.<two_decimals>,
+  "evidence": ["<quoted phrase 1> [p #]", "<phrase 2> [p #]", "<phrase 3> [p #]"]
+}
+````
+
+````
+
+---
+
+### 2  Model-call parameters to tame hallucination
+
+```python
+response = ollama.chat(
+    model="mistral:instruct",     # or llama3:8b, phi3:mini, etc.
+    messages=[{"role": "user", "content": prompt}],
+    options={
+        "temperature": 0.15,      # keeps wording precise
+        "top_p": 0.7,             # mild nucleus sampling
+        "repeat_penalty": 1.1,    # discourages copy-paste noise
+        "num_predict": 512        # cap tokens; JSON stays small
+    }
+)
+result = json.loads(response["message"]["content"])
+````
+
+**Why these settings?**
+
+| Param                | Value                                                          | Effect |
+| -------------------- | -------------------------------------------------------------- | ------ |
+| `temperature 0.15`   | Near-deterministic, but not robotic; reduces invented details. |        |
+| `top_p 0.7`          | Still lets model pick high-prob tokens if equally plausible.   |        |
+| `repeat_penalty 1.1` | Stops the model from echoing big portions of context verbatim. |        |
+| `num_predict 512`    | Plenty for the small JSON, but prevents runaway tokens.        |        |
+
+---
+
+### 3  Storing & displaying the basis
+
+* Persist the returned `evidence` array in your `results/<job_id>.json`.
+* In **ResultsDashboard** under “Verdict” add:
+
+```tsx
+{verdict === "proposal" ? "Proposal ✅" :
+ verdict === "non-proposal" ? "Not a Proposal ❌" :
+ "Undetermined ⚠️"}
+<details className="mt-2">
+  <summary>Why?</summary>
+  <ul className="list-disc ml-6 text-xs">
+    {evidence.map((e,i)=> <li key={i}>{e}</li>)}
+  </ul>
+</details>
+```
+
+Users (and you) now see **exactly which sentences** convinced the model
+— no hand-wavy boilerplate, no hidden logic.
+
+---
+
+**Copy the prompt & the parameter block into your Replit worker;**
+every processed document will return a verdict + confidence backed by three explicit, page-linked quotes, giving you maximum accuracy and minimal hallucination.
