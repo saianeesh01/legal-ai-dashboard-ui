@@ -147,20 +147,36 @@ export class MultiLabelDocumentClassifier {
     
     const ntaPatterns = [
       { pattern: /Notice\s+to\s+Appear/i, weight: 0.40, description: "Notice to Appear title" },
-      { pattern: /Form\s+I-862/i, weight: 0.35, description: "Form I-862 identifier" },
+      { pattern: /Form\s+I-?862/i, weight: 0.35, description: "Form I-862 identifier" },
+      { pattern: /form_i-?862/i, weight: 0.35, description: "Form I-862 in filename" },
+      { pattern: /notice_to_appear/i, weight: 0.30, description: "Notice to Appear in filename" },
       { pattern: /charging\s+document/i, weight: 0.25, description: "charging document reference" },
       { pattern: /removal\s+proceedings/i, weight: 0.20, description: "removal proceedings language" },
       { pattern: /Immigration\s+Court/i, weight: 0.15, description: "Immigration Court reference" },
       { pattern: /respondent\s+is\s+an\s+alien/i, weight: 0.20, description: "respondent alien language" },
-      { pattern: /charges?\s+(?:that|the\s+respondent)/i, weight: 0.15, description: "charges language" }
+      { pattern: /charges?\s+(?:that|the\s+respondent)/i, weight: 0.15, description: "charges language" },
+      { pattern: /Department\s+of\s+Homeland\s+Security/i, weight: 0.15, description: "DHS reference" },
+      { pattern: /U\.?S\.?\s+Immigration\s+and\s+Customs\s+Enforcement/i, weight: 0.15, description: "ICE reference" },
+      { pattern: /alien\s+registration\s+number/i, weight: 0.15, description: "A-number reference" }
     ];
     
-    // Filename boost for NTA
-    if (/nta|notice.*appear|i-?862/i.test(fileName)) {
-      confidence += 0.15;
-      evidence.push(`Filename suggests NTA: "${fileName}"`);
+    // Filename boost for NTA - enhanced patterns
+    if (/nta|notice.*appear|i-?862|form_i-?862/i.test(fileName)) {
+      confidence += 0.20;
+      evidence.push(`Filename indicates NTA document: "${fileName}"`);
     }
     
+    // Check filename first for NTA patterns
+    const fileNameLower = fileName.toLowerCase();
+    for (const { pattern, weight, description } of ntaPatterns) {
+      if (pattern.test(fileNameLower)) {
+        confidence += weight;
+        evidence.push(`${description}: "${fileName}"`);
+        pageReferences.push(`[filename]`);
+      }
+    }
+    
+    // Then check content chunks
     for (const chunk of chunks) {
       for (const { pattern, weight, description } of ntaPatterns) {
         const matches = chunk.match(pattern);

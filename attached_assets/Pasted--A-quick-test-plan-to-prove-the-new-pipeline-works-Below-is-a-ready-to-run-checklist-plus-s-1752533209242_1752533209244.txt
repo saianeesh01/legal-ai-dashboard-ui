@@ -1,0 +1,150 @@
+### A quick test‑plan to prove the new pipeline works
+
+Below is a “ready–to‑run” checklist (plus some helper commands) that will
+exercise every branch of your **multi‑label immigration classifier**—all
+without needing proprietary data.
+
+---
+
+## 1  Pick one PDF (or HTML) for each label
+
+| Label               | Quick public sample                                 | Download cmd                                               |
+| ------------------- | --------------------------------------------------- | ---------------------------------------------------------- |
+| **proposal**        | *FY‑2024 Immigrant Justice Legal Services RFA* (DC) | `curl -L -o ijls.pdf https://tinyurl.com/ijls‑rfa`         |
+| **nta**             | Sample Form I‑862 (USCIS)                           | `curl -L -o sample_nta.pdf https://tinyurl.com/sample‑nta` |
+| **motion**          | *Motion to Reopen – JOP v. DHS* (4th Cir)           | `curl -L -o motion.pdf https://tinyurl.com/jop‑motion`     |
+| **ij\_decision**    | *Matter of ABYK* (BIA 2021)                         | `curl -L -o ij_decision.pdf https://tinyurl.com/bia‑abyk`  |
+| **form**            | Blank I‑589 edition 04/23                           | `curl -L -o i589.pdf https://tinyurl.com/uscis‑i589`       |
+| **country\_report** | *2023 State‑Dept Nicaragua HR Report*               | `curl -L -o nica_hr.pdf https://tinyurl.com/nica‑hr23`     |
+| **other**           | SCOTUS slip opinion *Johnson v. Guzman Chavez*      | `curl -L -o scotus.pdf https://tinyurl.com/scotus‑guzman`  |
+
+*(You can replace these with your own documents—just keep one per class.)*
+
+---
+
+## 2  Automated cURL smoke‑test (Replit)
+
+Create `test.sh` in your Replit root:
+
+```bash
+#!/usr/bin/env bash
+BASE="https://<your-repl>.repl.co"
+
+for f in ijls.pdf sample_nta.pdf motion.pdf ij_decision.pdf i589.pdf nica_hr.pdf scotus.pdf
+do
+  echo "⤴ Uploading $f ..."
+  job=$(curl -s -F file=@$f $BASE/api/upload | jq -r '.job_id')
+
+  printf "   Job %s -> polling ... " "$job"
+  until [ "$(curl -s $BASE/api/status/$job | jq -r '.state')" = "DONE" ]; do
+    sleep 2
+    printf "."
+  done
+  echo
+
+  verdict=$(curl -s $BASE/api/results/$job | jq -r '.document_type')
+  conf=$(curl -s $BASE/api/results/$job | jq -r '.confidence')
+  echo "   ↳ detected: $verdict   (${conf})"
+  echo
+done
+```
+
+Run:
+
+```bash
+chmod +x test.sh
+./test.sh
+```
+
+**Expected console output**
+
+```
+ijls.pdf            → proposal        (>0.80)
+sample_nta.pdf      → nta             (>0.85)
+motion.pdf          → motion          (>0.80)
+ij_decision.pdf     → ij_decision     (>0.80)
+i589.pdf            → form            (>0.90)
+nica_hr.pdf         → country_report  (>0.75)
+scotus.pdf          → other           (>0.75)
+```
+
+If any class is wrong, open the JSON (`/api/results/<job>`), inspect
+`evidence[]`, and refine either the prompt keywords or retrieval `k`.
+
+---
+
+## 3  Manual UI spot‑check
+
+1. Drop each PDF through the **Upload** tab.
+2. Confirm:
+
+   * **Verdict badge** shows correct label + confidence.
+   * **Evidence drawer** quotes three phrases with `[p #]`.
+   * **AI Analysis** card changes:
+
+     * NTA ⇒ shows A‑number, venue, 1‑year deadline.
+     * Motion ⇒ 200‑word summary + counter‑points.
+     * Form ⇒ table of missing fields.
+     * Proposal ⇒ expanded summary + funding suggestions.
+3. Try the **Ask‑a‑Question** box:
+
+   * NTA: “What are the charges?”
+   * Motion: “List precedent cited.”
+   * Country report: “Any mention of LGBT persecution?”
+   * Ensure answers cite page numbers from the document.
+
+---
+
+## 4  Regression unit‑tests (optional)
+
+Create `tests/test_classifier.py`:
+
+```python
+import requests, pathlib, json, time, os
+
+BASE = os.getenv("APP_BASE")   # e.g. https://<repl>.repl.co
+cases = {
+    "ijls.pdf":"proposal",
+    "sample_nta.pdf":"nta",
+    "motion.pdf":"motion",
+    "ij_decision.pdf":"ij_decision",
+    "i589.pdf":"form",
+    "nica_hr.pdf":"country_report",
+}
+
+def poll(job):
+    while True:
+        r = requests.get(f"{BASE}/api/status/{job}").json()
+        if r["state"]=="DONE": break
+        time.sleep(2)
+
+def test_classifier():
+    for fname, expected in cases.items():
+        job = requests.post(f"{BASE}/api/upload",
+                 files={"file":open(f"fixtures/{fname}","rb")}).json()["job_id"]
+        poll(job)
+        res = requests.get(f"{BASE}/api/results/{job}").json()
+        assert res["document_type"] == expected, f"{fname} mis‑classified"
+```
+
+Run with `pytest` to catch regressions before you push changes.
+
+---
+
+## 5  Edge‑cases to try later
+
+| Edge‑case                                    | Expected label                    |
+| -------------------------------------------- | --------------------------------- |
+| EOIR “notice of change in address” (Form 33) | other                             |
+| DHS FOIA response letter                     | other                             |
+| BIA remand order + cover letter in same PDF  | ij\_decision                      |
+| Mixed scan: first page NTA, rest motion      | whichever dominates first 3 pages |
+
+---
+
+### If all the above passes…
+
+✅ You’ve proven the enhanced multi‑label system works end‑to‑end,
+produces evidence, and changes downstream analysis modules automatically.
+
+Need help tweaking any failing class? Drop me the JSON evidence and we’ll refine the prompt or regex backup in minutes.
