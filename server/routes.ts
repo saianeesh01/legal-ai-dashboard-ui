@@ -289,6 +289,48 @@ function getDocumentCharacteristics(fileName: string): string {
   return 'legal content with procedural guidelines and regulatory information';
 }
 
+function generateClassificationFriendlyContent(fileName: string, fileSize: number): string {
+  const lowerFileName = fileName.toLowerCase();
+  
+  // Generate content that provides classification hints without generic template content
+  let content = `Document: ${fileName}\nFile size: ${fileSize} bytes\n\n`;
+  
+  // Add specific document type indicators based on filename
+  if (lowerFileName.includes('i-862') || lowerFileName.includes('notice_to_appear') || lowerFileName.includes('nta')) {
+    content += 'Document Type: Immigration Notice to Appear (Form I-862)\n';
+    content += 'Legal Document Category: Immigration Court Proceedings\n';
+    content += 'Purpose: Formal notice initiating removal proceedings\n';
+  } else if (lowerFileName.includes('motion') && (lowerFileName.includes('reopen') || lowerFileName.includes('reconsider'))) {
+    content += 'Document Type: Immigration Motion\n';
+    content += 'Legal Document Category: Immigration Court Motion\n';
+    content += 'Purpose: Motion to reopen or reconsider immigration case\n';
+  } else if (lowerFileName.includes('i-589') || lowerFileName.includes('asylum')) {
+    content += 'Document Type: Immigration Form I-589 (Asylum Application)\n';
+    content += 'Legal Document Category: Immigration Form\n';
+    content += 'Purpose: Application for asylum and for withholding of removal\n';
+  } else if (lowerFileName.includes('human_rights') || lowerFileName.includes('country') || lowerFileName.includes('report')) {
+    content += 'Document Type: Country Conditions Report\n';
+    content += 'Legal Document Category: Country Report\n';
+    content += 'Purpose: Documentation of country conditions for immigration cases\n';
+  } else if (lowerFileName.includes('court') || lowerFileName.includes('decision') || lowerFileName.includes('order')) {
+    content += 'Document Type: Court Decision or Order\n';
+    content += 'Legal Document Category: Immigration Judge Decision\n';
+    content += 'Purpose: Official court ruling or administrative order\n';
+  } else if (lowerFileName.includes('grant') || lowerFileName.includes('proposal') || lowerFileName.includes('application')) {
+    content += 'Document Type: Grant Application or Proposal\n';
+    content += 'Legal Document Category: Proposal\n';
+    content += 'Purpose: Request for funding or program approval\n';
+  } else {
+    content += 'Document Type: Legal Document\n';
+    content += 'Legal Document Category: Other Legal Document\n';
+    content += 'Purpose: Legal documentation requiring analysis\n';
+  }
+  
+  content += '\nNote: Content extraction from PDF failed. Classification based on filename analysis only.\n';
+  
+  return content;
+}
+
 function getRelevantDomain(fileName: string): string {
   const lower = fileName.toLowerCase();
   if (lower.includes('immigration')) return 'immigration law and federal compliance regulations';
@@ -335,14 +377,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
           } catch (pdfError) {
             console.log(`PDF parsing failed for ${req.file.originalname}:`, pdfError);
-            // Use minimal file description only to avoid data leakage
-            fileContent = `Document: ${req.file.originalname}. File type: PDF. Content extraction failed.`;
+            // Provide detailed filename-based content for classification when PDF parsing fails
+            fileContent = generateClassificationFriendlyContent(req.file.originalname, req.file.size);
           }
           
-          // If PDF extraction failed or returned minimal content, use basic file info
+          // If PDF extraction failed or returned minimal content, enhance for classification
           if (!fileContent || fileContent.trim().length < 100) {
-            console.log('PDF extraction failed or returned minimal content, using basic file info');
-            fileContent = `Document: ${req.file.originalname}. File type: PDF. Size: ${req.file.size} bytes. Content not available for analysis.`;
+            console.log('PDF extraction failed or returned minimal content, generating classification-friendly content');
+            fileContent = generateClassificationFriendlyContent(req.file.originalname, req.file.size);
           }
         } else if (req.file.mimetype.startsWith('text/')) {
           fileContent = req.file.buffer.toString('utf8');
@@ -557,7 +599,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 // Helper functions for content analysis
 function generateEnhancedSummary(fileName: string, content: string, isProposal: boolean, documentCategory: string): string {
-  // Check if content extraction failed to prevent data leakage
+  // Check if content extraction failed but we have classification-friendly content
+  if (content.includes('Content extraction from PDF failed')) {
+    return generateFilenameBasedSummary(fileName, documentCategory);
+  }
+  
+  // Check for complete content extraction failure
   if (content.includes('Content extraction failed') || content.includes('Content not available')) {
     return `DOCUMENT ANALYSIS UNAVAILABLE
 
@@ -596,6 +643,102 @@ Document type classification and detailed analysis require readable text content
     default:
       return generateSummary(fileName, content, isProposal);
   }
+}
+
+function generateFilenameBasedSummary(fileName: string, documentCategory: string): string {
+  const lowerFileName = fileName.toLowerCase();
+  
+  let summary = `DOCUMENT ANALYSIS - LIMITED (Filename-Based Classification)
+
+Document: ${fileName}
+Status: Content extraction failed, analysis based on filename only
+
+`;
+
+  switch (documentCategory) {
+    case 'nta':
+      summary += `NOTICE TO APPEAR ANALYSIS
+This appears to be an Immigration Notice to Appear (Form I-862) based on the filename. This document type formally initiates removal proceedings in Immigration Court.
+
+Key Document Purpose: Immigration court proceeding initiation
+Expected Content: Charging allegations, court information, respondent details
+Legal Significance: Formal commencement of removal proceedings
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    case 'motion':
+      summary += `IMMIGRATION MOTION ANALYSIS
+This appears to be an immigration motion document based on the filename. Immigration motions are legal pleadings filed with the Immigration Court.
+
+Key Document Purpose: Legal motion filing
+Expected Content: Legal arguments, supporting evidence, requested relief  
+Legal Significance: Formal request for court action or reconsideration
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    case 'form':
+      summary += `IMMIGRATION FORM ANALYSIS
+This appears to be an immigration form based on the filename. Immigration forms are official government documents used for various immigration processes.
+
+Key Document Purpose: Official immigration application or petition
+Expected Content: Personal information, immigration history, supporting documentation
+Legal Significance: Official government filing for immigration benefits
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    case 'country_report':
+      summary += `COUNTRY CONDITIONS REPORT ANALYSIS
+This appears to be a country conditions report based on the filename. These reports document human rights conditions and country-specific information.
+
+Key Document Purpose: Country conditions documentation
+Expected Content: Human rights analysis, political conditions, safety information
+Legal Significance: Supporting evidence for asylum and protection claims
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    case 'ij_decision':
+      summary += `IMMIGRATION JUDGE DECISION ANALYSIS
+This appears to be an Immigration Judge decision or court order based on the filename. These documents contain official court rulings.
+
+Key Document Purpose: Official court ruling
+Expected Content: Legal findings, conclusions, orders, and directives
+Legal Significance: Binding legal determination affecting immigration status
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    case 'proposal':
+      summary += `PROPOSAL DOCUMENT ANALYSIS
+This appears to be a proposal or grant application based on the filename. These documents typically request funding or program approval.
+
+Key Document Purpose: Funding or program request
+Expected Content: Project description, budget, timeline, objectives
+Legal Significance: Formal request for resources or authorization
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+      
+    default:
+      summary += `LEGAL DOCUMENT ANALYSIS
+This appears to be a legal document based on the filename. The specific document type requires content analysis for precise classification.
+
+Key Document Purpose: Legal documentation
+Expected Content: Legal text, formal documentation, procedural information
+Legal Significance: Formal legal document requiring professional review
+
+For complete analysis, please ensure the PDF is readable and re-upload.`;
+      break;
+  }
+  
+  summary += `
+
+LIMITATION NOTICE: This analysis is based solely on filename patterns due to PDF content extraction failure. For accurate legal analysis, proper document content extraction is required.`;
+  
+  return summary;
 }
 
 function generateNTASummary(fileName: string, content: string): string {
@@ -1736,8 +1879,8 @@ function generateToolkit(isProposal: boolean): string[] {
 
 function extractKeyFindings(content: string): string[] {
   // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
-    return ["Content extraction failed - unable to analyze document findings"];
+  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available')) {
+    return ["Content extraction failed - unable to analyze document findings. Re-upload PDF for detailed analysis."];
   }
 
   const findings: string[] = [];
@@ -1827,7 +1970,7 @@ function determineDocumentType(fileName: string, content: string, isProposal: bo
 
 function extractCriticalDates(content: string): string[] {
   // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available')) {
     return ["Content extraction failed - unable to extract dates"];
   }
   const dates: string[] = [];
@@ -1891,7 +2034,7 @@ function extractCriticalDates(content: string): string[] {
 
 function extractFinancialTerms(content: string): string[] {
   // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available')) {
     return ["Content extraction failed - unable to extract financial terms"];
   }
   const terms: string[] = [];
@@ -2015,7 +2158,7 @@ function getPercentageContext(content: string, percent: string): string | null {
 
 function extractComplianceRequirements(content: string): string[] {
   // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
+  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available')) {
     return ["Content extraction failed - unable to extract compliance requirements"];
   }
   const requirements: string[] = [];
