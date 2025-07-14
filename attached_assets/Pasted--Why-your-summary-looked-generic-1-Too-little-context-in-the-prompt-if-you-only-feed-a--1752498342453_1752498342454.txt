@@ -1,0 +1,73 @@
+### Why your summary looked generic
+
+1. **Too little context in the prompt** – if you only feed a handful of high-similarity chunks, the model may never “see” key facts (funding request \$240 k, fall-2024 launch, Louisville focus).
+2. **No explicit requirement for concrete details** – the model fills the gap with boiler-plate proposal language.
+3. **Temperature / top-p too high** – creative drift outweighs faithfulness.
+
+Below is a plug-and-play prompt that fixes all three. Drop it into the string you send to Ollama (or any local model) in your Replit worker right after you’ve collected the top **\~20** OCR chunks for this PDF.
+
+---
+
+```text
+SYSTEM
+You are LegalDoc AI, an assistant that writes **ground-truth summaries** of legal or funding proposals.
+Strict rules:
+•  Use only the provided CONTEXT – do not hallucinate.
+•  Quote or paraphrase at least 4 concrete data points ( $, dates, page numbers, city names, program names ).
+•  When you cite, add “[p N]” with the source page.
+
+USER
+⟪META⟫
+file_name: {{file_name}}
+pages_examined: {{page_count}}
+⟪CONTEXT⟫
+{{context_chunks}}          # 20 best snippets, ≤ 450 chars each
+⟪TASKS⟫
+1  EXHAUSTIVE SUMMARY  
+   • 120-180 words  
+   • Must mention: institution, target population, funding amount, timeline start date, and at least one statistic.
+2  3-5 IMPROVEMENTS – each ≤ 25 words, concrete (e.g., “Add KPIs such as cases closed per semester”).
+3  TOOLKIT – list up to 5 software platforms or legal resources that would help this specific Immigration Law Clinic; 1 sentence each.
+Return exactly this JSON (no markdown, no extra keys):
+
+{
+  "summary": "...",
+  "improvements": ["...", "..."],
+  "toolkit": ["...", "..."]
+}
+```
+
+---
+
+### Example output the model should now produce
+
+```json
+{
+  "summary": "The proposal seeks $240,000 per year for five years to launch an Immigration Law Clinic at the University of Louisville Brandeis School of Law [p 5]. ... The clinic would open in Fall 2024 [p 5] and focus on Cuban and other parolees in Louisville, where the Cuban population has grown 50 % in a decade [p 3]. ...",
+  "improvements": [
+    "Include a KPI table: projected EAD applications filed per semester.",
+    "Add letters of support from Catholic Charities and KRM.",
+    "Detail IT costs (case-management software) in the operations budget."
+  ],
+  "toolkit": [
+    "Clio Manage – cloud case-management to track client matters and deadlines.",
+    "ImmigrationForms.com – bulk-generate USCIS forms for EAD and parole extensions.",
+    "LawLogix Guardian – secure document collection for ID proofs.",
+    "ILRC Manual – reference for Cuban Adjustment Act eligibility.",
+    "Tableau Public – visualize client demographics for future grant reports."
+  ]
+}
+```
+
+---
+
+### Implementation tips
+
+| Step                     | Code snippet                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Build bigger context** | `python chunks = rag.get_top_k(job_id, k=20, max_chars=450)`                                                   |
+| **Lower creativity**     | `temperature=0.2, top_p=0.8` in `ollama.chat()`                                                                |
+| **Validate JSON**        | `json.loads(response["message"]["content"])` and retry if it fails.                                            |
+| **Update front-end**     | Map the returned `summary`, `improvements`, `toolkit` into the AI-Analysis card (see earlier dashboard patch). |
+
+With this prompt the model is *forced* to ground its answer in the PDF’s specifics, giving you the expanded, actionable analysis you asked for—without wasting additional agent calls.

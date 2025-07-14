@@ -88,7 +88,7 @@ def create_faiss_index(texts: List[str]) -> Tuple[faiss.Index, List[str]]:
     
     return index, texts
 
-def chunk_text(text: str, chunk_size: int = 400) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 450) -> List[str]:
     """Split text into chunks for better processing"""
     words = text.split()
     chunks = []
@@ -110,8 +110,8 @@ def query_ollama(prompt: str, model: str = "llama3.2:3b") -> str:
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.1,
-                    "top_p": 0.9,
+                    "temperature": 0.2,
+                    "top_p": 0.8,
                     "max_tokens": 2000
                 }
             },
@@ -131,55 +131,68 @@ def query_ollama(prompt: str, model: str = "llama3.2:3b") -> str:
 def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
     """Analyze document using Ollama to determine if it's a proposal"""
     
-    # Create chunks for context
-    chunks = chunk_text(text_content, 400)
-    context_sample = '\n'.join(chunks[:10])  # Use first 10 chunks for analysis
+    # Create chunks for context - use more chunks for better analysis
+    chunks = chunk_text(text_content, 450)
+    context_sample = '\n'.join(chunks[:20])  # Use top 20 chunks for comprehensive analysis
     
     # Calculate page count estimate
     page_count = max(1, len(chunks) // 8)  # Estimate pages based on chunks
     
     prompt = f"""
 SYSTEM
-You are LegalDoc AI, a concise, citation-aware assistant.  
-Answer strictly from the provided context; never hallucinate statutes or page numbers.
+You are LegalDoc AI, an assistant that writes **ground-truth summaries** of legal or funding proposals.
+Strict rules:
+• Use only the provided CONTEXT – do not hallucinate.
+• Quote or paraphrase at least 4 concrete data points ($, dates, page numbers, city names, program names).
+• When you cite, add "[p N]" with the source page.
 
 USER
-<<DOC_META>>
-• file_name: {filename}
-• total_pages: {page_count}
+⟪META⟫
+file_name: {filename}
+pages_examined: {page_count}
 
-<<CONTEXT>>
+⟪CONTEXT⟫
 {context_sample}
 
-<<TASKS>>
-1. **Proposal Classification** – Determine if this is a proposal document. Output "proposal" or "non-proposal" with confidence score 0.0-1.0
-2. **Expanded summary** – 150-200 words that explain what the document is, its purpose, scope, target beneficiaries, funding ask, and key timeline items.  
-3. **Improvements** – up to 5 numbered suggestions that would make this proposal more persuasive, complete, or fundable.  
-4. **Recommended toolkit** – list the specific software, legal-tech libraries, or operational tools the clinic/proposal should incorporate (e.g., Clio, Docketwise, Lexis+), each with 1-sentence rationale.
+⟪TASKS⟫
+1. PROPOSAL CLASSIFICATION – Determine if this is a proposal document. Output "proposal" or "non-proposal" with confidence score 0.0-1.0
+2. EXHAUSTIVE SUMMARY
+   • 120-180 words
+   • Must mention: institution, target population, funding amount, timeline start date, and at least one statistic.
+3. 3-5 IMPROVEMENTS – each ≤ 25 words, concrete (e.g., "Add KPIs such as cases closed per semester").
+4. TOOLKIT – list up to 5 software platforms or legal resources that would help this specific clinic/project; 1 sentence each.
 
-Return the result in **exactly** this JSON shape and nothing else:
+Return exactly this JSON (no markdown, no extra keys):
 
 {{
   "verdict": "<proposal | non-proposal>",
   "confidence": 0.XX,
-  "summary": "<paragraph>",
-  "improvements": ["<text>", "..."],
-  "toolkit": ["<tool> – <why>", "..."]
+  "summary": "...",
+  "improvements": ["...", "..."],
+  "toolkit": ["...", "..."]
 }}
 """
 
     try:
         response = query_ollama(prompt)
         
-        # Try to extract JSON from response
+        # Try to extract and validate JSON from response
         if response and '{' in response:
             json_start = response.find('{')
             json_end = response.rfind('}') + 1
             json_str = response[json_start:json_end]
             
-            result = json.loads(json_str)
-            return result
-        else:
+            try:
+                result = json.loads(json_str)
+                # Validate required fields are present
+                if 'verdict' in result and 'summary' in result and 'improvements' in result and 'toolkit' in result:
+                    return result
+                else:
+                    logger.warning(f"Missing required fields in AI response: {result}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON from AI response: {e}")
+        
+        # If JSON parsing failed, fallback to keyword detection
             # Fallback analysis
             is_proposal = any(keyword in text_content.lower() for keyword in 
                             ['proposal', 'request for proposal', 'rfp', 'bid', 'tender'])
