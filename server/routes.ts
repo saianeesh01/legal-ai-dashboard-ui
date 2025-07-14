@@ -701,24 +701,8 @@ function extractKeyFindingsFromContent(fileName: string, fileContent: string, is
     findings.push("Legal agreement with defined terms and conditions");
   }
   
-  // Look for proposal patterns
-  if (content.includes('proposal') || content.includes('propose')) {
-    findings.push("Document contains proposal elements and recommendations");
-  }
-  
-  // If we have content but no specific findings, use content analysis
-  if (findings.length === 0 && fileContent.length > 50) {
-    findings.push("Document contains structured professional content");
-    if (content.includes('requirement')) {
-      findings.push("Specific requirements and deliverables outlined");
-    }
-    if (content.includes('timeline') || content.includes('schedule')) {
-      findings.push("Timeline and milestone information provided");
-    }
-    if (content.includes('standard') || content.includes('quality')) {
-      findings.push("Quality standards and expectations defined");
-    }
-  }
+  // Focus on actual document content rather than generic statements
+  // Remove generic findings that don't provide specific document insights
   
   // Fallback to generic findings if no content available
   if (findings.length === 0) {
@@ -801,43 +785,8 @@ function extractCriticalDatesFromContent(fileName: string, fileContent: string, 
     });
   }
   
-  const content = fileContent.toLowerCase();
-  
-  // Look for specific immigration document dates
-  if (content.includes('immigration') && content.includes('proposal')) {
-    dates.push("Launch Date: September 1, 2024");
-    dates.push("Project Start: August 15, 2024");
-    dates.push("Staff Hiring: July 1, 2024");
-    dates.push("Training Period: August 1-30, 2024");
-    dates.push("Annual Review: May 31, 2025");
-  }
-  
-  // Look for timeline information and extract specifics
-  if (content.includes('timeline')) {
-    if (content.includes('launch')) {
-      dates.push("Launch timeline specified in document");
-    }
-    if (content.includes('semester')) {
-      dates.push("Semester-based timeline referenced");
-    }
-  }
-  
-  // Look for deadline information
-  if (content.includes('deadline')) {
-    dates.push("Deadline requirements specified");
-  }
-  
-  if (content.includes('due') && content.includes('date')) {
-    dates.push("Due date requirements specified");
-  }
-  
-  if (content.includes('effective') && content.includes('date')) {
-    dates.push("Document effective date specified");
-  }
-  
-  if (content.includes('payment') && content.includes('terms')) {
-    dates.push("Payment schedule: Net 30 days");
-  }
+  // Only add specific dates if we found actual dates in the content
+  // Remove generic fallback statements that don't add value
   
   // If no content-specific dates found, use document-specific fallback
   if (dates.length === 0) {
@@ -887,35 +836,8 @@ function extractFinancialTermsFromContent(fileName: string, fileContent: string,
   
   const content = fileContent.toLowerCase();
   
-  // Look for payment terms
-  if (content.includes('payment')) {
-    terms.push("Payment terms and conditions outlined");
-  }
-  
-  if (content.includes('net 30') || content.includes('net30')) {
-    terms.push("Net 30 day payment terms specified");
-  }
-  
-  if (content.includes('billing')) {
-    terms.push("Billing procedures and requirements documented");
-  }
-  
-  if (content.includes('budget')) {
-    terms.push("Budget framework and allocations provided");
-  }
-  
-  if (content.includes('funding') || content.includes('fund')) {
-    terms.push("Monthly disbursement: $20,000");
-    terms.push("Quarterly reporting required");
-  }
-  
-  if (content.includes('fee') || content.includes('cost')) {
-    terms.push("Fee structure and cost information provided");
-  }
-  
-  if (content.includes('expense') && content.includes('reimbursement')) {
-    terms.push("Expense reimbursement procedures outlined");
-  }
+  // Only extract specific financial amounts and terms from content
+  // Remove generic statements that don't provide actual document details
   
   // If no content-specific terms found, use fallback
   if (terms.length === 0) {
@@ -953,35 +875,8 @@ function extractComplianceFromContent(fileName: string, fileContent: string, isM
   const content = fileContent.toLowerCase();
   const fileNameLower = fileName.toLowerCase();
   
-  // Look for legal compliance
-  if (content.includes('legal') || content.includes('law')) {
-    requirements.push("Legal compliance requirements specified");
-  }
-  
-  // Look for regulatory terms
-  if (content.includes('regulation') || content.includes('regulatory')) {
-    requirements.push("Regulatory compliance obligations outlined");
-  }
-  
-  // Look for licensing requirements
-  if (content.includes('licens') || content.includes('certific')) {
-    requirements.push("Licensing and certification requirements");
-  }
-  
-  // Look for professional standards
-  if (content.includes('professional') && content.includes('standard')) {
-    requirements.push("Professional standards and ethics compliance");
-  }
-  
-  // Look for documentation requirements
-  if (content.includes('document') && content.includes('requir')) {
-    requirements.push("Documentation and record-keeping requirements");
-  }
-  
-  // Look for reporting requirements
-  if (content.includes('report')) {
-    requirements.push("Reporting and monitoring obligations");
-  }
+  // Only extract specific compliance requirements from content  
+  // Remove generic statements that don't provide actual document details
   
   // Immigration-specific compliance
   if (content.includes('immigration') || fileNameLower.includes('immigration')) {
