@@ -19,6 +19,11 @@ export class EnhancedLegalClassifier {
     const content = fileContent.toLowerCase();
     const filename = fileName.toLowerCase();
     
+    // Debug logging
+    console.log(`Classifying document: ${fileName}`);
+    console.log(`Content length: ${fileContent.length} characters`);
+    console.log(`Content preview: ${content.substring(0, 200)}...`);
+    
     // Enhanced evidence collection
     const evidence: string[] = [];
     let proposalScore = 0;
@@ -33,7 +38,16 @@ export class EnhancedLegalClassifier {
       { pattern: /budget\s+(?:request|ask|proposal)/i, weight: 2, description: "budget request" },
       { pattern: /scope\s+of\s+work/i, weight: 2, description: "scope of work" },
       { pattern: /deliverables?/i, weight: 2, description: "project deliverables" },
-      { pattern: /implementation\s+(?:plan|timeline)/i, weight: 2, description: "implementation planning" }
+      { pattern: /implementation\s+(?:plan|timeline)/i, weight: 2, description: "implementation planning" },
+      // Additional grant-specific patterns
+      { pattern: /grant\s+(?:program|opportunity|initiative|funding)/i, weight: 3, description: "grant program language" },
+      { pattern: /funding\s+(?:opportunity|available|announcement)/i, weight: 3, description: "funding opportunity announcement" },
+      { pattern: /eligib(?:le|ility)\s+(?:applicants?|organizations?)/i, weight: 2, description: "eligibility criteria" },
+      { pattern: /application\s+(?:process|requirements?|guidelines?)/i, weight: 2, description: "application process details" },
+      { pattern: /awards?\s+(?:will be|are)\s+(?:made|granted)/i, weight: 2, description: "award announcement" },
+      { pattern: /proposals?\s+(?:must|should|will)\s+(?:include|contain|address)/i, weight: 2, description: "proposal requirements" },
+      { pattern: /clinic\s+(?:grants?|funding|support)/i, weight: 2, description: "clinic funding" },
+      { pattern: /legal\s+services?\s+grant/i, weight: 2, description: "legal services grant" }
     ];
     
     // Strong negative indicators
@@ -84,15 +98,32 @@ export class EnhancedLegalClassifier {
       evidence.push('Document discusses law clinic funding/grants');
     }
     
+    // Additional broad content analysis for grant documents
+    if (content.includes('grant') && content.includes('application')) {
+      proposalScore += 1;
+      evidence.push('Document contains grant application language');
+    }
+    
+    if (content.includes('funding') && (content.includes('available') || content.includes('opportunity'))) {
+      proposalScore += 1;
+      evidence.push('Document mentions funding availability or opportunity');
+    }
+    
+    if (content.includes('eligib') && content.includes('applic')) {
+      proposalScore += 1;
+      evidence.push('Document discusses eligibility and application requirements');
+    }
+    
     // Determine verdict and confidence
     let verdict: 'proposal' | 'non-proposal' | 'undetermined';
     let confidence: number;
     let reasoning: string;
     
-    if (evidence.length < 2) {
+    // Lower evidence threshold for better detection
+    if (evidence.length < 1) {
       verdict = 'undetermined';
       confidence = 0.0;
-      reasoning = 'Insufficient evidence to make confident classification';
+      reasoning = 'No clear evidence found for classification';
     } else if (proposalScore > nonProposalScore + 1) {
       verdict = 'proposal';
       confidence = Math.min(0.75 + (proposalScore * 0.05), 0.98);
@@ -106,6 +137,15 @@ export class EnhancedLegalClassifier {
       confidence = 0.6;
       reasoning = `Mixed indicators (proposal: ${proposalScore}, non-proposal: ${nonProposalScore})`;
     }
+    
+    // Debug result logging
+    console.log(`Classification result for ${fileName}:`);
+    console.log(`  Verdict: ${verdict}`);
+    console.log(`  Confidence: ${confidence}`);
+    console.log(`  Proposal Score: ${proposalScore}`);
+    console.log(`  Non-Proposal Score: ${nonProposalScore}`);
+    console.log(`  Evidence: ${evidence.join(', ')}`);
+    console.log(`  Reasoning: ${reasoning}`);
     
     return {
       verdict,
