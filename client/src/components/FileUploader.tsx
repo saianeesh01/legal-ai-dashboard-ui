@@ -335,25 +335,27 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Duplicate File Found</AlertDialogTitle>
-            <AlertDialogDescription>
-              A file with the name "{pendingFile?.name}" already exists in your library.
-              {duplicateInfo && (
-                <div className="mt-3 p-3 bg-muted rounded-lg">
-                  <div className="flex items-center space-x-2 text-sm">
-                    <FileIcon className="h-4 w-4" />
-                    <span className="font-medium">{duplicateInfo.fileName}</span>
+            <AlertDialogDescription asChild>
+              <div>
+                A file with the name "{pendingFile?.name}" already exists in your library.
+                {duplicateInfo && (
+                  <div className="mt-3 p-3 bg-muted rounded-lg">
+                    <div className="flex items-center space-x-2 text-sm">
+                      <FileIcon className="h-4 w-4" />
+                      <span className="font-medium">{duplicateInfo.fileName}</span>
+                    </div>
+                    <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                      <span>{(duplicateInfo.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                      <span className="flex items-center space-x-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(duplicateInfo.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                    <span>{(duplicateInfo.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                    <span className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(duplicateInfo.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
+                )}
+                <div className="mt-3">
+                  <strong>What would you like to do?</strong>
                 </div>
-              )}
-              <div className="mt-3">
-                <strong>What would you like to do?</strong>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
