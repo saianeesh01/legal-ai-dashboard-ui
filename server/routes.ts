@@ -706,8 +706,17 @@ function generateDocumentSpecificSummary(fileName: string, content: string, prop
   const competitiveAdvantages = extractCompetitiveAdvantages(content);
   const challengesRisks = extractChallengesAndRisks(content);
   
-  // Generate comprehensive summary based on extracted details
-  let summary = `This document "${fileName}" represents a comprehensive ${proposalType} specifically designed for ${focusArea}. `;
+  // Determine what the document is about and who it pertains to
+  const documentPurpose = getDocumentPurposeAndScope(fileName, content);
+  const targetAudience = getTargetAudienceAndStakeholders(fileName, content);
+  
+  // Generate comprehensive summary starting with document purpose and audience
+  let summary = `This document "${fileName}" is about ${documentPurpose.subject} and pertains to ${targetAudience.primaryAudience}. It represents a comprehensive ${proposalType} specifically designed for ${focusArea}. `;
+  
+  // Add secondary audience information
+  if (targetAudience.secondaryAudiences.length > 0) {
+    summary += `The proposal also involves ${targetAudience.secondaryAudiences.join(', ')} as key stakeholders in the implementation and oversight process. `;
+  }
   
   // Add target beneficiaries
   if (targetBeneficiaries.length > 0) {
@@ -912,8 +921,17 @@ function generateNonProposalSummary(fileName: string, content: string, documentT
   const stakeholderInfo = extractStakeholderInformation(content);
   const actionItems = extractActionItems(content);
   
-  // Generate comprehensive summary based on extracted details
-  let summary = `This document "${fileName}" represents a ${documentType} serving ${documentPurpose}. `;
+  // Determine what the document is about and who it pertains to
+  const documentPurpose_obj = getDocumentPurposeAndScope(fileName, content);
+  const targetAudience = getTargetAudienceAndStakeholders(fileName, content);
+  
+  // Generate comprehensive summary starting with document purpose and audience
+  let summary = `This document "${fileName}" is about ${documentPurpose_obj.subject} and pertains to ${targetAudience.primaryAudience}. It represents a ${documentType} serving ${documentPurpose}. `;
+  
+  // Add secondary audience information
+  if (targetAudience.secondaryAudiences.length > 0) {
+    summary += `The document also involves ${targetAudience.secondaryAudiences.join(', ')} as key stakeholders in the process. `;
+  }
   
   // Add organizational context
   if (organizationalContext.length > 0) {
@@ -1053,6 +1071,104 @@ function extractActionItems(content: string): string[] {
   }
   
   return actions;
+}
+
+function getDocumentPurposeAndScope(fileName: string, content: string): { subject: string, scope: string } {
+  const lowerFileName = fileName.toLowerCase();
+  const lowerContent = content.toLowerCase();
+  
+  let subject = '';
+  let scope = '';
+  
+  // Determine document subject based on content and filename
+  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
+    subject = 'establishing an immigration law clinic to provide legal services for immigrant communities';
+    scope = 'comprehensive immigration legal assistance including citizenship, visa processing, and deportation defense';
+  } else if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
+    subject = 'creating specialized legal services for veterans and military families';
+    scope = 'veterans benefits advocacy, disability claims, and military family legal support';
+  } else if (lowerFileName.includes('clinic') && lowerFileName.includes('grant')) {
+    subject = 'securing grant funding for legal clinic operations and community service delivery';
+    scope = 'comprehensive legal aid services with professional supervision and quality assurance';
+  } else if (lowerFileName.includes('refugee') || lowerContent.includes('refugee')) {
+    subject = 'refugee admissions and resettlement program policies';
+    scope = 'federal refugee program administration and community integration services';
+  } else if (lowerFileName.includes('justice') || lowerContent.includes('justice')) {
+    subject = 'expanding access to justice through legal services and advocacy programs';
+    scope = 'systemic legal reform and community-based legal assistance initiatives';
+  } else if (lowerFileName.includes('ordinance') || lowerContent.includes('ordinance')) {
+    subject = 'municipal ordinance amendments and land use regulations';
+    scope = 'local government policy changes and zoning administration';
+  } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
+    subject = 'analytical reporting on program performance and policy recommendations';
+    scope = 'data-driven insights and strategic planning for organizational improvement';
+  } else if (lowerFileName.includes('grant') || lowerContent.includes('grant')) {
+    subject = 'grant funding request for program implementation and service expansion';
+    scope = 'comprehensive program development with measurable outcomes and sustainability planning';
+  } else {
+    subject = 'legal services program development and implementation';
+    scope = 'professional legal assistance and community support services';
+  }
+  
+  return { subject, scope };
+}
+
+function getTargetAudienceAndStakeholders(fileName: string, content: string): { primaryAudience: string, secondaryAudiences: string[] } {
+  const lowerFileName = fileName.toLowerCase();
+  const lowerContent = content.toLowerCase();
+  
+  let primaryAudience = '';
+  const secondaryAudiences: string[] = [];
+  
+  // Determine primary audience based on content and filename
+  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
+    primaryAudience = 'immigrant communities seeking legal assistance and immigration law practitioners';
+    secondaryAudiences.push('federal immigration agencies and policy makers');
+    secondaryAudiences.push('legal aid organizations and pro bono attorneys');
+    secondaryAudiences.push('community organizations serving immigrant populations');
+  } else if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
+    primaryAudience = 'veterans, military service members, and their families';
+    secondaryAudiences.push('Veterans Administration officials and benefit administrators');
+    secondaryAudiences.push('veteran service organizations and advocacy groups');
+    secondaryAudiences.push('military legal assistance offices and JAG personnel');
+  } else if (lowerFileName.includes('clinic') && lowerFileName.includes('grant')) {
+    primaryAudience = 'grant funding agencies and legal services administrators';
+    secondaryAudiences.push('state bar associations and legal aid oversight bodies');
+    secondaryAudiences.push('community members requiring legal assistance');
+    secondaryAudiences.push('volunteer attorneys and legal professionals');
+  } else if (lowerFileName.includes('refugee') || lowerContent.includes('refugee')) {
+    primaryAudience = 'federal refugee resettlement agencies and policy administrators';
+    secondaryAudiences.push('refugee communities and resettlement organizations');
+    secondaryAudiences.push('congressional committees and legislative staff');
+    secondaryAudiences.push('international humanitarian organizations');
+  } else if (lowerFileName.includes('justice') || lowerContent.includes('justice')) {
+    primaryAudience = 'legal aid organizations and access to justice advocates';
+    secondaryAudiences.push('low-income individuals and underserved communities');
+    secondaryAudiences.push('court administrators and judicial personnel');
+    secondaryAudiences.push('legal profession regulatory bodies');
+  } else if (lowerFileName.includes('ordinance') || lowerContent.includes('ordinance')) {
+    primaryAudience = 'municipal government officials and city planning departments';
+    secondaryAudiences.push('local residents and property owners');
+    secondaryAudiences.push('business owners and commercial developers');
+    secondaryAudiences.push('zoning boards and planning commissions');
+  } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
+    primaryAudience = 'organizational leadership and policy decision makers';
+    secondaryAudiences.push('program staff and service delivery personnel');
+    secondaryAudiences.push('funding agencies and oversight bodies');
+    secondaryAudiences.push('community stakeholders and beneficiaries');
+  } else if (lowerFileName.includes('grant') || lowerContent.includes('grant')) {
+    primaryAudience = 'grant review committees and funding decision makers';
+    secondaryAudiences.push('program beneficiaries and target communities');
+    secondaryAudiences.push('partner organizations and service providers');
+    secondaryAudiences.push('regulatory agencies and compliance officers');
+  } else {
+    primaryAudience = 'legal service providers and community organizations';
+    secondaryAudiences.push('program beneficiaries and target populations');
+    secondaryAudiences.push('funding agencies and oversight bodies');
+    secondaryAudiences.push('legal profession regulatory entities');
+  }
+  
+  return { primaryAudience, secondaryAudiences };
 }
 
 function generateImprovements(isProposal: boolean, contentAnalysis: any): string[] {
