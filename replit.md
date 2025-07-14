@@ -96,7 +96,15 @@ Preferred communication style: Simple, everyday language.
 - **`migrations/`**: Database migration files
 - **Configuration files**: TypeScript, Tailwind, Vite, and Drizzle configs at root level
 
-## Recent Changes (July 13, 2025)
+## Recent Changes (July 14, 2025)
+
+- ✓ Added delete functionality to document library with confirmation dialog
+- ✓ Implemented duplicate file detection during upload with replace/keep options
+- ✓ Enhanced search section with delete buttons for document management
+- ✓ Removed ask questions and deadline analysis features from search mode (kept in results mode)
+- ✓ Fixed DOM nesting warnings in AlertDialog components
+
+## Previous Changes (July 13, 2025)
 
 - ✓ Integrated AI document analysis agent with proposal classification
 - ✓ Added automatic analysis that runs after document upload completion

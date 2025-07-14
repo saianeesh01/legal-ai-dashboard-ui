@@ -400,8 +400,10 @@ The document contains standard commercial lease provisions with some tenant-favo
         </Card>
       )}
 
-      {/* Query Form */}
-      <QueryForm onQuery={handleQuery} isLoading={isQuerying} />
+      {/* Query Form - only show in results mode, not in search mode */}
+      {!searchMode && (
+        <QueryForm onQuery={handleQuery} isLoading={isQuerying} />
+      )}
 
       {/* Query Results */}
       {queryResults && (
@@ -465,8 +467,8 @@ The document contains standard commercial lease provisions with some tenant-favo
           </Card>
         )}
 
-        {/* Deadline Chart - only show when no query results or in non-search mode */}
-        {(!queryResults || !searchMode) && (
+        {/* Deadline Chart - only show in results mode, not in search mode */}
+        {!searchMode && (
           <Card className="shadow-elegant animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
