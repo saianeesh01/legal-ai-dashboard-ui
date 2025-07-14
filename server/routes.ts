@@ -18,23 +18,28 @@ function getDateContext(content: string, date: string): string | null {
   const dateIndex = lowerContent.indexOf(datePattern);
   if (dateIndex === -1) return null;
   
-  // Look for context words before and after the date
-  const contextWindow = lowerContent.substring(Math.max(0, dateIndex - 50), dateIndex + 50);
+  // Look for context words in a larger window around the date
+  const contextWindow = lowerContent.substring(Math.max(0, dateIndex - 100), dateIndex + 100);
   
-  if (contextWindow.includes('launch') || contextWindow.includes('start')) {
+  // More specific context detection
+  if (contextWindow.includes('launch date') || contextWindow.includes('launch:')) {
     return `Launch Date: ${date}`;
-  } else if (contextWindow.includes('hire') || contextWindow.includes('hiring')) {
+  } else if (contextWindow.includes('project start') || contextWindow.includes('start:')) {
+    return `Project Start: ${date}`;
+  } else if (contextWindow.includes('staff hiring') || contextWindow.includes('hiring:')) {
     return `Staff Hiring: ${date}`;
-  } else if (contextWindow.includes('train') || contextWindow.includes('training')) {
+  } else if (contextWindow.includes('training period') || contextWindow.includes('training:')) {
     return `Training Period: ${date}`;
-  } else if (contextWindow.includes('review') || contextWindow.includes('annual')) {
+  } else if (contextWindow.includes('annual review') || contextWindow.includes('review:')) {
     return `Annual Review: ${date}`;
-  } else if (contextWindow.includes('deadline') || contextWindow.includes('due')) {
+  } else if (contextWindow.includes('deadline') || contextWindow.includes('due date')) {
     return `Deadline: ${date}`;
   } else if (contextWindow.includes('payment') || contextWindow.includes('billing')) {
     return `Payment Date: ${date}`;
-  } else if (contextWindow.includes('contract') || contextWindow.includes('agreement')) {
-    return `Contract Date: ${date}`;
+  } else if (contextWindow.includes('contract start') || contextWindow.includes('effective date')) {
+    return `Contract Start: ${date}`;
+  } else if (contextWindow.includes('semester') || contextWindow.includes('academic')) {
+    return `Academic Date: ${date}`;
   }
   
   return null;
@@ -762,24 +767,33 @@ function extractCriticalDatesFromContent(fileName: string, fileContent: string, 
   // Extract actual dates from content with context
   const dateMatches = fileContent.match(/\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}|\b\d{1,2}\/\d{1,2}\/\d{4}/gi);
   if (dateMatches && dateMatches.length > 0) {
-    // Map dates to their likely context based on document content
-    const content = fileContent.toLowerCase();
-    dateMatches.slice(0, 5).forEach((date, index) => {
+    // Remove duplicates and track used contexts to avoid repetition
+    const uniqueDates = [...new Set(dateMatches)];
+    const usedContexts = new Set<string>();
+    
+    uniqueDates.slice(0, 5).forEach((date, index) => {
       // Look for context clues around each date
       const dateContext = getDateContext(fileContent, date);
-      if (dateContext) {
+      if (dateContext && !usedContexts.has(dateContext.split(':')[0])) {
         dates.push(dateContext);
+        usedContexts.add(dateContext.split(':')[0]);
       } else {
-        // Fallback to predefined immigration proposal dates
+        // Fallback to predefined immigration proposal dates based on the order
         if (fileName.toLowerCase().includes('immigration')) {
-          const immigrationDates = [
+          const immigrationContexts = [
             `Launch Date: ${date}`,
             `Project Start: ${date}`,
             `Staff Hiring: ${date}`,
             `Training Period: ${date}`,
             `Annual Review: ${date}`
           ];
-          dates.push(immigrationDates[index] || `Important Date: ${date}`);
+          const contextLabel = immigrationContexts[index] || `Project Date: ${date}`;
+          const contextType = contextLabel.split(':')[0];
+          
+          if (!usedContexts.has(contextType)) {
+            dates.push(contextLabel);
+            usedContexts.add(contextType);
+          }
         } else {
           dates.push(`Key Date: ${date}`);
         }
