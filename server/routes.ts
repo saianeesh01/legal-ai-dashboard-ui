@@ -704,34 +704,7 @@ function extractKeyFindingsFromContent(fileName: string, fileContent: string, is
   // Focus on actual document content rather than generic statements
   // Remove generic findings that don't provide specific document insights
   
-  // Fallback to generic findings if no content available
-  if (findings.length === 0) {
-    if (isSOW && isMedical) {
-      return [
-        "12-month medical services contract with clear start/end dates",
-        "Specialized OB/GYN coverage requiring licensed professionals", 
-        "Monthly billing cycle with Net 30 payment terms",
-        "Comprehensive quality and safety compliance requirements",
-        "Regular performance reviews and reporting obligations"
-      ];
-    } else if (isContract) {
-      return [
-        "Professional services agreement with defined scope",
-        "Clear payment terms and invoicing procedures",
-        "Termination and modification clauses included",
-        "Confidentiality and compliance requirements specified",
-        "Dispute resolution procedures established"
-      ];
-    } else {
-      return [
-        "Structured document with clear section organization",
-        "Specific requirements and deliverables outlined",
-        "Timeline and milestone information provided",
-        "Quality standards and expectations defined",
-        "Professional obligations and responsibilities specified"
-      ];
-    }
-  }
+  // Return only actual extracted findings, no generic fallbacks
   
   return findings.slice(0, 5);
 }
@@ -788,33 +761,7 @@ function extractCriticalDatesFromContent(fileName: string, fileContent: string, 
   // Only add specific dates if we found actual dates in the content
   // Remove generic fallback statements that don't add value
   
-  // If no content-specific dates found, use document-specific fallback
-  if (dates.length === 0) {
-    if (fileName.toLowerCase().includes('immigration') && fileName.toLowerCase().includes('proposal')) {
-      return [
-        "Launch Date: September 1, 2024",
-        "Project Start: August 15, 2024", 
-        "Staff Hiring: July 1, 2024",
-        "Training Period: August 1-30, 2024",
-        "Annual Review: May 31, 2025"
-      ];
-    } else if (isSOW) {
-      return [
-        "Contract Start: June 1, 2025",
-        "Contract End: May 31, 2026", 
-        "Monthly Invoicing: 5th of each month",
-        "Payment Due: Net 30 days from invoice",
-        "Quarterly Reviews: Every 3 months"
-      ];
-    }
-    return [
-      "Document effective date upon signing",
-      "Payment terms: Net 30 days",
-      "Annual review cycle", 
-      "Termination notice: 60-90 days",
-      "Renewal consideration period"
-    ];
-  }
+  // Return only actual extracted dates, no generic fallbacks
   
   return dates.slice(0, 5);
 }
@@ -839,33 +786,7 @@ function extractFinancialTermsFromContent(fileName: string, fileContent: string,
   // Only extract specific financial amounts and terms from content
   // Remove generic statements that don't provide actual document details
   
-  // If no content-specific terms found, use fallback
-  if (terms.length === 0) {
-    if (fileName.toLowerCase().includes('immigration') && fileName.toLowerCase().includes('proposal')) {
-      return [
-        "Total annual funding: $240,000",
-        "Personnel costs: $180,000 (75% of budget)",
-        "Operations budget: $35,000",
-        "Training budget: $15,000",
-        "Monthly disbursement: $20,000"
-      ];
-    } else if (isSOW && isMedical) {
-      return [
-        "Monthly billing cycle for services rendered",
-        "Net 30 payment terms from invoice date",
-        "Electronic payment preferred method",
-        "Late payment penalties: 1.5% monthly",
-        "Expense reimbursement with pre-approval"
-      ];
-    }
-    return [
-      "Standard Net 30 payment terms",
-      "Monthly or milestone-based billing",
-      "Late payment penalties applicable",
-      "Expense reimbursement procedures",
-      "Budget and cost control measures"
-    ];
-  }
+  // Return only actual extracted financial terms, no generic fallbacks
   
   return terms.slice(0, 5);
 }
@@ -896,33 +817,7 @@ function extractComplianceFromContent(fileName: string, fileContent: string, isM
     requirements.push("Quality assurance and safety protocols");
   }
   
-  // If no content-specific requirements found, use fallback
-  if (requirements.length === 0) {
-    if (isMedical) {
-      return [
-        "Medical licensing and certification required",
-        "HIPAA compliance for patient privacy",
-        "Professional liability insurance mandatory",
-        "Continuing education requirements",
-        "Quality assurance and safety protocols"
-      ];
-    } else if (isContract) {
-      return [
-        "Legal and regulatory compliance",
-        "Confidentiality and data protection",
-        "Professional standards adherence",
-        "Industry-specific regulations",
-        "Documentation and reporting requirements"
-      ];
-    }
-    return [
-      "Professional standards compliance",
-      "Documentation requirements",
-      "Quality assurance procedures",
-      "Regulatory adherence",
-      "Performance monitoring"
-    ];
-  }
+  // Return only actual extracted compliance requirements, no generic fallbacks
   
   return requirements.slice(0, 5);
 }
