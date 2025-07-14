@@ -21,6 +21,7 @@ import {
 import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2, Filter, X } from "lucide-react";
 import { getAllDocuments, deleteDocument } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { SearchFilterHelp, DocumentTypesHelp, ConfidenceScoreHelp } from "@/components/ContextualHelpTooltip";
 
 // Helper functions for multi-label document type display
 const getDocumentTypeLabel = (verdict: string): string => {
@@ -235,6 +236,10 @@ const Index = () => {
               <div className="mb-8">
                 <Card className="shadow-elegant">
                   <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium">Search & Filter Documents</h3>
+                      <SearchFilterHelp variant="default" side="left" />
+                    </div>
                     <div className="flex flex-col sm:flex-row gap-4">
                       {/* Search Input */}
                       <div className="flex-1 relative">
@@ -249,7 +254,7 @@ const Index = () => {
                       </div>
                       
                       {/* Filter Select */}
-                      <div className="sm:w-48">
+                      <div className="sm:w-48 relative">
                         <Select value={filterType} onValueChange={(value: "all" | "proposal" | "nta" | "motion" | "ij_decision" | "form" | "country_report" | "other" | "undetermined") => setFilterType(value)}>
                           <SelectTrigger className="w-full">
                             <Filter className="h-4 w-4 mr-2" />
@@ -355,21 +360,27 @@ const Index = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-2">
                           <FileText className="h-5 w-5 text-primary" />
-                          <Badge 
-                            variant="default"
-                            className={getDocumentTypeBadgeClass(document.aiAnalysis?.verdict || 'undetermined')}
-                          >
-                            {getDocumentTypeIcon(document.aiAnalysis?.verdict || 'undetermined')}
-                            {getDocumentTypeLabel(document.aiAnalysis?.verdict || 'undetermined')}
-                          </Badge>
+                          <DocumentTypesHelp variant="minimal" side="bottom">
+                            <Badge 
+                              variant="default"
+                              className={`${getDocumentTypeBadgeClass(document.aiAnalysis?.verdict || 'undetermined')} cursor-help`}
+                            >
+                              {getDocumentTypeIcon(document.aiAnalysis?.verdict || 'undetermined')}
+                              {getDocumentTypeLabel(document.aiAnalysis?.verdict || 'undetermined')}
+                            </Badge>
+                          </DocumentTypesHelp>
                         </div>
                         <div className="flex items-center space-x-2">
                           {document.aiAnalysis && (
                             <div className="flex items-center space-x-1">
-                              <Brain className="h-4 w-4 text-accent" />
-                              <span className="text-xs text-muted-foreground">
-                                {Math.round(document.aiAnalysis.confidence * 100)}%
-                              </span>
+                              <ConfidenceScoreHelp variant="minimal" side="bottom">
+                                <div className="flex items-center space-x-1 cursor-help">
+                                  <Brain className="h-4 w-4 text-accent" />
+                                  <span className="text-xs text-muted-foreground">
+                                    {Math.round(document.aiAnalysis.confidence * 100)}%
+                                  </span>
+                                </div>
+                              </ConfidenceScoreHelp>
                             </div>
                           )}
                           <Button

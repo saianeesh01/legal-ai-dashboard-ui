@@ -23,6 +23,16 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
+import { 
+  DocumentAnalysisHelp, 
+  ConfidenceScoreHelp, 
+  AIQueryHelp, 
+  TimelineHelp, 
+  ComplianceHelp, 
+  FinancialTermsHelp, 
+  LegalImprovementsHelp, 
+  EvidenceHelp 
+} from "./ContextualHelpTooltip";
 
 interface ResultsDashboardProps {
   uploadResults?: any;
@@ -224,22 +234,27 @@ The document contains standard commercial lease provisions with some tenant-favo
           {/* Main Analysis Card */}
           <Card className="shadow-elegant animate-fade-in">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Brain className="h-5 w-5 text-primary" />
-                <span>AI Analysis Results</span>
-                {aiAnalysis.verdict && (
-                  <Badge 
-                    variant="default"
-                    className={getDocumentTypeBadgeClass(aiAnalysis.verdict)}
-                  >
-                    {getDocumentTypeLabel(aiAnalysis.verdict)}
-                  </Badge>
-                )}
-                {aiAnalysis.confidence && (
-                  <Badge variant="outline">
-                    {Math.round(aiAnalysis.confidence * 100)}% confidence
-                  </Badge>
-                )}
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  <span>AI Analysis Results</span>
+                  {aiAnalysis.verdict && (
+                    <Badge 
+                      variant="default"
+                      className={getDocumentTypeBadgeClass(aiAnalysis.verdict)}
+                    >
+                      {getDocumentTypeLabel(aiAnalysis.verdict)}
+                    </Badge>
+                  )}
+                  {aiAnalysis.confidence && (
+                    <ConfidenceScoreHelp variant="minimal" side="bottom">
+                      <Badge variant="outline" className="cursor-help">
+                        {Math.round(aiAnalysis.confidence * 100)}% confidence
+                      </Badge>
+                    </ConfidenceScoreHelp>
+                  )}
+                </div>
+                <DocumentAnalysisHelp variant="default" side="left" />
               </CardTitle>
               <CardDescription>
                 Comprehensive AI-powered document analysis and insights
@@ -262,9 +277,12 @@ The document contains standard commercial lease provisions with some tenant-favo
               {/* Evidence and Reasoning */}
               {aiAnalysis.evidence && aiAnalysis.evidence.length > 0 && (
                 <div>
-                  <h4 className="font-semibold mb-3 flex items-center">
-                    <Search className="h-4 w-4 mr-2 text-primary" />
-                    Classification Evidence
+                  <h4 className="font-semibold mb-3 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Search className="h-4 w-4 mr-2 text-primary" />
+                      Classification Evidence
+                    </div>
+                    <EvidenceHelp variant="minimal" side="left" />
                   </h4>
                   <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
                     <p className="text-sm text-muted-foreground mb-3 font-medium">
@@ -308,9 +326,12 @@ The document contains standard commercial lease provisions with some tenant-favo
             {aiAnalysis.criticalDates && (
               <Card className="shadow-elegant animate-fade-in">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    <span>Critical Dates</span>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <span>Critical Dates</span>
+                    </div>
+                    <TimelineHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -330,9 +351,12 @@ The document contains standard commercial lease provisions with some tenant-favo
             {aiAnalysis.financialTerms && (
               <Card className="shadow-elegant animate-fade-in">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <DollarSign className="h-4 w-4 text-primary" />
-                    <span>Financial Terms</span>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      <span>Financial Terms</span>
+                    </div>
+                    <FinancialTermsHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -352,9 +376,12 @@ The document contains standard commercial lease provisions with some tenant-favo
             {aiAnalysis.complianceRequirements && (
               <Card className="shadow-elegant animate-fade-in">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <span>Compliance Requirements</span>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <div className="flex items-center space-x-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      <span>Compliance Requirements</span>
+                    </div>
+                    <ComplianceHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -374,9 +401,12 @@ The document contains standard commercial lease provisions with some tenant-favo
             {aiAnalysis.improvements && aiAnalysis.improvements.length > 0 && (
               <Card className="shadow-elegant animate-fade-in">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <Lightbulb className="h-4 w-4 text-accent" />
-                    <span>Suggestions to Improve</span>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <div className="flex items-center space-x-2">
+                      <Lightbulb className="h-4 w-4 text-accent" />
+                      <span>Suggestions to Improve</span>
+                    </div>
+                    <LegalImprovementsHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

@@ -31,6 +31,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { uploadFile, pollJobStatus, checkDuplicate, deleteDocument, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { UploadHelp } from "./ContextualHelpTooltip";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                             */
@@ -232,11 +233,14 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
     <div className="max-w-2xl mx-auto">
       <Card className="shadow-elegant">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Upload Document
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload Document
+            </div>
+            <UploadHelp variant="default" side="left" />
           </CardTitle>
-          <CardDescription>PDF or image ≤ 50 MB. </CardDescription>
+          <CardDescription>PDF or image ≤ 50 MB. AI-powered analysis with OCR support.</CardDescription>
         </CardHeader>
 
         <CardContent>
