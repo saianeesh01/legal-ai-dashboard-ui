@@ -1,0 +1,89 @@
+
+LegalAI
+Document Analysis
+
+Upload
+Search
+Results
+AI Analysis Results
+📋 Motion/Brief
+95% confidence
+Comprehensive AI-powered document analysis and insights
+
+Expanded Summary
+DOCUMENT ANALYSIS - LIMITED (Filename-Based Classification)
+
+Document: Blank Immigration Motion to Reopen.pdf
+Status: Content extraction failed, analysis based on filename only
+
+IMMIGRATION MOTION ANALYSIS
+This appears to be an immigration motion document based on the filename. Immigration motions are legal pleadings filed with the Immigration Court.
+
+Key Document Purpose: Legal motion filing
+Expected Content: Legal arguments, supporting evidence, requested relief  
+Legal Significance: Formal request for court action or reconsideration
+
+For complete analysis, please ensure the PDF is readable and re-upload.
+
+LIMITATION NOTICE: This analysis is based solely on filename patterns due to PDF content extraction failure. For accurate legal analysis, proper document content extraction is required.
+
+Classification Evidence
+Document classified as legal motion/brief based on 5 pieces of evidence. Confidence: 95%
+
+Filename clearly indicates motion document: "Blank Immigration Motion to Reopen.pdf"
+Motion to reopen identified in filename
+motion heading: detected in filename "Blank Immigration Motion to Reopen.pdf"
+motion to reopen/reconsider: detected in filename "Blank Immigration Motion to Reopen.pdf"
+motion heading: "Motion to"
+Key Findings
+Relief requested: Reopen
+Critical Dates
+Content extraction failed - unable to extract dates
+Financial Terms
+Content extraction failed - unable to extract financial terms
+Compliance Requirements
+Content extraction failed - unable to extract compliance requirements
+Suggestions to Improve
+Strengthen legal arguments with additional case law citations
+Expand factual record with supporting documentation
+Address potential counterarguments preemptively
+Ensure compliance with local court rules and procedures
+Include comprehensive prayer for relief
+Recommended Toolkit
+Federal Rules of Civil Procedure
+Local Immigration Court Rules
+Legal brief templates and formatting guides
+Case law research databases (Westlaw, Lexis)
+Immigration law practice guides
+Document Processed
+Successfully analyzed Blank Immigration Motion to Reopen.pdf
+
+Blank Immigration Motion to Reopen.pdf
+
+0.13 MB
+
+Processed
+Ask Questions
+Ask specific questions about your document to get detailed insights
+
+Suggested questions:
+
+What are the key deadlines in this document?
+Summarize the main terms and conditions
+What renewal options are available?
+Ask me anything about your document... e.g., 'What are the payment terms?' or 'Explain the termination clause'
+Be specific for better results
+0/500
+Ask Question
+Tips for better results:
+
+• Ask specific questions about sections, clauses, or terms
+• Request explanations of legal language or complex provisions
+• Ask about deadlines, obligations, or key dates
+Timeline Overview
+Key dates and deadlines from your document
+
+Content extraction failed - unable to extract dates
+
+Total Timeline Items:
+1 identified
