@@ -133,25 +133,34 @@ export class SmartLegalClassifier {
       }
     }
     
-    // 6. DOCUMENT TYPE DETECTION
+    // 6. ENHANCED DOCUMENT TYPE DETECTION
+    // Check filename first for stronger indicators
+    const filenameType = this.getDocumentTypeFromFilename(fileName);
+    if (filenameType) {
+      contentAnalysis.documentType = filenameType.type;
+      evidence.push(`Filename indicates: ${filenameType.description}`);
+      confidence += filenameType.confidence;
+    }
+    
+    // Then check content for additional context
     if (normalizedContent.includes('clinic') && (normalizedContent.includes('grant') || normalizedContent.includes('funding'))) {
-      contentAnalysis.documentType = 'clinic_grant';
+      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'clinic_grant';
       evidence.push('Document type: Legal clinic grant/funding');
       confidence += 0.08;
     } else if (normalizedContent.includes('proposal') || normalizedContent.includes('rfp')) {
-      contentAnalysis.documentType = 'proposal';
+      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'proposal';
       evidence.push('Document type: Proposal or RFP');
       confidence += 0.10;
     } else if (normalizedContent.includes('contract') || normalizedContent.includes('agreement')) {
-      contentAnalysis.documentType = 'contract';
+      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'contract';
       evidence.push('Document type: Contract or agreement');
       confidence -= 0.10;
     } else if (normalizedContent.includes('court') || normalizedContent.includes('opinion')) {
-      contentAnalysis.documentType = 'legal_document';
+      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'legal_document';
       evidence.push('Document type: Legal court document');
       confidence -= 0.15;
     } else if (normalizedContent.includes('council') || normalizedContent.includes('board')) {
-      contentAnalysis.documentType = 'administrative';
+      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'administrative';
       evidence.push('Document type: Administrative/board document');
       confidence -= 0.12;
     }
@@ -173,9 +182,40 @@ export class SmartLegalClassifier {
       evidence.push(...structureScore.evidence);
     }
     
-    // Final determination
-    const verdict: 'proposal' | 'non-proposal' = confidence > 0.6 ? 'proposal' : 'non-proposal';
-    const finalConfidence = Math.min(Math.max(confidence, 0.1), 0.98);
+    // Enhanced confidence boosting for clear indicators
+    if (contentAnalysis.documentType === 'proposal' && evidence.length >= 2) {
+      confidence += 0.15; // Boost for clear proposal document type
+    }
+    
+    if (contentAnalysis.documentType === 'clinic_grant' && evidence.length >= 1) {
+      confidence += 0.20; // Higher boost for clinic grant documents
+    }
+    
+    // Filename-based confidence boosting
+    if (filenameAnalysis.isProposal && evidence.length >= 1) {
+      confidence += 0.10; // Boost when filename and content align
+    }
+    
+    // Multiple evidence types boost confidence
+    const evidenceTypes = [
+      contentAnalysis.hasRequestLanguage,
+      contentAnalysis.hasFinancialTerms,
+      contentAnalysis.hasTimelines,
+      contentAnalysis.hasDeliverables,
+      contentAnalysis.hasApplication
+    ].filter(Boolean).length;
+    
+    if (evidenceTypes >= 2) {
+      confidence += 0.12; // Boost for multiple evidence types
+    }
+    
+    if (evidenceTypes >= 3) {
+      confidence += 0.08; // Additional boost for strong evidence
+    }
+    
+    // Final determination with improved thresholds
+    const verdict: 'proposal' | 'non-proposal' = confidence > 0.55 ? 'proposal' : 'non-proposal';
+    const finalConfidence = Math.min(Math.max(confidence, 0.15), 0.95);
     
     const reasoning = this.generateReasoning(verdict, finalConfidence, contentAnalysis);
     
@@ -200,13 +240,65 @@ export class SmartLegalClassifier {
   private static analyzeFileName(fileName: string): { isProposal: boolean; isNonProposal: boolean } {
     const normalizedName = fileName.toLowerCase();
     
-    const proposalKeywords = ['proposal', 'grant', 'funding', 'application', 'rfp'];
-    const nonProposalKeywords = ['opinion', 'ruling', 'order', 'docket', 'case', 'council', 'board', 'meeting'];
+    // Enhanced proposal keywords with more specific matching
+    const strongProposalKeywords = ['proposal', 'grant', 'funding', 'application', 'rfp', 'clinic'];
+    const moderateProposalKeywords = ['request', 'petition', 'submission', 'bid'];
     
-    const isProposal = proposalKeywords.some(keyword => normalizedName.includes(keyword));
-    const isNonProposal = nonProposalKeywords.some(keyword => normalizedName.includes(keyword));
+    // Enhanced non-proposal keywords
+    const strongNonProposalKeywords = ['opinion', 'ruling', 'order', 'docket', 'case', 'council', 'board', 'meeting', 'minutes', 'agenda'];
+    const moderateNonProposalKeywords = ['report', 'summary', 'analysis', 'review'];
+    
+    const hasStrongProposal = strongProposalKeywords.some(keyword => normalizedName.includes(keyword));
+    const hasModerateProposal = moderateProposalKeywords.some(keyword => normalizedName.includes(keyword));
+    const hasStrongNonProposal = strongNonProposalKeywords.some(keyword => normalizedName.includes(keyword));
+    const hasModerateNonProposal = moderateNonProposalKeywords.some(keyword => normalizedName.includes(keyword));
+    
+    // Strong indicators override moderate ones
+    const isProposal = hasStrongProposal || (hasModerateProposal && !hasStrongNonProposal);
+    const isNonProposal = hasStrongNonProposal || (hasModerateNonProposal && !hasStrongProposal);
     
     return { isProposal, isNonProposal };
+  }
+  
+  /**
+   * Get document type from filename with confidence scoring
+   */
+  private static getDocumentTypeFromFilename(fileName: string): { type: string; description: string; confidence: number } | null {
+    const normalizedName = fileName.toLowerCase();
+    
+    // Veterans/Legal Clinic proposals
+    if (normalizedName.includes('veteran') && normalizedName.includes('proposal')) {
+      return { type: 'clinic_grant', description: 'Veterans clinic proposal', confidence: 0.25 };
+    }
+    if (normalizedName.includes('clinic') && normalizedName.includes('proposal')) {
+      return { type: 'clinic_grant', description: 'Legal clinic proposal', confidence: 0.25 };
+    }
+    
+    // Grant applications
+    if (normalizedName.includes('grant') && normalizedName.includes('application')) {
+      return { type: 'clinic_grant', description: 'Grant application', confidence: 0.20 };
+    }
+    if (normalizedName.includes('grant') && normalizedName.includes('proposal')) {
+      return { type: 'clinic_grant', description: 'Grant proposal', confidence: 0.20 };
+    }
+    
+    // General proposals
+    if (normalizedName.includes('proposal')) {
+      return { type: 'proposal', description: 'Proposal document', confidence: 0.15 };
+    }
+    if (normalizedName.includes('rfp')) {
+      return { type: 'proposal', description: 'RFP document', confidence: 0.15 };
+    }
+    
+    // Administrative documents
+    if (normalizedName.includes('council') || normalizedName.includes('board')) {
+      return { type: 'administrative', description: 'Administrative document', confidence: -0.10 };
+    }
+    if (normalizedName.includes('meeting') || normalizedName.includes('minutes')) {
+      return { type: 'administrative', description: 'Meeting document', confidence: -0.12 };
+    }
+    
+    return null;
   }
   
   /**

@@ -62,14 +62,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         if (req.file.mimetype === 'application/pdf') {
           // Extract actual PDF content using pdf-parse
-          const pdfParse = require('pdf-parse');
-          const pdfBuffer = req.file.buffer;
-          const pdfData = await pdfParse(pdfBuffer);
-          fileContent = pdfData.text || '';
+          try {
+            const pdfParse = await import('pdf-parse');
+            const pdfBuffer = req.file.buffer;
+            const pdfData = await pdfParse.default(pdfBuffer);
+            fileContent = pdfData.text || '';
           
-          console.log(`Extracted PDF content for ${req.file.originalname}:`);
-          console.log(`Content length: ${fileContent.length} characters`);
-          console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
+            console.log(`Extracted PDF content for ${req.file.originalname}:`);
+            console.log(`Content length: ${fileContent.length} characters`);
+            console.log(`First 200 chars: ${fileContent.substring(0, 200)}...`);
+          } catch (pdfError) {
+            console.log(`PDF parsing failed for ${req.file.originalname}:`, pdfError);
+            fileContent = '';
+          }
           
           // If PDF extraction failed or returned minimal content, create summary
           if (!fileContent || fileContent.trim().length < 50) {
