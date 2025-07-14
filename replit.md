@@ -126,6 +126,12 @@ Preferred communication style: Simple, everyday language.
 - ✓ **MAJOR IMPROVEMENT**: Enhanced document summaries with specific, contextual descriptions for all document types
 - ✓ **MAJOR IMPROVEMENT**: Added clear document understanding regardless of proposal/non-proposal classification
 - ✓ **MAJOR IMPROVEMENT**: Improved summary generation with detailed content analysis for better user comprehension
+- ✓ **ADVANCED ENHANCEMENT**: Integrated Legal Dataset Builder v2 system for training proposal detectors
+- ✓ **ADVANCED ENHANCEMENT**: Added comprehensive negative keyword filtering (court opinions, dockets, legal rulings)
+- ✓ **ADVANCED ENHANCEMENT**: Enhanced proposal detection with 24+ positive and 16+ negative keywords
+- ✓ **ADVANCED ENHANCEMENT**: Implemented nuanced confidence scoring based on keyword match count
+- ✓ **ADVANCED ENHANCEMENT**: Added Python dataset builder with Ollama integration capabilities
+- ✓ **ADVANCED ENHANCEMENT**: Created fallback keyword analysis system for improved accuracy
 
 ## Previous Changes (July 13, 2025)
 

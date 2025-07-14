@@ -597,11 +597,20 @@ This document requires manual content extraction for detailed analysis. The file
       const fileName = job.fileName.toLowerCase();
       const content = fileContent.toLowerCase();
       
-      // More comprehensive proposal detection
+      // Enhanced proposal detection using dataset builder keywords
       const proposalKeywords = [
         'proposal', 'rfp', 'request for proposal', 'bid', 'tender', 'funding request',
         'grant application', 'project proposal', 'clinic proposal', 'service proposal',
-        'immigration proposal', 'legal clinic', 'funding opportunity', 'grant program'
+        'immigration proposal', 'legal clinic', 'funding opportunity', 'grant program',
+        'budget request', 'requested funding', 'deliverables', 'scope of work',
+        'implementation plan', 'program proposal', 'policy white paper', 'budget ask',
+        'funding initiative', 'program development', 'ngo funding pitch', 'university program proposal'
+      ];
+      
+      const negativeKeywords = [
+        'v.', 'opinion of the court', 'order granting', 'plaintiff', 'defendant',
+        'case caption', 'docket', 'court ruling', 'judgment', 'appeal', 'motion',
+        'brief', 'filing', 'opinion', 'ruling', 'decision', 'order'
       ];
       
       const isProposalByFileName = proposalKeywords.some(keyword => fileName.includes(keyword));
@@ -612,22 +621,54 @@ This document requires manual content extraction for detailed analysis. The file
                                   content.includes('project timeline') ||
                                   content.includes('expected outcomes');
       
-      const isProposal = isProposalByFileName || isProposalByContent;
+      // Check for negative indicators (court documents, legal opinions, etc.)
+      const hasNegativeIndicators = negativeKeywords.some(keyword => 
+        fileName.includes(keyword) || content.includes(keyword)
+      );
+      
+      // Enhanced proposal detection with negative filtering
+      const isProposal = (isProposalByFileName || isProposalByContent) && !hasNegativeIndicators;
       const isSOW = /sow|statement of work/i.test(fileName);
       const isMedical = /obgyn|medical|healthcare|ob\/gyn|ob\+gyn/i.test(fileName);
       const isContract = /contract|agreement|service/i.test(fileName);
       
-      // Enhanced confidence scoring
+      // Enhanced confidence scoring based on advanced analysis
       let confidence = 0.75; // base confidence
+      
       if (isProposal) {
-        confidence = 0.88; // higher confidence for proposals
+        // Count positive indicators
+        const positiveMatches = proposalKeywords.filter(keyword => 
+          fileName.includes(keyword) || content.includes(keyword)
+        ).length;
+        
+        confidence = 0.88; // base proposal confidence
+        
         if (isProposalByFileName && isProposalByContent) {
           confidence = 0.95; // highest confidence when both filename and content indicate proposal
+        } else if (positiveMatches >= 3) {
+          confidence = 0.92; // very high confidence with multiple positive indicators
+        } else if (positiveMatches >= 2) {
+          confidence = 0.90; // high confidence with moderate positive indicators
         }
-      } else if (fileName.includes('clinic') || content.includes('clinic')) {
-        confidence = 0.82; // moderate confidence for clinic documents
-      } else if (fileName.includes('immigration') || content.includes('immigration')) {
-        confidence = 0.80; // moderate confidence for immigration documents
+        
+        // Boost confidence for specific funding-related terms
+        if (content.includes('funding request') || content.includes('budget request') || 
+            content.includes('requested funding') || content.includes('grant application')) {
+          confidence = Math.min(confidence + 0.03, 0.98);
+        }
+      } else {
+        // For non-proposals, check for negative indicators to boost confidence
+        const negativeMatches = negativeKeywords.filter(keyword => 
+          fileName.includes(keyword) || content.includes(keyword)
+        ).length;
+        
+        if (hasNegativeIndicators && negativeMatches >= 2) {
+          confidence = 0.90; // high confidence it's not a proposal
+        } else if (fileName.includes('clinic') || content.includes('clinic')) {
+          confidence = 0.82; // moderate confidence for clinic documents
+        } else if (fileName.includes('immigration') || content.includes('immigration')) {
+          confidence = 0.80; // moderate confidence for immigration documents
+        }
       }
       
       const detailedAnalysis = generateEnhancedAnalysis(job.fileName, fileContent, isProposal, isSOW, isMedical, isContract);
@@ -719,6 +760,39 @@ This document requires manual content extraction for detailed analysis. The file
     } catch (error) {
       console.error("Duplicate check error:", error);
       res.status(500).json({ error: "Failed to check for duplicates" });
+    }
+  });
+
+  // Dataset builder endpoint (optional - for advanced users)
+  app.post("/api/build-dataset", async (req, res) => {
+    try {
+      // This endpoint can be used to trigger advanced dataset building
+      // Currently returns enhanced keywords for proposal detection
+      const enhancedKeywords = {
+        proposal: [
+          'proposal', 'rfp', 'request for proposal', 'grant application',
+          'funding request', 'budget request', 'requested funding',
+          'deliverables', 'scope of work', 'implementation plan',
+          'project proposal', 'program proposal', 'clinic proposal',
+          'policy white paper', 'budget ask', 'funding opportunity'
+        ],
+        negative: [
+          'v.', 'opinion of the court', 'order granting', 'plaintiff',
+          'defendant', 'case caption', 'docket', 'court ruling',
+          'judgment', 'appeal', 'motion', 'brief', 'filing'
+        ]
+      };
+      
+      res.json({
+        status: 'success',
+        message: 'Enhanced keywords loaded for proposal detection',
+        keywords: enhancedKeywords,
+        totalPositiveKeywords: enhancedKeywords.proposal.length,
+        totalNegativeKeywords: enhancedKeywords.negative.length
+      });
+    } catch (error) {
+      console.error("Dataset build error:", error);
+      res.status(500).json({ error: "Dataset build failed" });
     }
   });
 
