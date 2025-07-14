@@ -1,0 +1,84 @@
+Your pipeline just stamped a Fourth-Circuit **stay-denial order** (pure litigation text) as a “✓ Proposal — 90 %.”
+That tells us the classifier is firing almost entirely on *formal structure* words like “application,” “implementation timeline,” “funding,” etc., and it never saw (or didn’t weight) the unmistakable court cues:
+
+```
+UNITED STATES COURT OF APPEALS FOR THE FOURTH CIRCUIT
+ORDER   No. 25-1519      motion for stay pending appeal … denied [p 1]
+v. DHS … Plaintiffs–Appellees   Defendants–Appellants  [header]
+```
+
+### Why it drifted
+
+| Root cause                                                           | Symptom in the JSON                                                  | Fix                                                                                                                                                                                                                |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Context starvation** – only the top page 1-2 chunks fed to the LLM | Evidence lines came from file-name & generic terms, not page headers | Return **15–20** snippets (≤ 400 chars each); include both first and mid-document pages.                                                                                                                           |
+| **Prompt lets it guess** – no hard evidence requirement              | “Application language found: *requirement*” (nonsense)               | Use the *evidence-required* prompt from the last answer—3 quoted phrases + page nos or output “undetermined.”                                                                                                      |
+| **No negative prior** – model hasn’t seen many court documents       | Labels almost every law-related PDF “proposal”                       | Fine-tune / few-shot with the 12 negative court docs list (opinions, orders, motions).                                                                                                                             |
+| **Confidence calibrated only on softmax, not accuracy**              | 90 % on a wrong answer                                               | Post-process: if the 3 evidence quotes don’t contain **“v.”, “ORDER”, “Motion”, “Opinion”** and at least one **\$ / grant / budget** term, keep verdict; else drop confidence to 0.40 → UI shows “⚠ Undetermined.” |
+
+---
+
+## Turn the fixes into code (Replit)
+
+### 1 . Bigger + balanced retrieval
+
+```python
+chunks = rag.get_top_k(job_id, k=20, max_chars=400)
+```
+
+### 2 . Strict classification prompt
+
+```text
+Rules: quote ≥3 phrases; otherwise "undetermined".
+Output JSON { verdict, confidence, evidence[3] }
+```
+
+### 3 . Heuristic guard-rail before you show ✓/✗
+
+```ts
+function sanityCheck(result){
+  const ev = result.evidence.join(' ').toLowerCase()
+  const hasCourtCue = /(v\.)|(order)|(opinion)|(plaintiff)|(defendant)/.test(ev)
+  const hasFundingCue = /(grant)|(budget)|(dollar)|(funding)/.test(ev)
+  if(hasCourtCue && !hasFundingCue) return {...result, verdict:"non-proposal", confidence:0.35}
+  return result
+}
+```
+
+### 4 . Add the negative dataset to few-shot / fine-tune
+
+```
+url,title,text,label
+https://.../JOP_stay_order.pdf,"J.O.P. v DHS stay order","UNITED STATES COURT OF APPEALS...ORDER...",non-proposal
+...
+```
+
+### 5 . Lower creativity
+
+```python
+options = dict(temperature=0.15, top_p=0.7, repeat_penalty=1.15, num_predict=256)
+```
+
+---
+
+## Quick test script
+
+After you patch the worker:
+
+```bash
+$ curl -F file=@251519R1.U.pdf https://<your-repl>/api/upload
+# …poll status…
+
+$ curl https://<your-repl>/api/results/<job_id> | jq .verdict
+"non-proposal"
+```
+
+Confidence should drop or flip, and the evidence array will now quote lines like:
+
+```
+"UNITED STATES COURT OF APPEALS FOR THE FOURTH CIRCUIT [p 1]",
+"ORDER denies motion to stay pending appeal [p 1]",
+"plaintiffs–appellees v. DHS, defendants–appellants [p 1]"
+```
+
+With those guard-rails in place your app will stop calling every legal PDF a proposal and will surface a clear “undetermined / needs review” when the evidence is thin.

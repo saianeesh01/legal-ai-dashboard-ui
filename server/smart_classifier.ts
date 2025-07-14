@@ -5,7 +5,7 @@
  */
 
 export interface SmartClassificationResult {
-  verdict: 'proposal' | 'non-proposal';
+  verdict: 'proposal' | 'non-proposal' | 'undetermined';
   confidence: number;
   evidence: string[];
   reasoning: string;
@@ -16,13 +16,15 @@ export interface SmartClassificationResult {
     hasDeliverables: boolean;
     hasApplication: boolean;
     documentType: string;
+    hasCourtIndicators: boolean;
+    hasLitigationTerms: boolean;
   };
 }
 
 export class SmartLegalClassifier {
   
   /**
-   * Analyze document content to determine if it's a proposal
+   * Analyze document content to determine if it's a proposal with evidence-based classification
    */
   static analyzeDocument(fileName: string, content: string): SmartClassificationResult {
     console.log(`Smart classifier analyzing: ${fileName}`);
@@ -39,135 +41,150 @@ export class SmartLegalClassifier {
       hasFinancialTerms: false,
       hasDeliverables: false,
       hasApplication: false,
+      hasCourtIndicators: false,
+      hasLitigationTerms: false,
       documentType: 'unknown'
     };
     
-    // 1. REQUEST LANGUAGE ANALYSIS
-    const requestPatterns = [
-      /(?:request|requesting|seek|seeking|apply|applying)\s+(?:for|to)/i,
-      /(?:funding|grant|support|assistance)\s+(?:for|to|is|will)/i,
-      /(?:propose|proposal|proposes)\s+(?:to|for|that)/i,
-      /(?:establish|create|implement|develop)\s+(?:a|an|the)/i,
-      /(?:we|our organization|this proposal)\s+(?:will|would|plans?)/i
+    // CRITICAL: Check for court/litigation indicators first (negative evidence)
+    const courtIndicators = [
+      /UNITED STATES COURT OF APPEALS/i,
+      /UNITED STATES DISTRICT COURT/i,
+      /ORDER\s+(?:No\.?\s*\d+|\d+)/i,
+      /motion for stay pending appeal/i,
+      /plaintiffs?[\s\-–—]+appellees?/i,
+      /defendants?[\s\-–—]+appellants?/i,
+      /v\.\s+[A-Z][a-z]+/i, // "v. DHS" pattern
+      /OPINION|JUDGMENT|DECREE/i,
+      /MEMORANDUM AND ORDER/i,
+      /(?:denied|granted|dismissed)/i
     ];
     
-    for (const pattern of requestPatterns) {
+    for (const pattern of courtIndicators) {
       const matches = content.match(pattern);
       if (matches) {
-        contentAnalysis.hasRequestLanguage = true;
-        evidence.push(`Request language found: "${matches[0]}"`);
-        confidence += 0.15;
+        contentAnalysis.hasCourtIndicators = true;
+        evidence.push(`Court document indicator: "${matches[0]}"`);
+        confidence -= 0.4; // Strong negative evidence
         break;
       }
     }
     
-    // 2. FUNDING/GRANT ANALYSIS
-    const fundingPatterns = [
-      /\$[\d,]+(?:\.\d{2})?\s*(?:grant|funding|budget|cost|amount)/i,
-      /(?:annual|total|requested)\s+(?:funding|budget|amount|cost):\s*\$[\d,]+/i,
-      /(?:funding|grant)\s+(?:opportunity|program|initiative)/i,
-      /(?:eligib|application|deadline|submission)/i
+    // Check for litigation terms
+    const litigationTerms = [
+      /(?:motion|petition|complaint|brief|pleading)/i,
+      /(?:plaintiff|defendant|appellant|appellee)/i,
+      /(?:docket|case number|civil action)/i,
+      /(?:injunction|restraining order|stay)/i,
+      /(?:discovery|deposition|interrogatory)/i
     ];
     
-    for (const pattern of fundingPatterns) {
+    for (const pattern of litigationTerms) {
       const matches = content.match(pattern);
       if (matches) {
-        contentAnalysis.hasFinancialTerms = true;
-        evidence.push(`Funding language found: "${matches[0]}"`);
-        confidence += 0.12;
+        contentAnalysis.hasLitigationTerms = true;
+        evidence.push(`Litigation term found: "${matches[0]}"`);
+        confidence -= 0.2; // Moderate negative evidence
         break;
       }
     }
     
-    // 3. TIMELINE ANALYSIS
-    const timelinePatterns = [
-      /(?:implementation|project|program)\s+(?:timeline|schedule|plan)/i,
-      /(?:phase|stage|milestone|deadline|due)/i,
-      /(?:year|month|quarter|semester)\s+(?:one|two|1|2|first|second)/i,
-      /(?:launch|start|begin|commence)\s+(?:date|on|by)/i
-    ];
-    
-    for (const pattern of timelinePatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        contentAnalysis.hasTimelines = true;
-        evidence.push(`Timeline language found: "${matches[0]}"`);
-        confidence += 0.10;
-        break;
+    // Only proceed with positive analysis if no strong court indicators
+    if (!contentAnalysis.hasCourtIndicators) {
+      // 1. REQUEST LANGUAGE ANALYSIS (requires actual funding context)
+      const requestPatterns = [
+        /(?:request|requesting|seek|seeking)\s+(?:funding|grant|support)/i,
+        /(?:applying|application)\s+for\s+(?:funding|grant|support)/i,
+        /(?:propose|proposal)\s+(?:to|for)\s+(?:establish|create|implement)/i,
+        /(?:we|our organization|this proposal)\s+(?:will|would|plans?)\s+(?:provide|establish|create)/i
+      ];
+      
+      for (const pattern of requestPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.hasRequestLanguage = true;
+          evidence.push(`Request language: "${matches[0]}"`);
+          confidence += 0.15;
+          break;
+        }
+      }
+      
+      // 2. FUNDING/GRANT ANALYSIS (requires specific monetary/funding context)
+      const fundingPatterns = [
+        /\$[\d,]+(?:\.\d{2})?\s*(?:grant|funding|budget|requested|annually)/i,
+        /(?:total|annual|requested)\s+(?:funding|budget|amount):\s*\$[\d,]+/i,
+        /(?:grant|funding)\s+(?:opportunity|program|initiative|request)/i,
+        /(?:budget|cost)\s+breakdown|(?:personnel|operational)\s+costs/i
+      ];
+      
+      for (const pattern of fundingPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.hasFinancialTerms = true;
+          evidence.push(`Funding language found: "${matches[0]}"`);
+          confidence += 0.12;
+          break;
+        }
+      }
+      
+      // 3. TIMELINE ANALYSIS (only if no court indicators)
+      const timelinePatterns = [
+        /(?:implementation|project|program)\s+(?:timeline|schedule|plan)/i,
+        /(?:phase|stage|milestone|deadline|due)/i,
+        /(?:year|month|quarter|semester)\s+(?:one|two|1|2|first|second)/i,
+        /(?:launch|start|begin|commence)\s+(?:date|on|by)/i
+      ];
+      
+      for (const pattern of timelinePatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.hasTimelines = true;
+          evidence.push(`Timeline language found: "${matches[0]}"`);
+          confidence += 0.10;
+          break;
+        }
+      }
+      
+      // 4. DELIVERABLES ANALYSIS (only if no court indicators)
+      const deliverablesPatterns = [
+        /(?:deliverables?|outcomes?|objectives?|goals?)/i,
+        /(?:services?\s+(?:provided|offered|delivered)|service\s+delivery)/i,
+        /(?:scope\s+of\s+work|work\s+plan|project\s+plan)/i,
+        /(?:target\s+(?:population|audience|beneficiaries))/i
+      ];
+      
+      for (const pattern of deliverablesPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.hasDeliverables = true;
+          evidence.push(`Deliverables language found: "${matches[0]}"`);
+          confidence += 0.08;
+          break;
+        }
+      }
+      
+      // 5. APPLICATION ANALYSIS (only if no court indicators)
+      const applicationPatterns = [
+        /(?:application|proposal)\s+(?:for|to|deadline|submission)/i,
+        /(?:submit|submission|due|deadline)\s+(?:by|on|before)/i,
+        /(?:grant|funding)\s+(?:application|proposal|request)/i,
+        /(?:eligib|qualify|qualification|requirement)/i
+      ];
+      
+      for (const pattern of applicationPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.hasApplication = true;
+          evidence.push(`Application language found: "${matches[0]}"`);
+          confidence += 0.10;
+          break;
+        }
       }
     }
     
-    // 4. DELIVERABLES ANALYSIS
-    const deliverablesPatterns = [
-      /(?:deliverables?|outcomes?|objectives?|goals?)/i,
-      /(?:services?\s+(?:provided|offered|delivered)|service\s+delivery)/i,
-      /(?:scope\s+of\s+work|work\s+plan|project\s+plan)/i,
-      /(?:target\s+(?:population|audience|beneficiaries))/i
-    ];
-    
-    for (const pattern of deliverablesPatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        contentAnalysis.hasDeliverables = true;
-        evidence.push(`Deliverables language found: "${matches[0]}"`);
-        confidence += 0.08;
-        break;
-      }
-    }
-    
-    // 5. APPLICATION ANALYSIS
-    const applicationPatterns = [
-      /(?:application|proposal)\s+(?:for|to|deadline|submission)/i,
-      /(?:submit|submission|due|deadline)\s+(?:by|on|before)/i,
-      /(?:grant|funding)\s+(?:application|proposal|request)/i,
-      /(?:eligib|qualify|qualification|requirement)/i
-    ];
-    
-    for (const pattern of applicationPatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        contentAnalysis.hasApplication = true;
-        evidence.push(`Application language found: "${matches[0]}"`);
-        confidence += 0.10;
-        break;
-      }
-    }
-    
-    // 6. ENHANCED DOCUMENT TYPE DETECTION
-    // Check filename first for stronger indicators
-    const filenameType = this.getDocumentTypeFromFilename(fileName);
-    if (filenameType) {
-      contentAnalysis.documentType = filenameType.type;
-      evidence.push(`Filename indicates: ${filenameType.description}`);
-      confidence += filenameType.confidence;
-    }
-    
-    // Then check content for additional context
-    if (normalizedContent.includes('clinic') && (normalizedContent.includes('grant') || normalizedContent.includes('funding'))) {
-      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'clinic_grant';
-      evidence.push('Document type: Legal clinic grant/funding');
-      confidence += 0.08;
-    } else if (normalizedContent.includes('proposal') || normalizedContent.includes('rfp')) {
-      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'proposal';
-      evidence.push('Document type: Proposal or RFP');
-      confidence += 0.10;
-    } else if (normalizedContent.includes('contract') || normalizedContent.includes('agreement')) {
-      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'contract';
-      evidence.push('Document type: Contract or agreement');
-      confidence -= 0.10;
-    } else if (normalizedContent.includes('court') || normalizedContent.includes('opinion')) {
-      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'legal_document';
-      evidence.push('Document type: Legal court document');
-      confidence -= 0.15;
-    } else if (normalizedContent.includes('council') || normalizedContent.includes('board')) {
-      if (contentAnalysis.documentType === 'unknown') contentAnalysis.documentType = 'administrative';
-      evidence.push('Document type: Administrative/board document');
-      confidence -= 0.12;
-    }
-    
-    // 7. FILENAME ANALYSIS
+    // 6. FILENAME ANALYSIS
     const filenameAnalysis = this.analyzeFileName(fileName);
-    if (filenameAnalysis.isProposal) {
+    if (filenameAnalysis.isProposal && !contentAnalysis.hasCourtIndicators) {
       evidence.push(`Filename suggests proposal: "${fileName}"`);
       confidence += 0.08;
     } else if (filenameAnalysis.isNonProposal) {
@@ -175,58 +192,78 @@ export class SmartLegalClassifier {
       confidence -= 0.08;
     }
     
-    // 8. CONTENT STRUCTURE ANALYSIS
-    const structureScore = this.analyzeContentStructure(content);
-    confidence += structureScore.adjustment;
-    if (structureScore.evidence.length > 0) {
-      evidence.push(...structureScore.evidence);
+    // 7. DOCUMENT TYPE DETECTION
+    const filenameType = this.getDocumentTypeFromFilename(fileName);
+    if (filenameType) {
+      contentAnalysis.documentType = filenameType.type;
+      evidence.push(`Filename indicates: ${filenameType.description}`);
+      if (!contentAnalysis.hasCourtIndicators) {
+        confidence += filenameType.confidence;
+      }
     }
     
-    // Enhanced confidence boosting for clear indicators
-    if (contentAnalysis.documentType === 'proposal' && evidence.length >= 2) {
-      confidence += 0.15; // Boost for clear proposal document type
+    // CRITICAL: Apply sanity check for court documents
+    const sanityCheckResult = this.applySanityCheck({
+      verdict: confidence > 0.55 ? 'proposal' : 'non-proposal',
+      confidence,
+      evidence,
+      contentAnalysis
+    });
+    
+    let finalVerdict = sanityCheckResult.verdict;
+    let finalConfidence = sanityCheckResult.confidence;
+    
+    // Evidence requirement: Must have at least 2 pieces of evidence for high confidence
+    if (evidence.length < 2 && !contentAnalysis.hasCourtIndicators) {
+      finalVerdict = 'undetermined';
+      finalConfidence = 0.40;
+      evidence.push('Insufficient evidence for confident classification');
     }
     
-    if (contentAnalysis.documentType === 'clinic_grant' && evidence.length >= 1) {
-      confidence += 0.20; // Higher boost for clinic grant documents
+    // Court document override
+    if (contentAnalysis.hasCourtIndicators) {
+      finalVerdict = 'non-proposal';
+      finalConfidence = Math.max(0.85, finalConfidence);
+      contentAnalysis.documentType = 'court_document';
     }
     
-    // Filename-based confidence boosting
-    if (filenameAnalysis.isProposal && evidence.length >= 1) {
-      confidence += 0.10; // Boost when filename and content align
+    // Enhanced confidence boosting for clear indicators (only if not court document)
+    if (!contentAnalysis.hasCourtIndicators) {
+      if (contentAnalysis.documentType === 'clinic_grant' && evidence.length >= 2) {
+        finalConfidence += 0.15; // Boost for clinic grant documents
+      }
+      
+      // Multiple evidence types boost confidence
+      const evidenceTypes = [
+        contentAnalysis.hasRequestLanguage,
+        contentAnalysis.hasFinancialTerms,
+        contentAnalysis.hasTimelines,
+        contentAnalysis.hasDeliverables,
+        contentAnalysis.hasApplication
+      ].filter(Boolean).length;
+      
+      if (evidenceTypes >= 2) {
+        finalConfidence += 0.10; // Boost for multiple evidence types
+      }
+      
+      if (evidenceTypes >= 3) {
+        finalConfidence += 0.08; // Additional boost for strong evidence
+      }
     }
     
-    // Multiple evidence types boost confidence
-    const evidenceTypes = [
-      contentAnalysis.hasRequestLanguage,
-      contentAnalysis.hasFinancialTerms,
-      contentAnalysis.hasTimelines,
-      contentAnalysis.hasDeliverables,
-      contentAnalysis.hasApplication
-    ].filter(Boolean).length;
+    // Final confidence normalization
+    finalConfidence = Math.min(Math.max(finalConfidence, 0.15), 0.95);
     
-    if (evidenceTypes >= 2) {
-      confidence += 0.12; // Boost for multiple evidence types
-    }
-    
-    if (evidenceTypes >= 3) {
-      confidence += 0.08; // Additional boost for strong evidence
-    }
-    
-    // Final determination with improved thresholds
-    const verdict: 'proposal' | 'non-proposal' = confidence > 0.55 ? 'proposal' : 'non-proposal';
-    const finalConfidence = Math.min(Math.max(confidence, 0.15), 0.95);
-    
-    const reasoning = this.generateReasoning(verdict, finalConfidence, contentAnalysis);
+    const reasoning = this.generateReasoning(finalVerdict, finalConfidence, contentAnalysis);
     
     console.log(`Smart classification result for ${fileName}:`);
-    console.log(`  Verdict: ${verdict}`);
+    console.log(`  Verdict: ${finalVerdict}`);
     console.log(`  Confidence: ${finalConfidence.toFixed(2)}`);
     console.log(`  Evidence count: ${evidence.length}`);
     console.log(`  Content analysis:`, contentAnalysis);
     
     return {
-      verdict,
+      verdict: finalVerdict,
       confidence: finalConfidence,
       evidence,
       reasoning,
@@ -258,6 +295,45 @@ export class SmartLegalClassifier {
     const isNonProposal = hasStrongNonProposal || (hasModerateNonProposal && !hasStrongProposal);
     
     return { isProposal, isNonProposal };
+  }
+
+  /**
+   * Apply sanity check to prevent court documents from being classified as proposals
+   */
+  private static applySanityCheck(result: {
+    verdict: 'proposal' | 'non-proposal';
+    confidence: number;
+    evidence: string[];
+    contentAnalysis: any;
+  }): { verdict: 'proposal' | 'non-proposal'; confidence: number } {
+    const evidenceText = result.evidence.join(' ').toLowerCase();
+    
+    // Check for court document indicators
+    const hasCourtCue = /(v\.)|(order)|(opinion)|(plaintiff)|(defendant)|(court of appeals)|(district court)|(motion|stay)/i.test(evidenceText);
+    
+    // Check for funding/grant indicators
+    const hasFundingCue = /(grant)|(budget)|(dollar)|(funding)|(proposal)|(application for funding)/i.test(evidenceText);
+    
+    // If has court indicators but no funding context, it's definitely not a proposal
+    if (hasCourtCue && !hasFundingCue) {
+      return {
+        verdict: 'non-proposal',
+        confidence: 0.85 // High confidence for court documents
+      };
+    }
+    
+    // If has strong court indicators even with some funding language, still not a proposal
+    if (result.contentAnalysis.hasCourtIndicators) {
+      return {
+        verdict: 'non-proposal',
+        confidence: 0.90 // Very high confidence for clear court documents
+      };
+    }
+    
+    return {
+      verdict: result.verdict,
+      confidence: result.confidence
+    };
   }
   
   /**
@@ -355,10 +431,20 @@ export class SmartLegalClassifier {
     if (analysis.hasDeliverables) indicators.push('deliverables');
     if (analysis.hasApplication) indicators.push('application elements');
     
+    // Check for court document indicators
+    const courtIndicators = [];
+    if (analysis.hasCourtIndicators) courtIndicators.push('court document indicators');
+    if (analysis.hasLitigationTerms) courtIndicators.push('litigation terms');
+    
     if (verdict === 'proposal') {
       return `Document classified as proposal based on ${indicators.join(', ')}. Confidence: ${Math.round(confidence * 100)}%`;
-    } else {
+    } else if (verdict === 'non-proposal') {
+      if (courtIndicators.length > 0) {
+        return `Document classified as non-proposal due to ${courtIndicators.join(', ')}. This appears to be a court or legal document. Confidence: ${Math.round(confidence * 100)}%`;
+      }
       return `Document classified as non-proposal. ${indicators.length > 0 ? `Some proposal elements found (${indicators.join(', ')}) but insufficient for classification.` : 'No significant proposal indicators found.'} Confidence: ${Math.round(confidence * 100)}%`;
+    } else {
+      return `Document classification is undetermined. ${indicators.length > 0 ? `Some indicators found (${indicators.join(', ')}) but insufficient evidence.` : 'Insufficient evidence for confident classification.'} Confidence: ${Math.round(confidence * 100)}%`;
     }
   }
 }

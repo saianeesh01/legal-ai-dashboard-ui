@@ -153,6 +153,13 @@ Preferred communication style: Simple, everyday language.
 - ✓ **REVOLUTIONARY UPDATE**: Implemented comprehensive document purpose and scope analysis
 - ✓ **REVOLUTIONARY UPDATE**: Added specific stakeholder identification for immigration, veterans, municipal, refugee, and justice documents
 - ✓ **REVOLUTIONARY UPDATE**: Enhanced both proposal and non-proposal summaries with audience-specific context and detailed explanations
+- ✓ **CRITICAL FIX**: Implemented robust evidence-based classification system with court document detection
+- ✓ **CRITICAL FIX**: Added comprehensive court document indicators (UNITED STATES COURT OF APPEALS, ORDER, v. pattern, etc.)
+- ✓ **CRITICAL FIX**: Fixed critical misclassification issue where court documents were incorrectly identified as proposals
+- ✓ **CRITICAL FIX**: Implemented sanity check system to prevent false positives on court documents
+- ✓ **CRITICAL FIX**: Added 'undetermined' classification for documents with insufficient evidence
+- ✓ **CRITICAL FIX**: Enhanced classifier to require evidence before high-confidence classification
+- ✓ **CRITICAL FIX**: Improved reasoning to clearly explain court document vs proposal distinctions
 
 ## Previous Changes (July 13, 2025)
 

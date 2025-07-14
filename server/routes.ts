@@ -409,12 +409,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Document not ready for analysis" });
       }
 
-      // Smart AI-powered classification using actual content
+      // Smart AI-powered classification using actual content with court document detection
       const fileContent = job.fileContent || '';
       const smartResult: SmartClassificationResult = SmartLegalClassifier.analyzeDocument(job.fileName, fileContent);
       
       const isProposal = smartResult.verdict === 'proposal';
       const confidence = smartResult.confidence;
+      const isUndetermined = smartResult.verdict === 'undetermined';
+      
+      // Log classification details for debugging
+      console.log(`Classification result for ${job.fileName}:`);
+      console.log(`  Verdict: ${smartResult.verdict}`);
+      console.log(`  Confidence: ${confidence}`);
+      console.log(`  Evidence: ${smartResult.evidence}`);
+      console.log(`  Court indicators: ${smartResult.contentAnalysis.hasCourtIndicators}`);
+      console.log(`  Litigation terms: ${smartResult.contentAnalysis.hasLitigationTerms}`);
       
       // Generate analysis based on actual content
       const analysisResult = {
