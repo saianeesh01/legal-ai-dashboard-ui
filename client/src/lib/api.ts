@@ -114,3 +114,29 @@ export async function getAllDocuments(): Promise<Array<{
   if (!res.ok) throw new ApiError(res.status, await res.text());
   return res.json();
 }
+
+export async function deleteDocument(jobId: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/documents/${jobId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+export async function checkDuplicate(fileName: string): Promise<{
+  isDuplicate: boolean;
+  existingDocument?: {
+    id: string;
+    fileName: string;
+    fileSize: number;
+    createdAt: string;
+  };
+}> {
+  const res = await fetch("/api/check-duplicate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName }),
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}

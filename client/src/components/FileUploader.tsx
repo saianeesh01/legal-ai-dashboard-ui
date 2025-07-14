@@ -8,6 +8,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@tremor/react";
 import {
@@ -16,9 +26,11 @@ import {
   CheckCircle,
   AlertCircle,
   X,
+  Clock,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { uploadFile, pollJobStatus, ApiError } from "@/lib/api";
+import { uploadFile, pollJobStatus, checkDuplicate, deleteDocument, ApiError } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                             */
@@ -44,6 +56,11 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
     "idle" | "uploading" | "processing" | "complete" | "error"
   >("idle");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  
+  const queryClient = useQueryClient();
 
   /* ----------------------- async upload flow ---------------------- */
 
@@ -76,6 +93,24 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
       return;
     }
 
+    /* ---------- check for duplicates ---------- */
+    try {
+      const duplicateCheck = await checkDuplicate(file.name);
+      if (duplicateCheck.isDuplicate) {
+        setPendingFile(file);
+        setDuplicateInfo(duplicateCheck.existingDocument);
+        setShowDuplicateDialog(true);
+        return;
+      }
+    } catch (err) {
+      console.error("Duplicate check failed:", err);
+      // Continue with upload if duplicate check fails
+    }
+
+    await performUpload(file);
+  };
+
+  const performUpload = async (file: File) => {
     /* ---------- start upload ---------- */
     setUploadedFiles([file]);
     setIsUploading(true);
@@ -118,6 +153,48 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleReplaceFile = async () => {
+    if (!pendingFile || !duplicateInfo) return;
+    
+    try {
+      // Delete the existing document
+      await deleteDocument(duplicateInfo.id);
+      
+      // Invalidate the documents cache to refresh the list
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      
+      toast({
+        title: "Document replaced",
+        description: "The existing document has been replaced.",
+      });
+      
+      // Upload the new file
+      await performUpload(pendingFile);
+    } catch (err) {
+      console.error("Replace failed:", err);
+      toast({
+        title: "Replace failed",
+        description: "Could not replace the existing document.",
+        variant: "destructive",
+      });
+    } finally {
+      setShowDuplicateDialog(false);
+      setPendingFile(null);
+      setDuplicateInfo(null);
+    }
+  };
+
+  const handleKeepBoth = async () => {
+    if (!pendingFile) return;
+    
+    // Upload the new file anyway (keep both)
+    await performUpload(pendingFile);
+    
+    setShowDuplicateDialog(false);
+    setPendingFile(null);
+    setDuplicateInfo(null);
   };
 
   /* -------------------- sync wrapper for react-dropzone -------------------- */
@@ -252,6 +329,51 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Duplicate File Dialog */}
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicate File Found</AlertDialogTitle>
+            <AlertDialogDescription>
+              A file with the name "{pendingFile?.name}" already exists in your library.
+              {duplicateInfo && (
+                <div className="mt-3 p-3 bg-muted rounded-lg">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <FileIcon className="h-4 w-4" />
+                    <span className="font-medium">{duplicateInfo.fileName}</span>
+                  </div>
+                  <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                    <span>{(duplicateInfo.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                    <span className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(duplicateInfo.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="mt-3">
+                <strong>What would you like to do?</strong>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:space-x-2">
+            <AlertDialogCancel onClick={() => {
+              setShowDuplicateDialog(false);
+              setPendingFile(null);
+              setDuplicateInfo(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <Button variant="outline" onClick={handleKeepBoth}>
+              Keep Both
+            </Button>
+            <AlertDialogAction onClick={handleReplaceFile}>
+              Replace Existing
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

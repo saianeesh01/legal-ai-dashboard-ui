@@ -1,25 +1,60 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import FileUploader from "../components/FileUploader";
 import ResultsDashboard from "../components/ResultsDashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle } from "lucide-react";
-import { getAllDocuments } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import { getAllDocuments, deleteDocument } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("upload");
   const [queryResults, setQueryResults] = useState(null);
   const [uploadResults, setUploadResults] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<any>(null);
+  
+  const queryClient = useQueryClient();
 
   // Fetch all documents for search view
   const { data: documents, refetch: refetchDocuments } = useQuery({
     queryKey: ["documents"],
     queryFn: getAllDocuments,
     enabled: currentView === "search",
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Document deleted",
+        description: "The document has been removed from your library.",
+      });
+      setShowDeleteDialog(false);
+      setDocumentToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete failed",
+        description: "Could not delete the document. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleUploadComplete = (results) => {
@@ -43,6 +78,18 @@ const Index = () => {
     });
     setQueryResults(null); // Clear previous query results
     setCurrentView("results");
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, document: any) => {
+    e.stopPropagation(); // Prevent triggering document click
+    setDocumentToDelete(document);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
+    if (documentToDelete) {
+      deleteMutation.mutate(documentToDelete.id);
+    }
   };
 
   return (
@@ -146,14 +193,25 @@ const Index = () => {
                             )}
                           </Badge>
                         </div>
-                        {document.aiAnalysis && (
-                          <div className="flex items-center space-x-1">
-                            <Brain className="h-4 w-4 text-accent" />
-                            <span className="text-xs text-muted-foreground">
-                              {Math.round(document.aiAnalysis.confidence * 100)}%
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex items-center space-x-2">
+                          {document.aiAnalysis && (
+                            <div className="flex items-center space-x-1">
+                              <Brain className="h-4 w-4 text-accent" />
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round(document.aiAnalysis.confidence * 100)}%
+                              </span>
+                            </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => handleDeleteClick(e, document)}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <CardTitle className="text-lg line-clamp-2">{document.fileName}</CardTitle>
                       <CardDescription className="flex items-center space-x-4 text-sm">
@@ -189,6 +247,51 @@ const Index = () => {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{documentToDelete?.fileName}"? This action cannot be undone.
+              {documentToDelete && (
+                <div className="mt-3 p-3 bg-muted rounded-lg">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <FileText className="h-4 w-4" />
+                    <span className="font-medium">{documentToDelete.fileName}</span>
+                  </div>
+                  <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                    <span>{(documentToDelete.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                    <span className="flex items-center space-x-1">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(documentToDelete.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDocumentToDelete(null);
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

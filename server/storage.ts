@@ -10,6 +10,8 @@ export interface IStorage {
   getJob(id: string): Promise<Job | undefined>;
   updateJob(id: string, updates: Partial<Job>): Promise<void>;
   getAllJobs(): Promise<Job[]>;
+  deleteJob(id: string): Promise<void>;
+  getJobByFileName(fileName: string): Promise<Job | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -56,6 +58,17 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(jobs)
       .orderBy(desc(jobs.createdAt));
+  }
+
+  async deleteJob(id: string): Promise<void> {
+    await db
+      .delete(jobs)
+      .where(eq(jobs.id, id));
+  }
+
+  async getJobByFileName(fileName: string): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.fileName, fileName));
+    return job || undefined;
   }
 }
 

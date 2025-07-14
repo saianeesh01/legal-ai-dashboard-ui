@@ -156,6 +156,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a document
+  app.delete("/api/documents/:jobId", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      await storage.deleteJob(jobId);
+      res.json({ success: true, message: "Document deleted successfully" });
+    } catch (error) {
+      console.error("Delete error:", error);
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
+  // Check for duplicate files before upload
+  app.post("/api/check-duplicate", async (req, res) => {
+    try {
+      const { fileName } = req.body;
+      
+      if (!fileName) {
+        return res.status(400).json({ error: "Missing fileName" });
+      }
+
+      const existingJob = await storage.getJobByFileName(fileName);
+      
+      if (existingJob) {
+        res.json({ 
+          isDuplicate: true, 
+          existingDocument: {
+            id: existingJob.id,
+            fileName: existingJob.fileName,
+            fileSize: existingJob.fileSize,
+            createdAt: existingJob.createdAt
+          }
+        });
+      } else {
+        res.json({ isDuplicate: false });
+      }
+    } catch (error) {
+      console.error("Duplicate check error:", error);
+      res.status(500).json({ error: "Failed to check for duplicates" });
+    }
+  });
+
   // Document query endpoint
   app.post("/api/query", async (req, res) => {
     try {
