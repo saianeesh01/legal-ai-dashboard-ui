@@ -236,15 +236,13 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
             <Upload className="h-5 w-5" />
             Upload Document
           </CardTitle>
-          <CardDescription>
-            PDF or image ≤ 50 MB. OCR + semantic search will run automatically.
-          </CardDescription>
+          <CardDescription>PDF or image ≤ 50 MB. </CardDescription>
         </CardHeader>
 
         <CardContent>
           {uploadedFiles.length === 0 ? (
             /* ------------------ Drop area ------------------ */
-            <div
+            (<div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition hover:border-primary ${
                 isDragActive ? "border-primary bg-primary/5" : "border-border"
@@ -265,10 +263,10 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                   <Button variant="outline">Choose File</Button>
                 </>
               )}
-            </div>
+            </div>)
           ) : (
             /* ----------------- File list + progress ---------------- */
-            <div className="space-y-4">
+            (<div className="space-y-4">
               {uploadedFiles.map((file, idx) => (
                 <div
                   key={idx}
@@ -310,7 +308,6 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                   )}
                 </div>
               ))}
-
               {(uploadStatus === "uploading" ||
                 uploadStatus === "processing") && (
                 <div className="space-y-2">
@@ -325,11 +322,10 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                   <Progress value={uploadProgress} className="h-2" />
                 </div>
               )}
-            </div>
+            </div>)
           )}
         </CardContent>
       </Card>
-
       {/* Duplicate File Dialog */}
       <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <AlertDialogContent>
