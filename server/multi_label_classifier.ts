@@ -57,9 +57,21 @@ export class MultiLabelDocumentClassifier {
       evidence.push(...bestResult.evidence);
       pageReferences.push(...bestResult.pageReferences);
     } else {
-      documentType = 'undetermined';
-      confidence = 0.40;
-      evidence.push('Insufficient evidence for confident classification');
+      // Enhanced fallback analysis when content extraction fails
+      const filenameAnalysis = this.analyzeFilenameForType(fileName);
+      
+      if (filenameAnalysis.confidence >= 0.65) {
+        documentType = filenameAnalysis.type;
+        confidence = filenameAnalysis.confidence;
+        evidence.push(...filenameAnalysis.evidence);
+      } else {
+        documentType = 'undetermined';
+        confidence = Math.max(0.50, filenameAnalysis.confidence); // Minimum 50% for any legal document
+        evidence.push('Content extraction failed - classification based on filename patterns');
+        if (filenameAnalysis.evidence.length > 0) {
+          evidence.push(...filenameAnalysis.evidence);
+        }
+      }
     }
     
     const reasoning = this.generateReasoning(documentType, confidence, evidence);
@@ -488,6 +500,93 @@ export class MultiLabelDocumentClassifier {
     return chunks;
   }
   
+  /**
+   * Analyze filename for document type when content extraction fails
+   */
+  private static analyzeFilenameForType(fileName: string): {
+    type: MultiLabelClassificationResult['document_type'];
+    confidence: number;
+    evidence: string[];
+  } {
+    const lower = fileName.toLowerCase();
+    const evidence: string[] = [];
+    
+    // Strong filename indicators
+    if (lower.includes('nta') || lower.includes('notice to appear')) {
+      return {
+        type: 'nta',
+        confidence: 0.85,
+        evidence: [`Filename indicates Notice to Appear document: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('motion') || lower.includes('brief')) {
+      return {
+        type: 'motion',
+        confidence: 0.80,
+        evidence: [`Filename indicates legal motion/brief: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('proposal') || lower.includes('grant') || lower.includes('rfp')) {
+      return {
+        type: 'proposal',
+        confidence: 0.75,
+        evidence: [`Filename indicates proposal document: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('decision') || lower.includes('order') || lower.includes('ruling')) {
+      return {
+        type: 'ij_decision',
+        confidence: 0.75,
+        evidence: [`Filename indicates judicial decision: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('form') || /\b[a-z]-\d+/.test(lower)) {
+      return {
+        type: 'form',
+        confidence: 0.70,
+        evidence: [`Filename indicates legal form: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('country') && lower.includes('report')) {
+      return {
+        type: 'country_report',
+        confidence: 0.75,
+        evidence: [`Filename indicates country report: "${fileName}"`]
+      };
+    }
+    
+    // Numeric filename patterns often indicate case documents or legal filings
+    if (/^\d+\.pdf$/i.test(fileName)) {
+      evidence.push(`Numeric filename pattern suggests legal document: "${fileName}"`);
+      return {
+        type: 'other',
+        confidence: 0.65,
+        evidence
+      };
+    }
+    
+    // General legal document indicators
+    if (lower.includes('legal') || lower.includes('law') || lower.includes('court')) {
+      evidence.push(`Filename contains legal terminology: "${fileName}"`);
+      return {
+        type: 'other',
+        confidence: 0.60,
+        evidence
+      };
+    }
+    
+    return {
+      type: 'undetermined',
+      confidence: 0.50,
+      evidence: [`General document analysis: "${fileName}"`]
+    };
+  }
+
   /**
    * Generate human-readable reasoning
    */

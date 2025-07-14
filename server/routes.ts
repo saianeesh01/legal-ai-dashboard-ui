@@ -376,9 +376,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (req.file.mimetype === 'application/pdf') {
           // Extract actual PDF content using pdf-parse
           try {
-            const pdfParse = await import('pdf-parse');
+            const pdfParse = require('pdf-parse');
             const pdfBuffer = req.file.buffer;
-            const pdfData = await pdfParse.default(pdfBuffer);
+            const pdfData = await pdfParse(pdfBuffer);
             fileContent = pdfData.text || '';
           
             console.log(`Extracted PDF content for ${req.file.originalname}:`);
