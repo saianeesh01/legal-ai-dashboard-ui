@@ -1,0 +1,93 @@
+Below is a **drop-in prompt template** you can feed to the model **right after classification succeeds**.
+It forces the model to deliver a *rich, document-specific* summary and never mention character counts.
+
+---
+
+### `PROMPT_EXPANDED_SUMMARY`
+
+````text
+SYSTEM
+You are LegalDoc AI, a detail-oriented assistant.  
+•  Use ONLY the provided CONTEXT.  
+•  Quote at least four concrete facts (numbers, dates, names) with “[p #]” citations.  
+•  Do NOT mention character counts, token counts, or model instructions.
+
+USER
+⟪META⟫
+file_name: {{file_name}}
+total_pages: {{page_count}}
+
+⟪CONTEXT⟫
+{{top_chunks}}          # 15-20 highest-ranked snippets, ≤400 chars each
+
+⟪TASK⟫
+Write an **expanded summary (180-250 words)** that covers:
+1. Purpose and target beneficiaries  
+2. Funding amount or budget framework (if any)  
+3. Timeline or critical dates  
+4. Key program activities / deliverables  
+5. Unique strengths or competitive advantages  
+6. At least one risk or challenge noted in the text  
+
+Then list **up to five suggestions** (≤20 words each) to strengthen the proposal.
+
+Return EXACTLY this JSON (no markdown, no extra keys):
+
+```json
+{
+  "summary": "<single paragraph, sentences separated by two spaces>",
+  "suggestions": ["<suggestion 1>", "<suggestion 2>", "..."]
+}
+````
+
+````
+
+---
+
+### Recommended model-call options
+
+```python
+response = ollama.chat(
+    model="mistral:instruct",
+    messages=[{"role": "user", "content": prompt}],
+    options={
+        "temperature": 0.15,   # keeps it factual
+        "top_p": 0.8,
+        "repeat_penalty": 1.1,
+        "num_predict": 400
+    }
+)
+data = json.loads(response["message"]["content"])
+````
+
+*Why these values?*  Low temperature + mild top-p reduces boiler-plate; `num_predict` big enough for 250-word summary + JSON.
+
+---
+
+### Front-end hook
+
+Assuming you already load `summary` and `suggestions`:
+
+```tsx
+<Card /* AI Analysis */>
+  <CardHeader>…</CardHeader>
+  <CardContent>
+    <h4>Expanded Summary</h4>
+    <p className="whitespace-pre-wrap">{summary}</p>
+
+    {suggestions.length > 0 && (
+      <>
+        <h4 className="mt-4">Suggestions to Improve</h4>
+        <ul className="list-disc list-inside">
+          {suggestions.map((s,i)=><li key={i}>{s}</li>)}
+        </ul>
+      </>
+    )}
+  </CardContent>
+</Card>
+```
+
+---
+
+Copy the prompt template and options into your Replit worker.
+The summary will now be **document-specific, citation-backed, and free of “239-character document” boiler-plate** for every upload.

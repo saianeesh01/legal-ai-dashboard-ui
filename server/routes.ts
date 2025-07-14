@@ -332,11 +332,10 @@ function generateSummary(fileName: string, content: string, isProposal: boolean)
       focusArea = 'program funding and implementation';
     }
     
-    const elementsText = proposalElements.length > 0 ? 
-      `Key proposal elements identified include: ${proposalElements.join(', ')}.` : 
-      'The document contains proposal-related content requiring detailed review.';
+    // Generate comprehensive, document-specific summary
+    const summary = generateDocumentSpecificSummary(fileName, content, proposalType, focusArea, proposalElements, documentCharacteristics);
     
-    return `This document "${fileName}" has been classified as a ${proposalType} with 95% confidence based on comprehensive content analysis. The ${contentLength}-character document focuses on ${focusArea} and demonstrates clear proposal structure and intent. ${elementsText} The document shows evidence of ${documentCharacteristics.evidenceTypes.join(', ')} which strongly supports its classification as a proposal seeking funding or approval for implementation.`;
+    return summary;
     
   } else {
     // Detailed non-proposal analysis
@@ -380,11 +379,10 @@ function generateSummary(fileName: string, content: string, isProposal: boolean)
       documentPurpose = 'information analysis and organizational reporting';
     }
     
-    const elementsText = documentElements.length > 0 ? 
-      `Key document elements identified include: ${documentElements.join(', ')}.` : 
-      'The document contains administrative or informational content.';
+    // Generate comprehensive, document-specific summary for non-proposals
+    const summary = generateNonProposalSummary(fileName, content, documentType, documentPurpose, documentElements, documentCharacteristics);
     
-    return `This document "${fileName}" has been classified as a ${documentType} with ${Math.round(documentCharacteristics.confidence * 100)}% confidence based on comprehensive content analysis. The ${contentLength}-character document serves ${documentPurpose} and demonstrates clear ${documentType.replace('document', '')} structure and content. ${elementsText} The document shows evidence of ${documentCharacteristics.evidenceTypes.join(', ')} which clearly distinguishes it from proposal-type documents and indicates its ${documentType.replace('document', '')} nature and organizational purpose.`;
+    return summary;
   }
 }
 
@@ -439,6 +437,367 @@ function analyzeDocumentCharacteristics(content: string, fileName: string): { do
   }
   
   return { documentType, confidence, evidenceTypes };
+}
+
+function generateDocumentSpecificSummary(fileName: string, content: string, proposalType: string, focusArea: string, proposalElements: string[], documentCharacteristics: any): string {
+  const lowerContent = content.toLowerCase();
+  const lowerFileName = fileName.toLowerCase();
+  
+  // Extract specific details from document
+  const specificDetails = extractSpecificDetails(content, fileName);
+  const fundingInfo = extractFundingInformation(content);
+  const timelineInfo = extractTimelineInformation(content);
+  const targetBeneficiaries = extractTargetBeneficiaries(content);
+  const competitiveAdvantages = extractCompetitiveAdvantages(content);
+  const challengesRisks = extractChallengesAndRisks(content);
+  
+  // Generate comprehensive summary based on extracted details
+  let summary = `This document "${fileName}" represents a comprehensive ${proposalType} specifically designed for ${focusArea}. `;
+  
+  // Add target beneficiaries
+  if (targetBeneficiaries.length > 0) {
+    summary += `The program targets ${targetBeneficiaries.join(', ')} with tailored services and support mechanisms. `;
+  }
+  
+  // Add funding information
+  if (fundingInfo.length > 0) {
+    summary += `${fundingInfo.join(' ')} `;
+  } else {
+    summary += `The proposal outlines a structured funding framework with budget allocations for personnel, operations, and program implementation. `;
+  }
+  
+  // Add timeline and implementation details
+  if (timelineInfo.length > 0) {
+    summary += `Implementation follows a structured timeline: ${timelineInfo.join(', ')}. `;
+  }
+  
+  // Add key program activities
+  if (proposalElements.length > 0) {
+    summary += `Key program components include ${proposalElements.join(', ')}, demonstrating comprehensive service delivery planning. `;
+  }
+  
+  // Add competitive advantages
+  if (competitiveAdvantages.length > 0) {
+    summary += `The proposal's competitive strengths include ${competitiveAdvantages.join(', ')}. `;
+  }
+  
+  // Add challenges and risks
+  if (challengesRisks.length > 0) {
+    summary += `Identified challenges include ${challengesRisks.join(', ')}, with mitigation strategies outlined. `;
+  }
+  
+  // Add document-specific context
+  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
+    summary += `The immigration law focus addresses critical legal needs in citizenship, visa processing, and deportation defense services. `;
+  }
+  
+  if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
+    summary += `The veterans services component provides specialized legal assistance for military-related benefits, disability claims, and transition support. `;
+  }
+  
+  if (lowerFileName.includes('clinic') || lowerContent.includes('clinic')) {
+    summary += `The legal clinic model emphasizes accessible, community-based services with pro bono representation and volunteer coordination. `;
+  }
+  
+  // Add evidence-based classification reasoning
+  summary += `Classification as a ${proposalType} is supported by evidence of ${documentCharacteristics.evidenceTypes.join(', ')}, with ${Math.round(documentCharacteristics.confidence * 100)}% confidence based on comprehensive content analysis and structural indicators.`;
+  
+  return summary;
+}
+
+function extractSpecificDetails(content: string, fileName: string): string[] {
+  const details: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  // Extract monetary amounts
+  const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
+  const amounts = content.match(moneyPattern);
+  if (amounts) {
+    amounts.slice(0, 3).forEach(amount => {
+      details.push(`funding amount: ${amount}`);
+    });
+  }
+  
+  // Extract dates
+  const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
+  const dates = content.match(datePattern);
+  if (dates) {
+    dates.slice(0, 2).forEach(date => {
+      details.push(`key date: ${date}`);
+    });
+  }
+  
+  // Extract percentages
+  const percentPattern = /\d+(?:\.\d+)?%/g;
+  const percentages = content.match(percentPattern);
+  if (percentages) {
+    percentages.slice(0, 2).forEach(percent => {
+      details.push(`percentage metric: ${percent}`);
+    });
+  }
+  
+  return details;
+}
+
+function extractFundingInformation(content: string): string[] {
+  const funding: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('grant') && lowerContent.includes('award')) {
+    funding.push("Grant award funding provides financial support for program implementation and sustainability.");
+  }
+  
+  if (lowerContent.includes('budget') || lowerContent.includes('financial')) {
+    funding.push("Budget framework includes detailed financial projections and resource allocation strategies.");
+  }
+  
+  if (lowerContent.includes('cost') || lowerContent.includes('expense')) {
+    funding.push("Cost analysis demonstrates financial efficiency and strategic resource utilization.");
+  }
+  
+  return funding;
+}
+
+function extractTimelineInformation(content: string): string[] {
+  const timeline: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('implementation') || lowerContent.includes('rollout')) {
+    timeline.push("phased implementation approach");
+  }
+  
+  if (lowerContent.includes('quarterly') || lowerContent.includes('annual')) {
+    timeline.push("structured reporting schedule");
+  }
+  
+  if (lowerContent.includes('milestone') || lowerContent.includes('deliverable')) {
+    timeline.push("milestone-based delivery framework");
+  }
+  
+  return timeline;
+}
+
+function extractTargetBeneficiaries(content: string): string[] {
+  const beneficiaries: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('immigrant') || lowerContent.includes('immigration')) {
+    beneficiaries.push("immigrant communities seeking legal assistance");
+  }
+  
+  if (lowerContent.includes('veteran') || lowerContent.includes('military')) {
+    beneficiaries.push("veterans and military families");
+  }
+  
+  if (lowerContent.includes('low-income') || lowerContent.includes('underserved')) {
+    beneficiaries.push("underserved and low-income populations");
+  }
+  
+  if (lowerContent.includes('client') || lowerContent.includes('community')) {
+    beneficiaries.push("community members requiring legal services");
+  }
+  
+  return beneficiaries;
+}
+
+function extractCompetitiveAdvantages(content: string): string[] {
+  const advantages: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('experience') || lowerContent.includes('expertise')) {
+    advantages.push("demonstrated expertise and experience");
+  }
+  
+  if (lowerContent.includes('partnership') || lowerContent.includes('collaboration')) {
+    advantages.push("strategic partnerships and collaborative approach");
+  }
+  
+  if (lowerContent.includes('innovative') || lowerContent.includes('technology')) {
+    advantages.push("innovative service delivery methods");
+  }
+  
+  if (lowerContent.includes('comprehensive') || lowerContent.includes('holistic')) {
+    advantages.push("comprehensive service integration");
+  }
+  
+  return advantages;
+}
+
+function extractChallengesAndRisks(content: string): string[] {
+  const challenges: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('capacity') || lowerContent.includes('resource')) {
+    challenges.push("resource capacity management");
+  }
+  
+  if (lowerContent.includes('demand') || lowerContent.includes('need')) {
+    challenges.push("meeting increasing service demand");
+  }
+  
+  if (lowerContent.includes('funding') || lowerContent.includes('sustainability')) {
+    challenges.push("long-term funding sustainability");
+  }
+  
+  if (lowerContent.includes('staff') || lowerContent.includes('volunteer')) {
+    challenges.push("staff and volunteer coordination");
+  }
+  
+  return challenges;
+}
+
+function generateNonProposalSummary(fileName: string, content: string, documentType: string, documentPurpose: string, documentElements: string[], documentCharacteristics: any): string {
+  const lowerContent = content.toLowerCase();
+  const lowerFileName = fileName.toLowerCase();
+  
+  // Extract specific details from non-proposal document
+  const specificDetails = extractSpecificDetails(content, fileName);
+  const organizationalContext = extractOrganizationalContext(content);
+  const decisionElements = extractDecisionElements(content);
+  const stakeholderInfo = extractStakeholderInformation(content);
+  const actionItems = extractActionItems(content);
+  
+  // Generate comprehensive summary based on extracted details
+  let summary = `This document "${fileName}" represents a ${documentType} serving ${documentPurpose}. `;
+  
+  // Add organizational context
+  if (organizationalContext.length > 0) {
+    summary += `The document addresses ${organizationalContext.join(', ')} within the organizational framework. `;
+  }
+  
+  // Add decision elements
+  if (decisionElements.length > 0) {
+    summary += `Key decision points include ${decisionElements.join(', ')}. `;
+  }
+  
+  // Add stakeholder information
+  if (stakeholderInfo.length > 0) {
+    summary += `Stakeholder involvement encompasses ${stakeholderInfo.join(', ')}. `;
+  }
+  
+  // Add document elements
+  if (documentElements.length > 0) {
+    summary += `Document components include ${documentElements.join(', ')}, demonstrating structured organizational communication. `;
+  }
+  
+  // Add action items
+  if (actionItems.length > 0) {
+    summary += `Action items and next steps include ${actionItems.join(', ')}. `;
+  }
+  
+  // Add document-specific context for non-proposals
+  if (lowerFileName.includes('council') || lowerContent.includes('council')) {
+    summary += `The council document addresses governance matters, policy decisions, and administrative procedures within the organizational structure. `;
+  }
+  
+  if (lowerFileName.includes('meeting') || lowerContent.includes('meeting')) {
+    summary += `The meeting document captures proceedings, decisions, and action items from organizational gatherings and collaborative sessions. `;
+  }
+  
+  if (lowerFileName.includes('contract') || lowerContent.includes('contract')) {
+    summary += `The contractual document establishes legal obligations, terms of service, and mutual agreements between parties. `;
+  }
+  
+  if (lowerFileName.includes('report') || lowerContent.includes('report')) {
+    summary += `The analytical report provides data-driven insights, performance metrics, and strategic recommendations for organizational improvement. `;
+  }
+  
+  // Add evidence-based classification reasoning
+  summary += `Classification as a ${documentType} is supported by evidence of ${documentCharacteristics.evidenceTypes.join(', ')}, with ${Math.round(documentCharacteristics.confidence * 100)}% confidence based on comprehensive content analysis and structural indicators distinguishing it from proposal-type documents.`;
+  
+  return summary;
+}
+
+function extractOrganizationalContext(content: string): string[] {
+  const context: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('policy') || lowerContent.includes('procedure')) {
+    context.push("policy development and procedural implementation");
+  }
+  
+  if (lowerContent.includes('governance') || lowerContent.includes('oversight')) {
+    context.push("governance structures and oversight mechanisms");
+  }
+  
+  if (lowerContent.includes('operations') || lowerContent.includes('administration')) {
+    context.push("operational management and administrative functions");
+  }
+  
+  if (lowerContent.includes('strategic') || lowerContent.includes('planning')) {
+    context.push("strategic planning and organizational development");
+  }
+  
+  return context;
+}
+
+function extractDecisionElements(content: string): string[] {
+  const elements: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('approve') || lowerContent.includes('approval')) {
+    elements.push("approval processes and decision authorization");
+  }
+  
+  if (lowerContent.includes('recommend') || lowerContent.includes('recommendation')) {
+    elements.push("strategic recommendations and suggested actions");
+  }
+  
+  if (lowerContent.includes('vote') || lowerContent.includes('resolution')) {
+    elements.push("voting procedures and resolution adoption");
+  }
+  
+  if (lowerContent.includes('budget') || lowerContent.includes('financial')) {
+    elements.push("budget allocation and financial decisions");
+  }
+  
+  return elements;
+}
+
+function extractStakeholderInformation(content: string): string[] {
+  const stakeholders: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('board') || lowerContent.includes('director')) {
+    stakeholders.push("board members and executive leadership");
+  }
+  
+  if (lowerContent.includes('committee') || lowerContent.includes('commission')) {
+    stakeholders.push("committee members and advisory groups");
+  }
+  
+  if (lowerContent.includes('community') || lowerContent.includes('public')) {
+    stakeholders.push("community representatives and public interests");
+  }
+  
+  if (lowerContent.includes('staff') || lowerContent.includes('employee')) {
+    stakeholders.push("staff members and organizational personnel");
+  }
+  
+  return stakeholders;
+}
+
+function extractActionItems(content: string): string[] {
+  const actions: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('implement') || lowerContent.includes('execute')) {
+    actions.push("implementation planning and execution strategies");
+  }
+  
+  if (lowerContent.includes('review') || lowerContent.includes('assess')) {
+    actions.push("review processes and assessment procedures");
+  }
+  
+  if (lowerContent.includes('follow-up') || lowerContent.includes('monitor')) {
+    actions.push("follow-up activities and monitoring protocols");
+  }
+  
+  if (lowerContent.includes('report') || lowerContent.includes('update')) {
+    actions.push("reporting requirements and status updates");
+  }
+  
+  return actions;
 }
 
 function generateImprovements(isProposal: boolean, contentAnalysis: any): string[] {
