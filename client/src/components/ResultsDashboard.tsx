@@ -197,18 +197,6 @@ The document contains standard commercial lease provisions with some tenant-favo
               <CardDescription>
                 Comprehensive AI-powered document analysis and insights
               </CardDescription>
-              {aiAnalysis.evidence && aiAnalysis.evidence.length > 0 && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                    Why?
-                  </summary>
-                  <ul className="list-disc ml-6 text-xs mt-2 space-y-1">
-                    {aiAnalysis.evidence.map((e, i) => (
-                      <li key={i} className="text-muted-foreground">{e}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Expanded Summary */}
