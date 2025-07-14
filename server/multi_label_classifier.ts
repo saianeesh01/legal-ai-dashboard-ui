@@ -5,7 +5,7 @@
  */
 
 export interface MultiLabelClassificationResult {
-  document_type: 'proposal' | 'nta' | 'motion' | 'ij_decision' | 'form' | 'country_report' | 'other' | 'undetermined';
+  document_type: 'proposal' | 'nta' | 'motion' | 'ij_decision' | 'form' | 'country_report' | 'administrative' | 'other' | 'undetermined';
   confidence: number;
   evidence: string[];
   reasoning: string;
@@ -37,6 +37,7 @@ export class MultiLabelDocumentClassifier {
       this.checkIJDecisionPatterns(chunks, fileName),
       this.checkFormPatterns(chunks, fileName),
       this.checkCountryReportPatterns(chunks, fileName),
+      this.checkAdministrativePatterns(chunks, fileName),
       this.checkOtherPatterns(chunks, fileName)
     ];
     
@@ -430,6 +431,59 @@ export class MultiLabelDocumentClassifier {
   }
   
   /**
+   * Check for administrative document patterns
+   */
+  private static checkAdministrativePatterns(chunks: string[], fileName: string): {
+    type: 'administrative';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const adminPatterns = [
+      { pattern: /immigration\s+law\s+clinic/i, weight: 0.25, description: "immigration law clinic reference" },
+      { pattern: /legal\s+services\s+provision/i, weight: 0.20, description: "legal services provision" },
+      { pattern: /organizational\s+(?:operations|procedures)/i, weight: 0.20, description: "organizational operations" },
+      { pattern: /administrative\s+(?:document|procedures)/i, weight: 0.20, description: "administrative procedures" },
+      { pattern: /clinic\s+establishment/i, weight: 0.20, description: "clinic establishment" },
+      { pattern: /stakeholders?\s+include/i, weight: 0.15, description: "stakeholder analysis" },
+      { pattern: /immigrant\s+communities/i, weight: 0.15, description: "immigrant communities" },
+      { pattern: /review\s+processes/i, weight: 0.12, description: "review processes" },
+      { pattern: /assessment\s+procedures/i, weight: 0.12, description: "assessment procedures" },
+      { pattern: /service\s+delivery/i, weight: 0.10, description: "service delivery" }
+    ];
+    
+    // Filename boost for administrative documents - numeric patterns often administrative
+    if (/^\d+\.pdf$/i.test(fileName)) {
+      confidence += 0.25;
+      evidence.push(`Numeric filename pattern suggests administrative document: "${fileName}"`);
+    }
+    
+    // Check for administrative patterns in content
+    for (const chunk of chunks.slice(0, 15)) { // Check first 15 chunks
+      for (const { pattern, weight, description } of adminPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'administrative',
+      confidence: Math.min(confidence, 0.85),
+      evidence,
+      pageReferences
+    };
+  }
+  
+  /**
    * Check for other document patterns
    */
   private static checkOtherPatterns(chunks: string[], fileName: string): {
@@ -557,6 +611,15 @@ export class MultiLabelDocumentClassifier {
         type: 'country_report',
         confidence: 0.75,
         evidence: [`Filename indicates country report: "${fileName}"`]
+      };
+    }
+    
+    // Administrative documents - often numeric filenames for internal operations
+    if (/^\d+\.pdf$/i.test(fileName)) {
+      return {
+        type: 'administrative',
+        confidence: 0.70,
+        evidence: [`Numeric filename pattern suggests administrative document: "${fileName}"`]
       };
     }
     

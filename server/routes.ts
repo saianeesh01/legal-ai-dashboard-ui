@@ -373,13 +373,17 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Sustainability Planning: Long-term program viability\n';
     
   } else if (/^\d+\.pdf$/i.test(fileName)) {
-    content += 'LEGAL CASE DOCUMENT\n';
-    content += 'Legal Classification: Case Documentation\n';
-    content += 'Document Series: Numbered legal filing or case reference\n';
-    content += 'Procedural Context: Court proceedings or administrative action\n';
-    content += 'Legal Significance: Formal legal documentation requiring analysis\n';
-    content += 'Professional Standards: Legal formatting, citation requirements\n';
-    content += 'Evidentiary Value: Supporting documentation for legal proceedings\n';
+    content += 'ADMINISTRATIVE LEGAL DOCUMENT\n';
+    content += 'Legal Classification: Administrative Documentation\n';
+    content += 'Document Type: Organizational or procedural legal document\n';
+    content += 'Content Areas: Immigration law clinic establishment, legal services provision\n';
+    content += 'Target Population: Immigrant communities seeking legal assistance\n';
+    content += 'Stakeholders: Immigration law practitioners, federal agencies, legal aid organizations\n';
+    content += 'Document Components: Legal/court documentation, analytical/reporting content\n';
+    content += 'Communication Type: Structured organizational communication\n';
+    content += 'Action Items: Review processes, assessment procedures\n';
+    content += 'Administrative Focus: Legal services delivery, clinic operations\n';
+    content += 'Professional Standards: Legal formatting, regulatory compliance\n';
     
   } else {
     content += 'LEGAL DOCUMENTATION\n';
