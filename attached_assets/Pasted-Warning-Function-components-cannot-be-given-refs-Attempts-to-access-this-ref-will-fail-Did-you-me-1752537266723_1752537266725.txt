@@ -1,0 +1,38 @@
+Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `Primitive.button.SlotClone`. 
+    at Badge (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/src/components/ui/badge.tsx:35:18)
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-EVLBUYTV.js?v=a37d1e11:79:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-EVLBUYTV.js?v=a37d1e11:56:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:121:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-EVLBUYTV.js?v=a37d1e11:79:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-EVLBUYTV.js?v=a37d1e11:56:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:121:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-VA7MCUES.js?v=a37d1e11:109:13
+    at https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=a37d1e11:192:13
+    at Provider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:44:15)
+    at Provider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:44:15)
+    at Popper (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-VA7MCUES.js?v=a37d1e11:101:11)
+    at Tooltip (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=a37d1e11:101:5)
+    at Provider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:44:15)
+    at TooltipProvider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=a37d1e11:57:5)
+    at ContextualHelpTooltip (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/src/components/ContextualHelpTooltip.tsx:323:3)
+    at DocumentTypesHelp
+    at div
+    at div
+    at div
+    at _c3 (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/src/components/ui/card.tsx:45:12)
+    at div
+    at _c (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at div
+    at main
+    at div
+    at Index (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/src/pages/Index.tsx:150:41)
+    at Route (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a37d1e11:323:16)
+    at Switch (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a37d1e11:379:17)
+    at Router (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a37d1e11:291:17)
+    at Provider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HY3DORJS.js?v=a37d1e11:44:15)
+    at TooltipProvider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=a37d1e11:57:5)
+    at QueryClientProvider (https://20397f19-bb2f-4088-94f0-070cd01389eb-00-1b4v0lfvksrv5.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=a37d1e11:2805:3)
+    at App
