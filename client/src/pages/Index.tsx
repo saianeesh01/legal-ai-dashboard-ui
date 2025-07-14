@@ -255,22 +255,22 @@ const Index = () => {
             <AlertDialogTitle>Delete Document</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{documentToDelete?.fileName}"? This action cannot be undone.
-              {documentToDelete && (
-                <div className="mt-3 p-3 bg-muted rounded-lg">
-                  <div className="flex items-center space-x-2 text-sm">
-                    <FileText className="h-4 w-4" />
-                    <span className="font-medium">{documentToDelete.fileName}</span>
-                  </div>
-                  <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                    <span>{(documentToDelete.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                    <span className="flex items-center space-x-1">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(documentToDelete.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              )}
             </AlertDialogDescription>
+            {documentToDelete && (
+              <div className="mt-3 p-3 bg-muted rounded-lg">
+                <div className="flex items-center space-x-2 text-sm">
+                  <FileText className="h-4 w-4" />
+                  <span className="font-medium">{documentToDelete.fileName}</span>
+                </div>
+                <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                  <span>{(documentToDelete.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span className="flex items-center space-x-1">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(documentToDelete.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel 
