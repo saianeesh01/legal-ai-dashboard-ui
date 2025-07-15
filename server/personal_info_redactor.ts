@@ -166,25 +166,36 @@ export class PersonalInfoRedactor {
       });
     });
     
-    // Redact Phone Numbers
-    this.redactionPatterns.phone.forEach(pattern => {
+    // Context-aware Phone Number redaction
+    const phoneContextPatterns: RegExp[] = [
+      // Label + phone pattern, e.g. "Phone: (555) 123-4567" or "Tel 555-123-4567"
+      /\b(?:Phone|Tel|Telephone|Contact|Mobile|Cell)\s*[:\-]?\s*(\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b/gi,
+      // Stand-alone US phone with country code or delimiters but flanked by newline or parentheses (reduces false positives)
+      /\n\s*(\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b/gi
+    ];
+
+    phoneContextPatterns.forEach(pattern => {
       const matches = [...redactedContent.matchAll(pattern)];
       matches.forEach(match => {
-        if (match.index !== undefined && this.isLikelyPhoneNumber(match[0])) {
+        if (match.index !== undefined) {
+          // Extract the phone number substring (digits & punctuation)
+          const phoneDigitsPattern = /(\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}/;
+          const numberMatch = phoneDigitsPattern.exec(match[0]);
+          const target = numberMatch ? numberMatch[0] : match[0];
           const redactedValue = '[REDACTED-PHONE]';
-          redactedContent = redactedContent.replace(match[0], redactedValue);
-          
+          redactedContent = redactedContent.replace(target, redactedValue);
+
           redactedItems.push({
             type: 'phone',
-            originalValue: match[0],
+            originalValue: target,
             redactedValue: redactedValue,
-            position: match.index,
-            length: match[0].length
+            position: match.index + (match[0].lastIndexOf(target)),
+            length: target.length
           });
         }
       });
     });
-    
+
     // Redact Email Addresses
     this.redactionPatterns.email.forEach(pattern => {
       const matches = [...redactedContent.matchAll(pattern)];
@@ -223,8 +234,15 @@ export class PersonalInfoRedactor {
       });
     });
     
-    // Redact Addresses
-    this.redactionPatterns.address.forEach(pattern => {
+    // Context-aware Address redaction
+    const addressContextPatterns: RegExp[] = [
+      // Label + full single-line address ending with state & ZIP
+      /\b(?:Address|Mailing Address|Residence|Street Address|Location)\s*[:\-]?\s*\d+\s+[A-Za-z0-9\s]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Place|Pl|Court|Ct|Way|Circle|Cir)\b[^,\n]*,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?\b/gi,
+      // Multi-line address block (number street \n city, ST ZIP)
+      /\d+\s+[A-Za-z0-9\s]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Place|Pl|Court|Ct|Way|Circle|Cir)\s*[\r\n]+[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?/gi
+    ];
+
+    addressContextPatterns.forEach(pattern => {
       const matches = [...redactedContent.matchAll(pattern)];
       matches.forEach(match => {
         if (match.index !== undefined) {

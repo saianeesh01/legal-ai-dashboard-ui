@@ -10,6 +10,7 @@ import { PDFExtractor } from "./pdf_extractor";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
 import { PDFRedactor } from "./pdf_redactor";
+import crypto from "crypto";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -846,11 +847,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         job.fileName
       );
 
-      // Set headers for PDF download
+      // Build ETag for caching / integrity verification
+      const etag = crypto.createHash('sha256').update(redactedPdfBuffer).digest('hex');
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end(); // Client already has the latest copy
+        return;
+      }
+
+      // Determine disposition based on ?download=true query param
+      const dispositionType = req.query.download === 'true' ? 'attachment' : 'inline';
+
+      // Set headers for PDF delivery
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="REDACTED_${job.fileName}"`);
+      res.setHeader('Content-Disposition', `${dispositionType}; filename="REDACTED_${job.fileName}"`);
       res.setHeader('X-Redaction-Summary', redactionResult.redactedItems.length.toString());
       res.setHeader('X-Original-Filename', job.fileName);
+      res.setHeader('ETag', etag);
 
       // Send the redacted PDF
       res.send(redactedPdfBuffer);
