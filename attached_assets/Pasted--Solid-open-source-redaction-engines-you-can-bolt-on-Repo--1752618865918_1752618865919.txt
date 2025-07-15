@@ -1,0 +1,70 @@
+### Solid open‑source redaction engines you can bolt on
+
+| Repo                                                | What it does well                                                                                                              | Why it fits your stack                                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **JoshData/pdf‑redactor** ( Python, MIT )           | Pure‑Python, operates on the **text layer** of a PDF; takes a list of regex/replace rules and spits out a clean, flattened PDF | Drop‑in for a Replit worker: install from PyPI, stream input/output, no external services needed ([GitHub][1]) |
+| OpenNyAI/**legal\_docs\_redaction** ( Docker, MIT ) | Uses spaCy NER + masks/dummies entities; works offline in a single container; supports PDF/DOC/DOCX                            | Great if you want ML‑driven NER, but heavier (7 GB image) ([GitHub][2])                                        |
+| Private‑AI **deid‑examples**                        | Jupyter demos that call Private‑AI SaaS for PII/PHI                                                                            | Useful reference for patterns; not 100 % local ([GitHub][3])                                                   |
+
+For a fast pilot **inside your existing OCR → LLM → dashboard loop,
+`pdf‑redactor` is the simplest win**—you already have Python workers and it
+doesn’t bloat your container image.
+
+---
+
+## “Glue” prompt you can feed Copilot / Cursor / Replit AI
+
+Paste this into your IDE chat and let the AI scaffold the code:
+
+````plaintext
+🛠️ Goal  
+Add a Redactor class to backend/app/redaction.py that uses the
+`pdf-redactor` library to scrub sensitive text from PDFs **after OCR**.
+
+Requirements
+1. Accept a `PdfBytesIO` or file‑path plus a list of **patterns** coming
+   from the LLM (e.g. A‑numbers, SSNs, full names).
+2. Use `pdf_redactor.RedactorOptions`:
+   • `content_filters` → list of `(regex, replacement)`  
+   • wipe metadata (`metadata_filters=[('.*', '')]`)
+3. Write the redacted PDF to a temp file, return its path.
+4. If a pattern contains a character not embedded in the PDF font,
+   fall back to `"█"` as the replacement glyph.
+5. Add a `@redact` step in the existing `/api/download/<job_id>` route:  
+   if the user checks **“Redact PII”**, run the new Redactor before sending.
+6. Unit test: feed `tests/test-ssns.pdf`, expect no `\d{3}-\d{2}-\d{4}` in
+   the output text layer (`pdftotext`).
+
+Starter snippet
+
+```python
+import pdf_redactor, io, re, tempfile
+
+class Redactor:
+    def __init__(self, patterns):
+        self.patterns = [(re.compile(p, re.I), '█' * 5) for p in patterns]
+
+    def run(self, pdf_bytes: bytes) -> bytes:
+        opts = pdf_redactor.RedactorOptions()
+        opts.content_filters = self.patterns
+        opts.metadata_filters = [(re.compile(r'.*'), '')]
+
+        stdout = io.BytesIO()
+        pdf_redactor.redactor(opts, pdf_bytes, stdout)
+        return stdout.getvalue()
+````
+
+Please generate the full `redaction.py`, including docstrings and the Flask
+hook, plus `pytest` unit‑test skeleton in `tests/test_redaction.py`.
+
+```
+
+Fire that prompt in Copilot/Cursor; you’ll get an end‑to‑end redaction
+module wired into your API in seconds.  
+Swap in OpenNyAI’s container later if you need ML‑grade NER.
+::contentReference[oaicite:3]{index=3}
+```
+
+[1]: https://github.com/JoshData/pdf-redactor "GitHub - JoshData/pdf-redactor: A general purpose PDF text-layer redaction tool for Python 2/3."
+[2]: https://github.com/OpenNyAI/legal_docs_redaction "GitHub - OpenNyAI/legal_docs_redaction: For converting the scanned documents to text and doing first level data redaction by masking entities identified. This data needs to be reviewed by humans to make sure all the sensitive information is masked."
+[3]: https://github.com/privateai/deid-examples/blob/main/python/LLM%20Examples/Removing%20Confidential%20Financial%20Information%20via%20Redaction%20for%20LLMs.ipynb?utm_source=chatgpt.com "Removing Confidential Financial Information via Redaction for LLMs ..."
