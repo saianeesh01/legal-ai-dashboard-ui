@@ -78,17 +78,6 @@ export class PersonalInfoRedactor {
   };
   
   /**
-   * Common names to redact (basic implementation)
-   */
-  private static readonly commonNames = [
-    // This would typically be a more comprehensive list or use NLP
-    'John', 'Jane', 'Michael', 'Sarah', 'David', 'Jennifer', 'Robert', 'Lisa',
-    'James', 'Mary', 'Christopher', 'Patricia', 'Daniel', 'Linda', 'Matthew',
-    'Elizabeth', 'Anthony', 'Barbara', 'Mark', 'Susan', 'Donald', 'Jessica',
-    'Steven', 'Karen', 'Paul', 'Nancy', 'Andrew', 'Betty', 'Joshua', 'Helen'
-  ];
-  
-  /**
    * Redact personal information from document content
    */
   static redactPersonalInfo(content: string, fileName: string = ''): RedactionResult {
@@ -253,21 +242,32 @@ export class PersonalInfoRedactor {
       });
     });
     
-    // Redact Common Names (basic implementation)
-    this.commonNames.forEach(name => {
-      const pattern = new RegExp(`\\b${name}\\b`, 'gi');
+    // Context-aware personal name redaction
+    // ‑ We only redact names when they appear in typical identifying contexts to reduce false positives
+    // ‑ Examples:  "Name: John Doe", "Mr. John Doe", "Signed by Jane Smith"
+    const nameContextPatterns: RegExp[] = [
+      // Honorifics followed by two capitalised words (first & last name)
+      /\b(?:Mr\.|Mrs\.|Ms\.|Dr\.|Prof\.)\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/g,
+      // Explicit "Name:" style labels
+      /\b(?:Name|Client Name|Patient Name|Attorney Name|Signed by)\s*:?\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/g
+    ];
+
+    nameContextPatterns.forEach(pattern => {
       const matches = [...redactedContent.matchAll(pattern)];
       matches.forEach(match => {
         if (match.index !== undefined) {
+          // Extract the actual name (last two words) rather than the full line when possible
+          const nameMatch = /([A-Z][a-z]+\s+[A-Z][a-z]+)$/.exec(match[0]);
+          const target = nameMatch ? nameMatch[0] : match[0];
           const redactedValue = '[REDACTED-NAME]';
-          redactedContent = redactedContent.replace(match[0], redactedValue);
-          
+          redactedContent = redactedContent.replace(target, redactedValue);
+
           redactedItems.push({
             type: 'name',
-            originalValue: match[0],
+            originalValue: target,
             redactedValue: redactedValue,
-            position: match.index,
-            length: match[0].length
+            position: match.index + (match[0].lastIndexOf(target)),
+            length: target.length
           });
         }
       });
