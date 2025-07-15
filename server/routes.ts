@@ -5,6 +5,7 @@ import multer from "multer";
 import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_classifier";
 import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
 import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
+import { DocumentQueryEngine } from "./document_query_engine";
 // Remove pdf-parse import that's causing issues
 // import pdfParse from "pdf-parse";
 
@@ -661,7 +662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Document query endpoint
+  // Document query endpoint with enhanced no-hallucination system
   app.post("/api/query", async (req, res) => {
     try {
       const { job_id, query } = req.body;
@@ -676,10 +677,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const fileContent = job.fileContent || '';
-      const response = generateQueryResponse(query, fileContent, job.fileName);
+      
+      // Parse AI analysis to get document type
+      let documentType = 'unknown';
+      if (job.aiAnalysis) {
+        try {
+          const analysis = JSON.parse(job.aiAnalysis);
+          documentType = analysis.documentCategory || analysis.verdict || 'unknown';
+        } catch (e) {
+          console.log('Could not parse AI analysis for document type');
+        }
+      }
+
+      // Use enhanced query engine for context-aware, no-hallucination responses
+      const queryContext = {
+        documentId: job_id,
+        fileName: job.fileName,
+        content: fileContent,
+        documentType: documentType,
+        previousQueries: DocumentQueryEngine.getQueryHistory(job_id)
+      };
+
+      const result = await DocumentQueryEngine.queryDocument(queryContext, query);
       
       res.json({
-        response: response,
+        response: result.answer,
+        confidence: result.confidence,
+        sourceExcerpts: result.sourceExcerpts,
+        reasoning: result.reasoning,
+        cannotAnswer: result.cannotAnswer,
+        suggestions: result.suggestions,
         timestamp: new Date().toISOString()
       });
     } catch (error) {

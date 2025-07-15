@@ -24,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
 import SecurityStatus from "./SecurityStatus";
+import EnhancedQueryResponse from "./EnhancedQueryResponse";
 import { 
   DocumentAnalysisHelp, 
   ConfidenceScoreHelp, 
@@ -206,10 +207,19 @@ The document contains standard commercial lease provisions with some tenant-favo
       const results = await queryDocument(uploadResults.jobId, query);
       onQueryResults(results);
       
-      toast({
-        title: "Query complete",
-        description: "Found relevant information in your document.",
-      });
+      // Enhanced feedback based on query results
+      if (results.cannotAnswer) {
+        toast({
+          title: "Cannot answer",
+          description: "The document doesn't contain information to answer this question.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Query complete",
+          description: `Found answer with ${Math.round(results.confidence * 100)}% confidence.`,
+        });
+      }
     } catch (error) {
       console.error("Query error:", error);
       
@@ -225,6 +235,10 @@ The document contains standard commercial lease provisions with some tenant-favo
     } finally {
       setIsQuerying(false);
     }
+  };
+
+  const handleSuggestedQuery = (suggestedQuery: string) => {
+    handleQuery(suggestedQuery);
   };
 
   return (
@@ -498,31 +512,20 @@ The document contains standard commercial lease provisions with some tenant-favo
         <QueryForm onQuery={handleQuery} isLoading={isQuerying} />
       )}
 
-      {/* Query Results */}
+      {/* Enhanced Query Results */}
       {queryResults && (
-        <Card className="shadow-elegant animate-fade-in">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <span>Query Response</span>
-              {queryResults.confidence && (
-                <Badge variant="outline">
-                  {Math.round(queryResults.confidence * 100)}% confidence
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              AI-powered answer to your question
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <div className="whitespace-pre-wrap text-foreground leading-relaxed">
-                {queryResults.answer}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="animate-fade-in">
+          <EnhancedQueryResponse
+            response={queryResults.response || queryResults.answer}
+            confidence={queryResults.confidence}
+            sourceExcerpts={queryResults.sourceExcerpts}
+            reasoning={queryResults.reasoning}
+            cannotAnswer={queryResults.cannotAnswer}
+            suggestions={queryResults.suggestions}
+            timestamp={queryResults.timestamp}
+            onSuggestedQuery={handleSuggestedQuery}
+          />
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
