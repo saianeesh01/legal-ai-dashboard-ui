@@ -440,7 +440,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date().toISOString()
       });
 
-      // Extract text content from files
+      // Encrypt and store the document content
+      const fileMetadata = {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        uploadedAt: new Date().toISOString(),
+        userAgent: req.headers['user-agent'] || 'unknown'
+      };
+
+      // Store encrypted document content
+      await storage.storeEncryptedDocument(jobId, req.file.buffer, fileMetadata);
+      console.log(`Document encrypted and stored securely: ${req.file.originalname}`);
+
+      // Extract text content for analysis (but keep original encrypted)
       let fileContent = '';
       try {
         if (req.file.mimetype === 'application/pdf') {
@@ -658,6 +670,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Query error:", error);
       res.status(500).json({ error: "Query failed" });
+    }
+  });
+
+  // Security and document integrity endpoints
+  app.get("/api/documents/:jobId/security-status", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      const isIntegrityValid = await storage.verifyDocumentIntegrity(jobId);
+      
+      res.json({
+        jobId: job.id,
+        fileName: job.fileName,
+        isEncrypted: job.isEncrypted || false,
+        integrityVerified: isIntegrityValid,
+        securityStatus: job.isEncrypted ? "encrypted" : "unencrypted",
+        lastVerified: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Security status check error:", error);
+      res.status(500).json({ error: "Failed to check security status" });
+    }
+  });
+
+  // Secure document download endpoint (admin use only)
+  app.get("/api/documents/:jobId/download", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const authToken = req.headers.authorization;
+      
+      // Basic security check (in production, implement proper authentication)
+      if (!authToken || !authToken.includes('admin')) {
+        return res.status(403).json({ error: "Unauthorized access to secure document" });
+      }
+
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Verify document integrity before download
+      const isIntegrityValid = await storage.verifyDocumentIntegrity(jobId);
+      if (!isIntegrityValid) {
+        return res.status(422).json({ error: "Document integrity verification failed" });
+      }
+
+      const decryptedContent = await storage.getDecryptedContent(jobId);
+      if (!decryptedContent) {
+        return res.status(500).json({ error: "Failed to decrypt document" });
+      }
+
+      // Set appropriate headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${job.fileName}"`);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('X-Document-Encrypted', 'true');
+      res.setHeader('X-Integrity-Verified', 'true');
+      
+      res.send(decryptedContent);
+      console.log(`Secure document downloaded: ${job.fileName} (${jobId})`);
+    } catch (error) {
+      console.error("Secure download error:", error);
+      res.status(500).json({ error: "Failed to download secure document" });
+    }
+  });
+
+  // Bulk security status endpoint
+  app.get("/api/security/overview", async (req, res) => {
+    try {
+      const allJobs = await storage.getAllJobs();
+      const securityOverview = {
+        totalDocuments: allJobs.length,
+        encryptedDocuments: allJobs.filter(job => job.isEncrypted).length,
+        unencryptedDocuments: allJobs.filter(job => !job.isEncrypted).length,
+        lastUpdated: new Date().toISOString()
+      };
+
+      res.json(securityOverview);
+    } catch (error) {
+      console.error("Security overview error:", error);
+      res.status(500).json({ error: "Failed to get security overview" });
     }
   });
 

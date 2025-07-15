@@ -1,6 +1,7 @@
 import { users, jobs, type User, type InsertUser, type Job, type InsertJob } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
+import { DocumentEncryption, type EncryptedDocument } from "./encryption";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -12,6 +13,10 @@ export interface IStorage {
   getAllJobs(): Promise<Job[]>;
   deleteJob(id: string): Promise<void>;
   getJobByFileName(fileName: string): Promise<Job | undefined>;
+  // Encryption methods
+  storeEncryptedDocument(jobId: string, content: Buffer, fileMetadata: any): Promise<void>;
+  getDecryptedContent(jobId: string): Promise<Buffer | null>;
+  verifyDocumentIntegrity(jobId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -69,6 +74,82 @@ export class DatabaseStorage implements IStorage {
   async getJobByFileName(fileName: string): Promise<Job | undefined> {
     const [job] = await db.select().from(jobs).where(eq(jobs.fileName, fileName));
     return job || undefined;
+  }
+
+  async storeEncryptedDocument(jobId: string, content: Buffer, fileMetadata: any): Promise<void> {
+    try {
+      // Encrypt the document content
+      const encryptionResult = DocumentEncryption.encryptContent(content);
+      
+      // Generate content hash for integrity verification
+      const contentHash = DocumentEncryption.generateContentHash(content);
+      
+      // Encrypt file metadata
+      const encryptedFileMetadata = DocumentEncryption.encryptMetadata(fileMetadata);
+      
+      // Store encrypted data in database
+      await db
+        .update(jobs)
+        .set({
+          encryptedContent: encryptionResult.encryptedData,
+          encryptionIv: encryptionResult.iv,
+          encryptionMetadata: JSON.stringify(encryptionResult.metadata),
+          contentHash: contentHash,
+          encryptedFileMetadata: encryptedFileMetadata,
+          isEncrypted: true
+        })
+        .where(eq(jobs.id, jobId));
+      
+      console.log(`Document encrypted and stored for job: ${jobId}`);
+    } catch (error) {
+      console.error('Failed to store encrypted document:', error);
+      throw new Error('Document encryption and storage failed');
+    }
+  }
+
+  async getDecryptedContent(jobId: string): Promise<Buffer | null> {
+    try {
+      const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+      
+      if (!job || !job.isEncrypted || !job.encryptedContent || !job.encryptionIv) {
+        return null;
+      }
+
+      const encryptionMetadata = JSON.parse(job.encryptionMetadata || '{}');
+      
+      // Decrypt the content
+      const decryptedContent = DocumentEncryption.decryptContent(
+        job.encryptedContent,
+        job.encryptionIv,
+        encryptionMetadata
+      );
+      
+      // Return as Buffer
+      return Buffer.isBuffer(decryptedContent) ? decryptedContent : Buffer.from(decryptedContent, 'utf8');
+    } catch (error) {
+      console.error('Failed to decrypt document content:', error);
+      throw new Error('Document decryption failed');
+    }
+  }
+
+  async verifyDocumentIntegrity(jobId: string): Promise<boolean> {
+    try {
+      const decryptedContent = await this.getDecryptedContent(jobId);
+      if (!decryptedContent) {
+        return false;
+      }
+
+      const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+      if (!job || !job.contentHash) {
+        return false;
+      }
+
+      // Verify content integrity using stored hash
+      return DocumentEncryption.verifyContentIntegrity(decryptedContent, job.contentHash);
+    } catch (error) {
+      console.error('Failed to verify document integrity:', error);
+      return false;
+    }
   }
 }
 

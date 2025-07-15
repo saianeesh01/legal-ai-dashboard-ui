@@ -18,6 +18,13 @@ export const jobs = pgTable("jobs", {
   createdAt: text("created_at").notNull(),
   processedAt: text("processed_at"),
   fileContent: text("file_content"), // Store file content for analysis
+  // Encryption fields
+  encryptedContent: text("encrypted_content"), // Encrypted file content
+  encryptionIv: text("encryption_iv"), // Initialization vector for encryption
+  encryptionMetadata: text("encryption_metadata"), // JSON string with encryption details
+  contentHash: text("content_hash"), // SHA-256 hash for integrity verification
+  encryptedFileMetadata: text("encrypted_file_metadata"), // Encrypted file metadata
+  isEncrypted: boolean("is_encrypted").notNull().default(false), // Flag to indicate encryption status
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

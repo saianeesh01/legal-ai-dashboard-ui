@@ -23,6 +23,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
+import SecurityStatus from "./SecurityStatus";
 import { 
   DocumentAnalysisHelp, 
   ConfidenceScoreHelp, 
@@ -322,6 +323,13 @@ The document contains standard commercial lease provisions with some tenant-favo
 
           {/* Detailed Analysis Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Security Status */}
+            {uploadResults?.jobId && (
+              <SecurityStatus 
+                jobId={uploadResults.jobId} 
+                fileName={uploadResults.fileName || 'Unknown'} 
+              />
+            )}
             {/* Critical Dates */}
             {aiAnalysis.criticalDates && (
               <Card className="shadow-elegant animate-fade-in">
