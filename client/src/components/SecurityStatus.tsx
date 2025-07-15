@@ -16,6 +16,8 @@ interface SecurityInfo {
   integrityVerified: boolean;
   securityStatus: "encrypted" | "unencrypted";
   lastVerified: string;
+  redactionSummary?: string;
+  redactedItemsCount?: number;
 }
 
 export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
@@ -173,6 +175,23 @@ export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
                     <p>Document integrity verification failed - content may be corrupted</p>
                   </TooltipContent>
                 </Tooltip>
+              )}
+            </div>
+          )}
+
+          {securityInfo.redactionSummary && (
+            <div className="mt-2 p-2 bg-accent/10 rounded-md">
+              <div className="flex items-center gap-2 text-xs font-medium text-accent">
+                <Shield className="h-3 w-3" />
+                Personal Information Protection
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {securityInfo.redactionSummary}
+              </p>
+              {securityInfo.redactedItemsCount && securityInfo.redactedItemsCount > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {securityInfo.redactedItemsCount} sensitive items redacted
+                </p>
               )}
             </div>
           )}

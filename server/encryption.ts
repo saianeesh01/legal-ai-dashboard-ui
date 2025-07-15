@@ -9,6 +9,9 @@ export class DocumentEncryption {
   private static readonly KEY_SIZE = 256;
   private static readonly IV_SIZE = 16; // 128 bits
   
+  // Store key in memory for session persistence
+  private static sessionKey: string | null = null;
+
   /**
    * Generate a secure encryption key for the session
    * In production, this should be stored securely (e.g., environment variable, key vault)
@@ -19,13 +22,23 @@ export class DocumentEncryption {
       return process.env.DOCUMENT_ENCRYPTION_KEY;
     }
     
-    // Fallback: generate a key (should be stored persistently in production)
-    if (!process.env.GENERATED_KEY) {
-      process.env.GENERATED_KEY = this.generateSecureKey();
-      console.warn('Using generated encryption key. Set DOCUMENT_ENCRYPTION_KEY environment variable for production.');
+    // Use session key if available
+    if (this.sessionKey) {
+      return this.sessionKey;
     }
     
-    return process.env.GENERATED_KEY;
+    // Generate and store session key
+    this.sessionKey = this.generateSecureKey();
+    console.log('Generated session encryption key for document security');
+    
+    return this.sessionKey;
+  }
+
+  /**
+   * Reset session key (for testing purposes)
+   */
+  static resetSessionKey(): void {
+    this.sessionKey = null;
   }
 
   /**

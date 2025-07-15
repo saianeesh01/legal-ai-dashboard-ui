@@ -8,6 +8,7 @@ import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
 import { DocumentQueryEngine } from "./document_query_engine";
 import { PDFExtractor } from "./pdf_extractor";
 import { CorruptionDetector } from "./corruption_detector";
+import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -504,8 +505,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
       }
       
+      // Apply personal information redaction
+      const redactionResult: RedactionResult = PersonalInfoRedactor.redactPersonalInfo(fileContent, req.file.originalname);
+      const redactedContent = redactionResult.redactedContent;
+      
+      console.log(`Personal information redaction completed for ${req.file.originalname}:`);
+      console.log(`  ${PersonalInfoRedactor.getRedactionSummary(redactionResult)}`);
+      console.log(`  Redacted ${redactionResult.redactedItems.length} items`);
+      
       await storage.updateJob(jobId, {
-        fileContent: fileContent // Store extracted content for analysis
+        fileContent: redactedContent, // Store redacted content for analysis
+        redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
+        redactedItemsCount: redactionResult.redactedItems.length
       });
 
       res.json({ job_id: jobId });
@@ -753,15 +764,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
 
-      const isIntegrityValid = await storage.verifyDocumentIntegrity(jobId);
+      // Check if document is encrypted
+      const isEncrypted = !!(job.encryptedContent && job.encryptionIv);
+      
+      // Safely verify document integrity
+      let integrityVerified = false;
+      if (isEncrypted) {
+        try {
+          integrityVerified = await storage.verifyDocumentIntegrity(jobId);
+        } catch (error) {
+          console.error('Failed to verify document integrity:', error);
+          integrityVerified = false;
+        }
+      }
       
       res.json({
         jobId: job.id,
         fileName: job.fileName,
-        isEncrypted: job.isEncrypted || false,
-        integrityVerified: isIntegrityValid,
-        securityStatus: job.isEncrypted ? "encrypted" : "unencrypted",
-        lastVerified: new Date().toISOString()
+        isEncrypted,
+        integrityVerified,
+        securityStatus: isEncrypted ? "encrypted" : "unencrypted",
+        lastVerified: new Date().toISOString(),
+        redactionSummary: job.redactionSummary || undefined,
+        redactedItemsCount: job.redactedItemsCount || 0
       });
     } catch (error) {
       console.error("Security status check error:", error);

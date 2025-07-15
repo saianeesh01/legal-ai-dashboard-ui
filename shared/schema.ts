@@ -25,6 +25,9 @@ export const jobs = pgTable("jobs", {
   contentHash: text("content_hash"), // SHA-256 hash for integrity verification
   encryptedFileMetadata: text("encrypted_file_metadata"), // Encrypted file metadata
   isEncrypted: boolean("is_encrypted").notNull().default(false), // Flag to indicate encryption status
+  // Personal information redaction fields
+  redactionSummary: text("redaction_summary"),
+  redactedItemsCount: integer("redacted_items_count").default(0)
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
