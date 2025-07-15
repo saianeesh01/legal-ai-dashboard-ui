@@ -89,8 +89,8 @@ export class PDFRedactor {
                                fileName.toLowerCase().includes('application');
         
         const redactionNotice = itemCount > 0 ? 
-          `🔒 REDACTED VERSION - ${itemCount} items protected` :
-          (isFormRedaction ? `🔒 REDACTED VERSION - Privacy protection applied` : `🔒 REDACTED VERSION - No personal information detected`);
+          `[REDACTED VERSION] - ${itemCount} items protected` :
+          (isFormRedaction ? `[REDACTED VERSION] - Privacy protection applied` : `[REDACTED VERSION] - No personal information detected`);
         
         // Add semi-transparent overlay
         page.drawRectangle({
@@ -169,7 +169,7 @@ export class PDFRedactor {
       const font = await pdfDoc.embedFont(StandardFonts.CourierBold);
       
       // Add header
-      page.drawText('🔒 REDACTED DOCUMENT', {
+      page.drawText('[REDACTED DOCUMENT]', {
         x: 50,
         y: 750,
         size: 16,
