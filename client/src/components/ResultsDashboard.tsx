@@ -241,6 +241,99 @@ The document contains standard commercial lease provisions with some tenant-favo
     handleQuery(suggestedQuery);
   };
 
+  const handleViewRedactedFile = async () => {
+    if (!uploadResults?.jobId) {
+      toast({
+        title: "No document",
+        description: "Please upload a document first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/documents/${uploadResults.jobId}/redacted-content`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch redacted content: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Open redacted content in a new window/modal
+      const newWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+      if (newWindow) {
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Redacted Document - ${data.fileName}</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                padding: 20px; 
+                background: #f9f9f9; 
+              }
+              .header { 
+                background: #fff; 
+                padding: 15px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                margin-bottom: 20px;
+              }
+              .content { 
+                background: #fff; 
+                padding: 20px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                white-space: pre-wrap; 
+                font-family: monospace;
+                line-height: 1.5;
+              }
+              .redacted { 
+                background: #ffeb3b; 
+                padding: 2px 4px; 
+                border-radius: 3px; 
+                font-weight: bold;
+                color: #d32f2f;
+              }
+              .summary {
+                background: #e3f2fd;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 10px;
+                border-left: 4px solid #2196f3;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>🔒 Redacted Document View</h2>
+              <p><strong>File:</strong> ${data.fileName}</p>
+              <div class="summary">
+                <strong>Privacy Protection Summary:</strong> ${data.redactionSummary}
+              </div>
+            </div>
+            <div class="content">${data.redactedContent.replace(/\[REDACTED-[^\]]+\]/g, '<span class="redacted">$&</span>')}</div>
+          </body>
+          </html>
+        `);
+        newWindow.document.close();
+      }
+
+      toast({
+        title: "Redacted file opened",
+        description: "Personal information has been protected for your privacy",
+      });
+    } catch (error) {
+      console.error("Error viewing redacted file:", error);
+      toast({
+        title: "Failed to view redacted file",
+        description: "Could not load the redacted content",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Enhanced AI Analysis */}
@@ -269,7 +362,18 @@ The document contains standard commercial lease provisions with some tenant-favo
                     </ConfidenceScoreHelp>
                   )}
                 </div>
-                <DocumentAnalysisHelp variant="default" side="left" />
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleViewRedactedFile()}
+                    className="text-xs"
+                  >
+                    <Shield className="h-3 w-3 mr-1" />
+                    View Redacted File
+                  </Button>
+                  <DocumentAnalysisHelp variant="default" side="left" />
+                </div>
               </CardTitle>
               <CardDescription>
                 Comprehensive AI-powered document analysis and insights

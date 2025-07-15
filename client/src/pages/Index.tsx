@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2, Filter, X } from "lucide-react";
+import { FileText, Upload, Search, Calendar, Brain, CheckCircle, AlertCircle, Trash2, Filter, X, Shield } from "lucide-react";
 import { getAllDocuments, deleteDocument } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { SearchFilterHelp, DocumentTypesHelp, ConfidenceScoreHelp } from "@/components/ContextualHelpTooltip";
@@ -159,6 +159,92 @@ const Index = () => {
     e.stopPropagation(); // Prevent triggering document click
     setDocumentToDelete(document);
     setShowDeleteDialog(true);
+  };
+
+  const handleViewRedactedFile = async (e: React.MouseEvent, document: any) => {
+    e.stopPropagation(); // Prevent triggering document click
+    
+    try {
+      const response = await fetch(`/api/documents/${document.id}/redacted-content`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch redacted content: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Open redacted content in a new window/modal
+      const newWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+      if (newWindow) {
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Redacted Document - ${data.fileName}</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                padding: 20px; 
+                background: #f9f9f9; 
+              }
+              .header { 
+                background: #fff; 
+                padding: 15px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                margin-bottom: 20px;
+              }
+              .content { 
+                background: #fff; 
+                padding: 20px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                white-space: pre-wrap; 
+                font-family: monospace;
+                line-height: 1.5;
+              }
+              .redacted { 
+                background: #ffeb3b; 
+                padding: 2px 4px; 
+                border-radius: 3px; 
+                font-weight: bold;
+                color: #d32f2f;
+              }
+              .summary {
+                background: #e3f2fd;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 10px;
+                border-left: 4px solid #2196f3;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>🔒 Redacted Document View</h2>
+              <p><strong>File:</strong> ${data.fileName}</p>
+              <div class="summary">
+                <strong>Privacy Protection Summary:</strong> ${data.redactionSummary}
+              </div>
+            </div>
+            <div class="content">${data.redactedContent.replace(/\[REDACTED-[^\]]+\]/g, '<span class="redacted">$&</span>')}</div>
+          </body>
+          </html>
+        `);
+        newWindow.document.close();
+      }
+
+      toast({
+        title: "Redacted file opened",
+        description: "Personal information has been protected for your privacy",
+      });
+    } catch (error) {
+      console.error("Error viewing redacted file:", error);
+      toast({
+        title: "Failed to view redacted file",
+        description: "Could not load the redacted content",
+        variant: "destructive",
+      });
+    }
   };
 
   const confirmDelete = () => {
@@ -382,6 +468,15 @@ const Index = () => {
                               </ConfidenceScoreHelp>
                             </div>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-accent hover:bg-accent/10"
+                            onClick={(e) => handleViewRedactedFile(e, document)}
+                            title="View Redacted File"
+                          >
+                            <Shield className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

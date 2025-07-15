@@ -794,6 +794,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Redacted content viewer endpoint
+  app.get("/api/documents/:jobId/redacted-content", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Return the redacted content (which is stored in fileContent after redaction)
+      const redactedContent = job.fileContent || '';
+      
+      res.json({
+        jobId: job.id,
+        fileName: job.fileName,
+        redactedContent: redactedContent,
+        redactionSummary: job.redactionSummary || 'No personal information detected',
+        redactedItemsCount: job.redactedItemsCount || 0,
+        contentLength: redactedContent.length,
+        lastModified: job.processedAt || job.createdAt
+      });
+    } catch (error) {
+      console.error("Error fetching redacted content:", error);
+      res.status(500).json({ error: "Failed to fetch redacted content" });
+    }
+  });
+
   // Secure document download endpoint (admin use only)
   app.get("/api/documents/:jobId/download", async (req, res) => {
     try {

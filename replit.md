@@ -101,13 +101,19 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (July 15, 2025)
 
+- ✓ **PERSONAL INFORMATION REDACTION SYSTEM**: Implemented comprehensive PersonalInfoRedactor class with automatic detection and redaction of SSN, driver's license, bank accounts, credit cards, addresses, names, phone numbers, emails, and dates of birth
+- ✓ **REDACTED FILE VIEWER**: Added "View Redacted File" button in both results and search modes that opens redacted document content in a new window with highlighted privacy protection markers
+- ✓ **DATABASE SCHEMA ENHANCEMENT**: Updated schema with redactionSummary and redactedItemsCount fields to track personal information protection
+- ✓ **SECURITY STATUS UPGRADE**: Enhanced SecurityStatus component to display redaction summary and count of sensitive items protected
+- ✓ **ENCRYPTION KEY PERSISTENCE**: Fixed critical decryption issue by implementing persistent session key generation across all encryption operations
+- ✓ **PRIVACY PROTECTION PIPELINE**: All uploaded documents now automatically pass through redaction system before encryption and storage
+- ✓ **COMPREHENSIVE PATTERN DETECTION**: Redaction system uses sophisticated algorithms including Luhn validation for credit cards, state-specific driver's license patterns, and context-aware name detection
 - ✓ **CRITICAL CORRUPTION DETECTION FIX**: Permanently resolved corrupted text in Critical Dates section with comprehensive pattern detection
 - ✓ **ADVANCED TEXT CORRUPTION SYSTEM**: Implemented CorruptionDetector class with 6+ pattern recognition algorithms for scattered letters, random cases, and garbled text
 - ✓ **COMPREHENSIVE PDF EXTRACTION OVERHAUL**: Enhanced PDFExtractor with multi-method extraction, quality validation, and automatic corruption filtering
 - ✓ **CONTEXTUAL FALLBACK SYSTEM**: When corruption detected, system provides meaningful document-specific content instead of garbled text
 - ✓ **PERMANENT CORRUPTION PREVENTION**: All document analysis functions now check for corruption patterns and provide appropriate contextual responses
 - ✓ **ENHANCED QUALITY VALIDATION**: PDF text quality validation with corruption detection prevents display of meaningless characters
-- ✓ **ENCRYPTION SYSTEM BREAKTHROUGH**: Fixed critical decryption issue by implementing persistent key generation across operations
 - ✓ **SECURITY VULNERABILITY PATCHED**: Successfully upgraded from vulnerable Vite 5.4.14 to secure 5.4.15 (CVE-2025-30208)
 - ✓ **AES-256-CBC ENCRYPTION SUCCESS**: Implemented robust document encryption using Node.js crypto module with proper key validation
 - ✓ **INTEGRITY VERIFICATION WORKING**: Documents now pass encryption and integrity verification with 32-byte key consistency
