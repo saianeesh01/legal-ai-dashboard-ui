@@ -74,10 +74,11 @@ export class PDFExtractor {
         };
       }
       
-      // Filter and clean readable segments
+      // Filter and clean readable segments with corruption detection
       const cleanSegments = readableText
         .filter(segment => segment.length > 5)
         .filter(segment => /[a-zA-Z]/.test(segment))
+        .filter(segment => !this.isCorruptedTextSegment(segment))
         .map(segment => segment.trim())
         .filter(segment => segment.length > 0);
       
@@ -139,7 +140,7 @@ export class PDFExtractor {
               .replace(/\s+/g, ' ')
               .replace(/[^\x20-\x7E]/g, ' ')  // Remove non-printable chars
               .trim();
-            if (cleaned.length > 3 && /[a-zA-Z]/.test(cleaned)) {
+            if (cleaned.length > 3 && /[a-zA-Z]/.test(cleaned) && !this.isCorruptedTextSegment(cleaned)) {
               extractedText += cleaned + ' ';
               totalMatches++;
             }
@@ -204,10 +205,44 @@ export class PDFExtractor {
   }
   
   /**
-   * Clean extracted text for analysis
+   * Check if text segment is corrupted
+   */
+  private static isCorruptedTextSegment(segment: string): boolean {
+    // Pattern 1: Scattered single letters (e.g., "d U E u E M 4 C e")
+    if (/\b[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}/.test(segment)) {
+      return true;
+    }
+    
+    // Pattern 2: Mixed case with numbers randomly (e.g., "wH ZP7 M _ w wW P G Y")
+    if (/[A-Z][a-z]*[0-9][A-Z]*[a-z]*/.test(segment) && segment.length < 20) {
+      return true;
+    }
+    
+    // Pattern 3: Too many single characters separated by spaces
+    const singleChars = segment.match(/\b[A-Za-z0-9]{1}\b/g);
+    if (singleChars && singleChars.length > 5) {
+      return true;
+    }
+    
+    // Pattern 4: Random uppercase/lowercase pattern
+    if (/[A-Z][a-z][A-Z][a-z][A-Z]/.test(segment) && segment.length < 15) {
+      return true;
+    }
+    
+    // Pattern 5: Contains too many non-letter characters
+    const nonLetters = segment.match(/[^A-Za-z]/g);
+    if (nonLetters && nonLetters.length > segment.length * 0.5) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Clean extracted text for analysis with comprehensive corruption removal
    */
   static cleanExtractedText(text: string): string {
-    return text
+    let cleaned = text
       .replace(/\s+/g, ' ')  // Normalize whitespace
       .replace(/[^\x20-\x7E]/g, ' ')  // Remove non-printable characters
       .replace(/[^\w\s.,!?;:()\-$%/@]/g, ' ')  // Remove strange characters but keep important symbols
@@ -215,5 +250,11 @@ export class PDFExtractor {
       .replace(/\b\w{1}\s+\w{1}\s+\w{1}/g, ' ')  // Remove pattern of single chars with spaces
       .replace(/\s+/g, ' ')  // Normalize whitespace again
       .trim();
+    
+    // Remove corrupted segments
+    const words = cleaned.split(' ');
+    const cleanWords = words.filter(word => !this.isCorruptedTextSegment(word));
+    
+    return cleanWords.join(' ').trim();
   }
 }
