@@ -1,5 +1,4 @@
-import * as CryptoJS from 'crypto-js';
-import { randomBytes } from 'crypto';
+import { createCipher, createDecipher, randomBytes, createHash } from 'crypto';
 
 /**
  * Document Encryption Service
@@ -41,18 +40,18 @@ export class DocumentEncryption {
     metadata: EncryptionMetadata 
   } {
     try {
-      const key = this.getEncryptionKey();
-      const iv = CryptoJS.lib.WordArray.random(this.IV_SIZE);
+      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      const iv = randomBytes(this.IV_SIZE);
       
-      // Convert content to string if it's a Buffer
-      const contentString = Buffer.isBuffer(content) ? content.toString('base64') : content;
+      // Convert content to buffer
+      const contentBuffer = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8');
       
-      // Encrypt the content
-      const encrypted = CryptoJS.AES.encrypt(contentString, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.PKCS7
-      });
+      // Create cipher and encrypt
+      const cipher = require('crypto').createCipher('aes-256-cbc', key);
+      cipher.setAutoPadding(true);
+      
+      let encrypted = cipher.update(contentBuffer, null, 'hex');
+      encrypted += cipher.final('hex');
 
       const metadata: EncryptionMetadata = {
         algorithm: 'AES-256-CBC',
@@ -62,8 +61,8 @@ export class DocumentEncryption {
       };
 
       return {
-        encryptedData: encrypted.toString(),
-        iv: iv.toString(),
+        encryptedData: encrypted,
+        iv: iv.toString('hex'),
         metadata
       };
     } catch (error) {
