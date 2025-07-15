@@ -252,83 +252,34 @@ The document contains standard commercial lease provisions with some tenant-favo
     }
 
     try {
-      const response = await fetch(`/api/documents/${uploadResults.jobId}/redacted-content`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch redacted content: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Open the redacted PDF in a new window
+      const pdfUrl = `/api/documents/${uploadResults.jobId}/redacted-pdf`;
+      const newWindow = window.open(pdfUrl, '_blank', 'width=900,height=700,scrollbars=yes');
       
-      // Open redacted content in a new window/modal
-      const newWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
-      if (newWindow) {
-        newWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Redacted Document - ${data.fileName}</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                padding: 20px; 
-                background: #f9f9f9; 
-              }
-              .header { 
-                background: #fff; 
-                padding: 15px; 
-                border-radius: 8px; 
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                margin-bottom: 20px;
-              }
-              .content { 
-                background: #fff; 
-                padding: 20px; 
-                border-radius: 8px; 
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                white-space: pre-wrap; 
-                font-family: monospace;
-                line-height: 1.5;
-              }
-              .redacted { 
-                background: #ffeb3b; 
-                padding: 2px 4px; 
-                border-radius: 3px; 
-                font-weight: bold;
-                color: #d32f2f;
-              }
-              .summary {
-                background: #e3f2fd;
-                padding: 10px;
-                border-radius: 5px;
-                margin-bottom: 10px;
-                border-left: 4px solid #2196f3;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>🔒 Redacted Document View</h2>
-              <p><strong>File:</strong> ${data.fileName}</p>
-              <div class="summary">
-                <strong>Privacy Protection Summary:</strong> ${data.redactionSummary}
-              </div>
-            </div>
-            <div class="content">${data.redactedContent.replace(/\[REDACTED-[^\]]+\]/g, '<span class="redacted">$&</span>')}</div>
-          </body>
-          </html>
-        `);
-        newWindow.document.close();
+      if (!newWindow) {
+        // Fallback: download the PDF if popup blocked
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `REDACTED_${uploadResults.fileName}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({
+          title: "Redacted PDF downloaded",
+          description: "The redacted PDF has been downloaded to your device",
+        });
+      } else {
+        toast({
+          title: "Redacted PDF opened",
+          description: "Personal information has been protected for your privacy",
+        });
       }
-
-      toast({
-        title: "Redacted file opened",
-        description: "Personal information has been protected for your privacy",
-      });
     } catch (error) {
-      console.error("Error viewing redacted file:", error);
+      console.error("Error viewing redacted PDF:", error);
       toast({
-        title: "Failed to view redacted file",
-        description: "Could not load the redacted content",
+        title: "Failed to view redacted PDF",
+        description: "Could not load the redacted PDF",
         variant: "destructive",
       });
     }

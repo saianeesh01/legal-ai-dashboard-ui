@@ -102,7 +102,8 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (July 15, 2025)
 
 - ✓ **PERSONAL INFORMATION REDACTION SYSTEM**: Implemented comprehensive PersonalInfoRedactor class with automatic detection and redaction of SSN, driver's license, bank accounts, credit cards, addresses, names, phone numbers, emails, and dates of birth
-- ✓ **REDACTED FILE VIEWER**: Added "View Redacted File" button in both results and search modes that opens redacted document content in a new window with highlighted privacy protection markers
+- ✓ **REDACTED PDF VIEWER**: Added "View Redacted File" button in both results and search modes that opens actual redacted PDF documents in browser with privacy protection overlays
+- ✓ **PDF REDACTION SERVICE**: Implemented PDFRedactor class using pdf-lib to create redacted PDF versions with visual privacy protection indicators
 - ✓ **DATABASE SCHEMA ENHANCEMENT**: Updated schema with redactionSummary and redactedItemsCount fields to track personal information protection
 - ✓ **SECURITY STATUS UPGRADE**: Enhanced SecurityStatus component to display redaction summary and count of sensitive items protected
 - ✓ **ENCRYPTION KEY PERSISTENCE**: Fixed critical decryption issue by implementing persistent session key generation across all encryption operations

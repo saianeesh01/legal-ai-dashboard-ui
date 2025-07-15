@@ -9,6 +9,7 @@ import { DocumentQueryEngine } from "./document_query_engine";
 import { PDFExtractor } from "./pdf_extractor";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
+import { PDFRedactor } from "./pdf_redactor";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -819,6 +820,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching redacted content:", error);
       res.status(500).json({ error: "Failed to fetch redacted content" });
+    }
+  });
+
+  // Redacted PDF download endpoint
+  app.get("/api/documents/:jobId/redacted-pdf", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Get the original encrypted document
+      const originalPdfBuffer = await storage.getDecryptedContent(jobId);
+      
+      if (!originalPdfBuffer) {
+        return res.status(500).json({ error: "Could not retrieve original document" });
+      }
+
+      // Create redacted PDF
+      const { redactedPdfBuffer, redactionResult } = await PDFRedactor.createRedactedPDF(
+        originalPdfBuffer,
+        job.fileName
+      );
+
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="REDACTED_${job.fileName}"`);
+      res.setHeader('X-Redaction-Summary', redactionResult.redactedItems.length.toString());
+      res.setHeader('X-Original-Filename', job.fileName);
+
+      // Send the redacted PDF
+      res.send(redactedPdfBuffer);
+      
+    } catch (error) {
+      console.error("Error generating redacted PDF:", error);
+      res.status(500).json({ error: "Failed to generate redacted PDF" });
     }
   });
 
