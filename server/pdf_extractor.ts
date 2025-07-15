@@ -176,16 +176,31 @@ export class PDFExtractor {
     if (!text || text.length < 50) return false;
     
     // Check for reasonable text characteristics
-    const wordCount = text.split(/\s+/).length;
+    const words = text.split(/\s+/).filter(word => word.length > 1);
+    const wordCount = words.length;
     const charCount = text.length;
     const avgWordLength = charCount / wordCount;
+    
+    // Check for corrupted text patterns
+    const corruptedPatterns = [
+      /\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g,  // Scattered single letters
+      /\b\w{1}\s+\w{1}\s+\w{1}/g,  // Single chars with spaces
+      /[^\w\s.,!?;:()\-$%/@]{3,}/g  // Multiple strange characters
+    ];
+    
+    const hasCorruption = corruptedPatterns.some(pattern => pattern.test(text));
+    if (hasCorruption) {
+      console.log('Text quality check failed: corrupted patterns detected');
+      return false;
+    }
     
     // Basic quality metrics
     const hasLetters = /[a-zA-Z]/.test(text);
     const hasWords = wordCount > 10;
     const reasonableWordLength = avgWordLength > 2 && avgWordLength < 20;
+    const hasReadableWords = words.filter(word => /^[a-zA-Z]+$/.test(word)).length > wordCount * 0.5;
     
-    return hasLetters && hasWords && reasonableWordLength;
+    return hasLetters && hasWords && reasonableWordLength && hasReadableWords;
   }
   
   /**
@@ -194,7 +209,10 @@ export class PDFExtractor {
   static cleanExtractedText(text: string): string {
     return text
       .replace(/\s+/g, ' ')  // Normalize whitespace
-      .replace(/[^\w\s.,!?;:()\-]/g, ' ')  // Remove strange characters
+      .replace(/[^\x20-\x7E]/g, ' ')  // Remove non-printable characters
+      .replace(/[^\w\s.,!?;:()\-$%/@]/g, ' ')  // Remove strange characters but keep important symbols
+      .replace(/\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g, ' ')  // Remove scattered single letters
+      .replace(/\b\w{1}\s+\w{1}\s+\w{1}/g, ' ')  // Remove pattern of single chars with spaces
       .replace(/\s+/g, ' ')  // Normalize whitespace again
       .trim();
   }
