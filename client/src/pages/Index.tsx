@@ -183,7 +183,6 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar currentView={currentView} setCurrentView={setCurrentView} />
-      
       <main className="container mx-auto px-4 py-4">
         {currentView === "upload" && (
           <div className="animate-fade-in">
@@ -193,7 +192,7 @@ const Index = () => {
                   <FileText className="h-8 w-8 text-primary-foreground" />
                 </div>
               </div>
-              <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-[#000000]">
                 Legal Document Analysis
               </h1>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -428,7 +427,6 @@ const Index = () => {
           </div>
         )}
       </main>
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
