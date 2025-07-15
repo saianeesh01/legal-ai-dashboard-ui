@@ -6,8 +6,7 @@ import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_cl
 import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
 import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
 import { DocumentQueryEngine } from "./document_query_engine";
-// PDF parsing temporarily disabled due to dependency issues
-// const pdfParse = require("pdf-parse");
+import { PDFExtractor } from "./pdf_extractor";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -462,9 +461,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (req.file.mimetype === 'application/pdf') {
           console.log(`Extracting text from PDF: ${req.file.originalname}, size: ${req.file.buffer.length} bytes`);
           
-          // Generate enhanced analysis content based on filename and document characteristics
-          console.log('Using enhanced filename-based analysis for comprehensive document insights');
-          fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
+          // Advanced PDF text extraction with comprehensive error handling
+          console.log(`=== PDF EXTRACTION START: ${req.file.originalname} ===`);
+          console.log(`File size: ${req.file.buffer.length} bytes`);
+          console.log(`MIME type: ${req.file.mimetype}`);
+          
+          try {
+            const extractionResult = await PDFExtractor.extractText(req.file.buffer, req.file.originalname);
+            
+            console.log(`Extraction result: ${extractionResult.extractionMethod}`);
+            console.log(`Success: ${extractionResult.success}`);
+            console.log(`Text length: ${extractionResult.text.length}`);
+            console.log(`Page count: ${extractionResult.pageCount}`);
+            
+            if (extractionResult.success && PDFExtractor.validateTextQuality(extractionResult.text)) {
+              fileContent = PDFExtractor.cleanExtractedText(extractionResult.text);
+              console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}`);
+              console.log(`✓ Final content length: ${fileContent.length} characters`);
+              console.log(`✓ Quality validation passed`);
+            } else {
+              console.log(`✗ PDF extraction failed or poor quality text`);
+              console.log(`✗ Error: ${extractionResult.error || 'Quality validation failed'}`);
+              console.log(`✗ Falling back to enhanced filename analysis`);
+              fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
+            }
+          } catch (pdfError) {
+            console.error(`✗ CRITICAL PDF extraction error for ${req.file.originalname}:`, pdfError);
+            console.error(`✗ Error stack:`, pdfError.stack);
+            console.log(`✗ Using enhanced filename-based analysis as fallback`);
+            fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
+          }
+          
+          console.log(`=== PDF EXTRACTION END: Final content length: ${fileContent.length} ===`);
         } else if (req.file.mimetype.startsWith('text/')) {
           fileContent = req.file.buffer.toString('utf8');
         } else {
