@@ -20,8 +20,12 @@ export class DocumentEncryption {
     }
     
     // Fallback: generate a key (should be stored persistently in production)
-    console.warn('Using generated encryption key. Set DOCUMENT_ENCRYPTION_KEY environment variable for production.');
-    return process.env.GENERATED_KEY || this.generateSecureKey();
+    if (!process.env.GENERATED_KEY) {
+      process.env.GENERATED_KEY = this.generateSecureKey();
+      console.warn('Using generated encryption key. Set DOCUMENT_ENCRYPTION_KEY environment variable for production.');
+    }
+    
+    return process.env.GENERATED_KEY;
   }
 
   /**
@@ -40,7 +44,14 @@ export class DocumentEncryption {
     metadata: EncryptionMetadata 
   } {
     try {
-      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      const keyHex = this.getEncryptionKey();
+      const key = Buffer.from(keyHex, 'hex');
+      
+      // Ensure key is exactly 32 bytes for AES-256
+      if (key.length !== 32) {
+        throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes for AES-256`);
+      }
+      
       const iv = randomBytes(this.IV_SIZE);
       
       // Convert content to buffer
@@ -75,7 +86,13 @@ export class DocumentEncryption {
    */
   static decryptContent(encryptedData: string, iv: string, metadata: EncryptionMetadata): string | Buffer {
     try {
-      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      const keyHex = this.getEncryptionKey();
+      const key = Buffer.from(keyHex, 'hex');
+      
+      // Ensure key is exactly 32 bytes for AES-256
+      if (key.length !== 32) {
+        throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes for AES-256`);
+      }
       
       // Create decipher and decrypt
       const ivBuffer = Buffer.from(iv, 'hex');
@@ -101,7 +118,14 @@ export class DocumentEncryption {
    */
   static encryptMetadata(metadata: any): string {
     try {
-      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      const keyHex = this.getEncryptionKey();
+      const key = Buffer.from(keyHex, 'hex');
+      
+      // Ensure key is exactly 32 bytes for AES-256
+      if (key.length !== 32) {
+        throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes for AES-256`);
+      }
+      
       const metadataString = JSON.stringify(metadata);
       
       const iv = randomBytes(16);
@@ -124,7 +148,13 @@ export class DocumentEncryption {
    */
   static decryptMetadata(encryptedMetadata: string): any {
     try {
-      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      const keyHex = this.getEncryptionKey();
+      const key = Buffer.from(keyHex, 'hex');
+      
+      // Ensure key is exactly 32 bytes for AES-256
+      if (key.length !== 32) {
+        throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes for AES-256`);
+      }
       
       // Split IV and encrypted data
       const [ivHex, encryptedData] = encryptedMetadata.split(':');
