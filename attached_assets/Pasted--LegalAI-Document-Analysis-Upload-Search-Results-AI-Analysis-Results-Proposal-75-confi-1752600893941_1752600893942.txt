@@ -1,0 +1,93 @@
+
+LegalAI
+Document Analysis
+
+Upload
+Search
+Results
+AI Analysis Results
+📄 Proposal
+75% confidence
+
+Comprehensive AI-powered document analysis and insights
+
+Expanded Summary
+DOCUMENT ANALYSIS - LIMITED (Filename-Based Classification)
+
+Document: 02. Immigration Law Clinic Proposal.pdf
+Status: Content extraction failed, analysis based on filename only
+
+PROPOSAL DOCUMENT ANALYSIS
+This appears to be a proposal or grant application based on the filename. These documents typically request funding or program approval.
+
+Key Document Purpose: Funding or program request
+Expected Content: Project description, budget, timeline, objectives
+Legal Significance: Formal request for resources or authorization
+
+For complete analysis, please ensure the PDF is readable and re-upload.
+
+LIMITATION NOTICE: This analysis is based solely on filename patterns due to PDF content extraction failure. For accurate legal analysis, proper document content extraction is required.
+
+Classification Evidence
+
+Document classified as funding proposal based on 1 pieces of evidence. Confidence: 75%
+
+Filename indicates proposal document: "02. Immigration Law Clinic Proposal.pdf"
+Key Findings
+Content extraction failed - unable to analyze document findings. Re-upload PDF for detailed analysis.
+Security Status
+Encrypted
+encrypted
+Document is securely encrypted and integrity verified
+Integrity:
+
+Verified
+Last verified: 7/15/2025, 1:34:09 PM
+Critical Dates
+
+Financial Terms
+
+Compliance Requirements
+
+Suggestions to Improve
+
+Update with most recent case law and precedent decisions
+Include country-specific evidence and documentation
+Strengthen legal argument with supporting case citations
+Enhance credibility assessment framework
+Develop comprehensive timeline of relevant events
+Recommended Toolkit
+Budget planning templates
+Timeline development tools
+Evaluation framework guides
+Grant writing resources
+Document Processed
+Successfully analyzed 02. Immigration Law Clinic Proposal.pdf
+
+02. Immigration Law Clinic Proposal.pdf
+
+0.15 MB
+
+Processed
+Ask Questions
+Ask specific questions about your document to get detailed insights
+
+Suggested questions:
+
+What are the key deadlines in this document?
+Summarize the main terms and conditions
+What renewal options are available?
+Ask me anything about your document... e.g., 'What are the payment terms?' or 'Explain the termination clause'
+Be specific for better results
+0/500
+Ask Question
+Tips for better results:
+
+• Ask specific questions about sections, clauses, or terms
+• Request explanations of legal language or complex provisions
+• Ask about deadlines, obligations, or key dates
+Timeline Overview
+Key dates and deadlines from your document
+
+Total Timeline Items:
+0 identified
