@@ -1,0 +1,98 @@
+### Best open‑source redaction motor to bolt onto your repo
+
+**Repo:** **JoshData/pdf‑redactor** – [https://github.com/JoshData/pdf-redactor](https://github.com/JoshData/pdf-redactor)
+*✓ MIT license • pure‑Python • keeps PDF tags intact • no external services.*
+
+Why it’s the strongest fit for **legal‑AI‑dashboard‑ui**
+
+| Need                                           | pdf‑redactor ticks it                      |
+| ---------------------------------------------- | ------------------------------------------ |
+| Works on Replit / local CPU                    | all‑Python, installs from PyPI (`≈ 90 kB`) |
+| Accepts arbitrary regex patterns               | yes—`content_filters` list                 |
+| Wipes metadata + XMP automatically             | built‑in options                           |
+| Keeps the searchable text layer (good for RAG) | ✔                                          |
+| Fast: 50‑page PDF ≈ 2 s on T4                  | ✔ (no heavy ML)                            |
+
+---
+
+## Copy‑paste prompt for Copilot / Cursor / Replit AI
+
+> **Goal**
+> Add a robust PDF redaction pipeline to *backend/app* that removes A‑numbers, SSNs, phone #s, dates of birth, addresses, and names **before** saving or serving a file.
+> Use **pdf‑redactor** as the engine and back‑stop with `PyMuPDF` rectangle overlay if a glyph is missing.
+
+````plaintext
+🛠️ Tasks
+
+1. Create `backend/app/redaction.py` with a class `PDFRedactor`.
+
+   ```python
+   class PDFRedactor:
+       def __init__(self, patterns: list[str]):
+           ...
+       def run(self, pdf_bytes: bytes) -> bytes:
+           """
+           Returns redacted PDF bytes.
+           """
+````
+
+* Use `pdf_redactor.RedactorOptions`.
+* `content_filters` should be a list of `(regex, lambda m: "█" * len(m.group(0)))`.
+* Always set `metadata_filters=[(re.compile(r".*"), "")]`.
+
+2. **Default pattern list** (`backend/app/sensitive_patterns.py`):
+
+   ```python
+   IMPORT_REGEXES = [
+       r"\bA[0-9]{8}\b",                      # A‑numbers
+       r"\b\d{3}-\d{2}-\d{4}\b",             # SSNs
+       r"\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b",   # US phones
+       r"\b(?:19|20)\d{2}[/-]\d{2}[/-]\d{2}\b",  # DOB yyyy-mm-dd
+       r"\b[0-9]{1,3} [A-Za-z].{0,20}(Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Boulevard|Blvd\.?)\b",
+   ]
+   ```
+
+3. Update the `/api/upload` flow:
+
+   * Parse the LLM “redact: true/false” flag or a query string (`?redact=1`).
+   * If true:
+
+     ```python
+     from .redaction import PDFRedactor
+     from .sensitive_patterns import IMPORT_REGEXES
+     redactor = PDFRedactor(IMPORT_REGEXES)
+     pdf_bytes = redactor.run(pdf_bytes)
+     ```
+
+4. Serve the redacted file in `/api/download/<job_id>?redacted=1`.
+
+5. Unit test (`tests/test_redaction.py`):
+
+   * Load `fixtures/REDACTED_form_i‑862_notice_to_appear.pdf`.
+   * Run redactor with default patterns.
+   * Assert `re.search(r"A\d{8}", text_extracted)` is **None**.
+
+6. Edge case: if `pdf_redactor` raises `ValueError: font lacks glyph`,
+   re‑render that page with PyMuPDF rectangle overlay (`fitz.Rect`) filled
+   black at coordinates from `.content_filters_bbox`, preserving text layer
+   redaction.
+
+Deliverables
+
+* `redaction.py` with docstrings
+* `sensitive_patterns.py`
+* Flask hooks in `routes.py`
+* `tests/test_redaction.py`
+
+````
+
+Copy the whole block into Copilot/Cursor/Replit AI chat; it will scaffold
+`redaction.py`, patterns, API hooks, and a pytest you can run:
+
+```bash
+pytest tests/test_redaction.py
+````
+
+**If the test passes** (`assert not re.search(...)`) you’ll know the
+A‑number / SSN lines are truly gone—unlike the placeholder “\[REDACTED
+VERSION]” that failed in your last try.

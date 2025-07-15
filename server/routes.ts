@@ -10,6 +10,7 @@ import { PDFExtractor } from "./pdf_extractor";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
 import { PDFRedactor } from "./pdf_redactor";
+import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 
 // Configure multer for file uploads
@@ -828,6 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents/:jobId/redacted-pdf", async (req, res) => {
     try {
       const { jobId } = req.params;
+      const useAdvanced = req.query.advanced === 'true';
       const job = await storage.getJob(jobId);
       
       if (!job) {
@@ -841,11 +843,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "Could not retrieve original document" });
       }
 
-      // Create redacted PDF
-      const { redactedPdfBuffer, redactionResult } = await PDFRedactor.createRedactedPDF(
-        originalPdfBuffer,
-        job.fileName
-      );
+      let redactedPdfBuffer: Buffer;
+      let redactionSummary: string;
+      let redactedItemsCount: number;
+
+      if (useAdvanced) {
+        // Use advanced Python pdf-redactor system
+        console.log("Using advanced Python pdf-redactor for enhanced redaction");
+        const result = await pythonRedactorBridge.redactPDF(originalPdfBuffer, {
+          useAdvancedRedaction: true,
+          includeLegalPatterns: true
+        });
+
+        if (!result.success) {
+          throw new Error(`Advanced redaction failed: ${result.error}`);
+        }
+
+        redactedPdfBuffer = result.redactedPdfBuffer!;
+        redactionSummary = result.redactionEffective ? 
+          `Advanced redaction completed. Patterns found: ${result.patternsFound?.length || 0}` :
+          `Advanced redaction completed with warnings. Some patterns may remain.`;
+        redactedItemsCount = result.patternsFound?.length || 0;
+      } else {
+        // Use existing PDF redaction system
+        const { redactedPdfBuffer: existingRedactedPdf, redactionResult } = await PDFRedactor.createRedactedPDF(
+          originalPdfBuffer,
+          job.fileName
+        );
+        
+        redactedPdfBuffer = existingRedactedPdf;
+        redactionSummary = PersonalInfoRedactor.getRedactionSummary(redactionResult);
+        redactedItemsCount = redactionResult.redactedItems.length;
+      }
 
       // Build ETag for caching / integrity verification
       const etag = crypto.createHash('sha256').update(redactedPdfBuffer).digest('hex');
@@ -860,8 +889,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set headers for PDF delivery
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `${dispositionType}; filename="REDACTED_${job.fileName}"`);
-      res.setHeader('X-Redaction-Summary', redactionResult.redactedItems.length.toString());
+      res.setHeader('X-Redaction-Summary', redactionSummary);
+      res.setHeader('X-Redacted-Items-Count', redactedItemsCount.toString());
       res.setHeader('X-Original-Filename', job.fileName);
+      res.setHeader('X-Redaction-Method', useAdvanced ? 'advanced-python' : 'standard');
       res.setHeader('ETag', etag);
 
       // Send the redacted PDF
@@ -870,6 +901,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating redacted PDF:", error);
       res.status(500).json({ error: "Failed to generate redacted PDF" });
+    }
+  });
+
+  // Advanced redaction test endpoint
+  app.get("/api/documents/:jobId/redaction-test", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Get the original encrypted document
+      const originalPdfBuffer = await storage.getDecryptedContent(jobId);
+      
+      if (!originalPdfBuffer) {
+        return res.status(500).json({ error: "Could not retrieve original document" });
+      }
+
+      // Test redaction effectiveness
+      const testResult = await pythonRedactorBridge.testRedaction(originalPdfBuffer);
+      
+      res.json({
+        jobId,
+        fileName: job.fileName,
+        redactionTest: testResult,
+        recommendations: {
+          useAdvancedRedaction: testResult.totalSensitiveItems > 0,
+          sensitiveItemsFound: testResult.totalSensitiveItems,
+          patterns: {
+            aNumbers: testResult.hasANumbers,
+            ssns: testResult.hasSSNs,
+            phoneNumbers: testResult.hasPhoneNumbers,
+            emails: testResult.hasEmails
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error testing redaction:", error);
+      res.status(500).json({ error: "Failed to test redaction effectiveness" });
     }
   });
 

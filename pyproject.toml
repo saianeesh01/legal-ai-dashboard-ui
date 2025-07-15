@@ -5,6 +5,8 @@ description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.1.1",
+    "pdf-redactor>=0.0.1",
+    "pymupdf>=1.26.3",
     "requests>=2.32.4",
 ]
 
