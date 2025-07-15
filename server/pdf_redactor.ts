@@ -88,9 +88,7 @@ export class PDFRedactor {
                                fileName.toLowerCase().includes('notice') ||
                                fileName.toLowerCase().includes('application');
         
-        const redactionNotice = itemCount > 0 ? 
-          `[REDACTED VERSION] - ${itemCount} items protected` :
-          (isFormRedaction ? `[REDACTED VERSION] - Privacy protection applied` : `[REDACTED VERSION] - No personal information detected`);
+        const redactionNotice = `[REDACTED VERSION] - Personal information protected`;
         
         // Add semi-transparent overlay
         page.drawRectangle({
@@ -244,37 +242,49 @@ export class PDFRedactor {
    * Apply redactions specific to Notice to Appear (I-862) forms
    */
   private static async applyNoticeToAppearRedactions(page: any, width: number, height: number, redactionResult: RedactionResult) {
-    // I-862 forms have specific fields we need to redact
+    // I-862 forms have specific fields we need to redact based on the actual form layout
+    // Coordinates are based on standard I-862 form layout (letter size: 612x792)
     const ntaRedactionAreas = [
-      // Alien Registration Number (A-Number) - top right
-      { x: 400, y: height - 100, width: 120, height: 12 },
+      // File Number - top right area
+      { x: 490, y: height - 65, width: 100, height: 12 },
       
-      // Full Name - typically in header area
+      // Respondent Name - "Zain Reyes" area
+      { x: 280, y: height - 100, width: 150, height: 12 },
+      
+      // Date of Birth - "(DOB 09-08-2007)" area  
+      { x: 430, y: height - 100, width: 100, height: 12 },
+      
+      // Address line 1 - "ORR Region 2, Avenida De la Constitución San Juan PR 00902"
+      { x: 80, y: height - 120, width: 450, height: 12 },
+      
+      // Phone number - "+1 (787) 678-9012" area
+      { x: 450, y: height - 120, width: 120, height: 12 },
+      
+      // Additional name fields that might appear
       { x: 150, y: height - 140, width: 250, height: 12 },
       { x: 150, y: height - 155, width: 250, height: 12 },
       
-      // Address fields - middle section
-      { x: 120, y: height - 220, width: 350, height: 12 },
-      { x: 120, y: height - 235, width: 350, height: 12 },
-      { x: 120, y: height - 250, width: 350, height: 12 },
-      
-      // Country of Birth/Citizenship
+      // Country information fields
       { x: 150, y: height - 290, width: 200, height: 12 },
       { x: 150, y: height - 305, width: 200, height: 12 },
       
-      // Date of Birth
-      { x: 150, y: height - 340, width: 100, height: 12 },
+      // Entry information
+      { x: 150, y: height - 340, width: 300, height: 12 },
       
-      // Phone number area
-      { x: 150, y: height - 375, width: 120, height: 12 },
+      // Court information - address where person needs to appear
+      { x: 80, y: height - 520, width: 450, height: 12 },
       
-      // Additional personal identifiers
-      { x: 80, y: height - 450, width: 200, height: 12 },
-      { x: 80, y: height - 465, width: 200, height: 12 },
+      // Date and time fields
+      { x: 80, y: height - 545, width: 200, height: 12 },
       
-      // Legal representative info
-      { x: 80, y: height - 520, width: 300, height: 12 },
-      { x: 80, y: height - 535, width: 300, height: 12 },
+      // Officer signature area
+      { x: 300, y: height - 580, width: 200, height: 12 },
+      
+      // Date at bottom
+      { x: 80, y: height - 610, width: 150, height: 12 },
+      
+      // City and State
+      { x: 350, y: height - 610, width: 200, height: 12 },
     ];
     
     // Draw black redaction boxes
