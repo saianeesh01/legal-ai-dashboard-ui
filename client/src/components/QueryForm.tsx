@@ -94,7 +94,7 @@ const QueryForm = ({ onQuery, isLoading }: QueryFormProps) => {
           <Button 
             type="submit" 
             disabled={!query.trim() || isLoading}
-            className="w-full bg-gradient-accent hover:bg-accent/90 transition-smooth"
+            className="w-full bg-gradient-accent hover:bg-accent/90 transition-smooth text-[#000000]"
           >
             {isLoading ? (
               <>
