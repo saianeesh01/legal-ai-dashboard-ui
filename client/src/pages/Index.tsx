@@ -222,7 +222,7 @@ const Index = () => {
                   <Search className="h-8 w-8 text-primary-foreground" />
                 </div>
               </div>
-              <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-[#372a2a]">
                 Document Library
               </h1>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
