@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import multer from "multer";
 import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_classifier";
 import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
+import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -557,13 +558,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         confidence: confidence,
         documentCategory: documentCategory,
         summary: generateEnhancedSummary(job.fileName, fileContent, isProposal, documentCategory),
-        improvements: generateCategorySpecificImprovements(documentCategory, smartResult.contentAnalysis),
+        improvements: EnhancedContentAnalyzer.generateContextualSuggestions({
+          fileName: job.fileName,
+          content: fileContent,
+          documentType: documentCategory
+        }),
         toolkit: generateCategorySpecificToolkit(documentCategory),
         keyFindings: extractCategorySpecificFindings(fileContent, documentCategory),
         documentType: determineEnhancedDocumentType(job.fileName, fileContent, documentCategory),
-        criticalDates: extractCriticalDates(fileContent),
-        financialTerms: extractFinancialTerms(fileContent),
-        complianceRequirements: extractComplianceRequirements(fileContent),
+        criticalDates: EnhancedContentAnalyzer.extractCriticalDatesWithContext({
+          fileName: job.fileName,
+          content: fileContent,
+          documentType: documentCategory
+        }),
+        financialTerms: EnhancedContentAnalyzer.extractFinancialTermsWithContext({
+          fileName: job.fileName, 
+          content: fileContent,
+          documentType: documentCategory
+        }),
+        complianceRequirements: EnhancedContentAnalyzer.extractComplianceWithContext({
+          fileName: job.fileName,
+          content: fileContent, 
+          documentType: documentCategory
+        }),
         evidence: multiLabelResult.evidence,
         reasoning: multiLabelResult.reasoning,
         contentAnalysis: smartResult.contentAnalysis,
@@ -2194,7 +2211,8 @@ function extractCriticalDates(content: string): string[] {
     dates.push("Program evaluation schedule and assessment timeline");
   }
   
-  return dates.length > 0 ? dates : ["Project timeline and scheduling framework under development"];
+  // Return empty array if no dates found instead of generic placeholder
+  return dates;
 }
 
 function extractFinancialTerms(content: string): string[] {
@@ -2273,7 +2291,8 @@ function extractFinancialTerms(content: string): string[] {
     });
   }
   
-  return terms.length > 0 ? terms : ["Financial framework and resource requirements under development"];
+  // Return only real content, no generic fallbacks
+  return terms;
 }
 
 function getFinancialContext(content: string, amount: string): string | null {
@@ -2417,7 +2436,8 @@ function extractComplianceRequirements(content: string): string[] {
     requirements.push("Military service regulations and compliance standards");
   }
   
-  return requirements.length > 0 ? requirements : ["Compliance framework and regulatory requirements under assessment"];
+  // Return only real content, no generic fallbacks
+  return requirements;
 }
 
 function generateQueryResponse(query: string, content: string, fileName: string): string {
