@@ -1,4 +1,4 @@
-import { createCipher, createDecipher, randomBytes, createHash } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 
 /**
  * Document Encryption Service
@@ -47,8 +47,7 @@ export class DocumentEncryption {
       const contentBuffer = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8');
       
       // Create cipher and encrypt
-      const cipher = require('crypto').createCipher('aes-256-cbc', key);
-      cipher.setAutoPadding(true);
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
       
       let encrypted = cipher.update(contentBuffer, null, 'hex');
       encrypted += cipher.final('hex');
@@ -76,28 +75,21 @@ export class DocumentEncryption {
    */
   static decryptContent(encryptedData: string, iv: string, metadata: EncryptionMetadata): string | Buffer {
     try {
-      const key = this.getEncryptionKey();
-      const ivWordArray = CryptoJS.enc.Hex.parse(iv);
+      const key = Buffer.from(this.getEncryptionKey(), 'hex');
       
-      // Decrypt the content
-      const decrypted = CryptoJS.AES.decrypt(encryptedData, key, {
-        iv: ivWordArray,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.PKCS7
-      });
-
-      const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
+      // Create decipher and decrypt
+      const ivBuffer = Buffer.from(iv, 'hex');
+      const decipher = createDecipheriv('aes-256-cbc', key, ivBuffer);
       
-      if (!decryptedString) {
-        throw new Error('Decryption resulted in empty content');
-      }
-
+      let decrypted = decipher.update(encryptedData, 'hex', null);
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+      
       // Return as Buffer if original content was binary
       if (metadata.contentType === 'binary') {
-        return Buffer.from(decryptedString, 'base64');
+        return decrypted;
       }
       
-      return decryptedString;
+      return decrypted.toString('utf8');
     } catch (error) {
       console.error('Decryption failed:', error);
       throw new Error('Failed to decrypt document content');
@@ -109,9 +101,17 @@ export class DocumentEncryption {
    */
   static encryptMetadata(metadata: any): string {
     try {
-      const key = this.getEncryptionKey();
+      const key = Buffer.from(this.getEncryptionKey(), 'hex');
       const metadataString = JSON.stringify(metadata);
-      const encrypted = CryptoJS.AES.encrypt(metadataString, key).toString();
+      
+      const iv = randomBytes(16);
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
+      let encrypted = cipher.update(metadataString, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      // Prepend IV to encrypted data
+      encrypted = iv.toString('hex') + ':' + encrypted;
+      
       return encrypted;
     } catch (error) {
       console.error('Metadata encryption failed:', error);
@@ -124,10 +124,17 @@ export class DocumentEncryption {
    */
   static decryptMetadata(encryptedMetadata: string): any {
     try {
-      const key = this.getEncryptionKey();
-      const decrypted = CryptoJS.AES.decrypt(encryptedMetadata, key);
-      const metadataString = decrypted.toString(CryptoJS.enc.Utf8);
-      return JSON.parse(metadataString);
+      const key = Buffer.from(this.getEncryptionKey(), 'hex');
+      
+      // Split IV and encrypted data
+      const [ivHex, encryptedData] = encryptedMetadata.split(':');
+      const ivBuffer = Buffer.from(ivHex, 'hex');
+      
+      const decipher = createDecipheriv('aes-256-cbc', key, ivBuffer);
+      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      return JSON.parse(decrypted);
     } catch (error) {
       console.error('Metadata decryption failed:', error);
       throw new Error('Failed to decrypt metadata');
@@ -139,7 +146,7 @@ export class DocumentEncryption {
    */
   static generateContentHash(content: string | Buffer): string {
     const contentString = Buffer.isBuffer(content) ? content.toString('base64') : content;
-    return CryptoJS.SHA256(contentString).toString();
+    return createHash('sha256').update(contentString).digest('hex');
   }
 
   /**
