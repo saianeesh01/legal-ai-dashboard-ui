@@ -184,11 +184,11 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar currentView={currentView} setCurrentView={setCurrentView} />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-4">
         {currentView === "upload" && (
           <div className="animate-fade-in">
-            <div className="text-center mb-12">
-              <div className="flex items-center justify-center mb-6">
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center mb-4">
                 <div className="bg-gradient-primary rounded-xl p-4 shadow-glow">
                   <FileText className="h-8 w-8 text-primary-foreground" />
                 </div>
@@ -217,8 +217,8 @@ const Index = () => {
 
         {currentView === "search" && (
           <div className="animate-fade-in">
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center mb-6">
+            <div className="text-center mb-6">
+              <div className="flex items-center justify-center mb-4">
                 <div className="bg-gradient-primary rounded-xl p-4 shadow-glow">
                   <Search className="h-8 w-8 text-primary-foreground" />
                 </div>
@@ -233,7 +233,7 @@ const Index = () => {
 
             {/* Search and Filter Controls */}
             {documents && documents.length > 0 && (
-              <div className="mb-8">
+              <div className="mb-6">
                 <Card className="shadow-elegant">
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between mb-4">
@@ -307,7 +307,7 @@ const Index = () => {
             )}
 
             {!documents || documents.length === 0 ? (
-              <div className="text-center py-20">
+              <div className="text-center py-12">
                 <div className="bg-card rounded-xl p-8 shadow-elegant max-w-md mx-auto">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h2 className="text-xl font-semibold mb-2">No Documents Yet</h2>
@@ -324,7 +324,7 @@ const Index = () => {
                 </div>
               </div>
             ) : filteredDocuments.length === 0 ? (
-              <div className="text-center py-20">
+              <div className="text-center py-12">
                 <div className="bg-card rounded-xl p-8 shadow-elegant max-w-md mx-auto">
                   <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h2 className="text-xl font-semibold mb-2">No Documents Found</h2>
