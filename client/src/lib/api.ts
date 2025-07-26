@@ -8,14 +8,15 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = "http://localhost:5001"; // Flask backend
+
 /** POST a file to /api/upload and return { job_id }. */
 export async function uploadFile(file: File): Promise<{ job_id: string }> {
-  console.log("uploadFile called with file:", file); // Log when function is called
   const fd = new FormData();
   fd.append("file", file);
 
   try {
-    const res = await fetch("/api/upload", {
+    const res = await fetch(`${API_BASE}/api/upload`, {
       method: "POST",
       body: fd,
     });
@@ -44,7 +45,7 @@ export async function pollJobStatus(
   interval = 1500
 ): Promise<void> {
   while (true) {
-    const res = await fetch(`/api/status/${jobId}`);
+    const res = await fetch(`${API_BASE}/api/status/${jobId}`);
     if (!res.ok) throw new ApiError(res.status, await res.text());
 
     const { pct = 0, state } = (await res.json()) as {
@@ -67,7 +68,7 @@ export async function analyzeDocument(jobId: string): Promise<{
   summary: string;
   suggestions: string[];
 }> {
-  const res = await fetch("/api/analyze", {
+  const res = await fetch(`${API_BASE}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_id: jobId }),
@@ -85,7 +86,7 @@ export async function queryDocument(
   context: { page: number; text: string }[];
   confidence?: number;
 }> {
-  const res = await fetch("/api/query", {
+  const res = await fetch(`${API_BASE}/api/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_id: jobId, question }),
@@ -132,7 +133,7 @@ export async function checkDuplicate(fileName: string): Promise<{
     createdAt: string;
   };
 }> {
-  const res = await fetch("/api/check-duplicate", {
+  const res = await fetch(`/api/check-duplicate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fileName }),

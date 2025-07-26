@@ -10,6 +10,11 @@ from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import tempfile
 import base64
+import uuid
+
+# Third-party parsing libs
+import fitz  # PyMuPDF
+import docx  # python-docx
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -32,6 +37,14 @@ embedding_model = None
 faiss_index = None
 document_chunks = []
 
+# In-memory store for job state so the React front-end can poll just like before
+jobs: Dict[str, Dict[str, Any]] = {}
+
+# ---------------------------------------------------------------------------
+#                              TEXT EXTRACTION
+# ---------------------------------------------------------------------------
+
+
 def initialize_models():
     """Initialize OCR and embedding models"""
     global ocr, embedding_model
@@ -49,6 +62,52 @@ def initialize_models():
     except Exception as e:
         logger.error(f"Error initializing models: {e}")
         raise
+
+def extract_text_from_pdf(pdf_path: str, ocr_fallback: bool = True) -> str:
+    """Extract text from a PDF using PyMuPDF. If text layer is insufficient (<100
+    characters) and *ocr_fallback* is True, rasterise pages and run PaddleOCR.
+    """
+    text: str = ""
+    try:
+        with fitz.open(pdf_path) as doc:
+            for page in doc:
+                text += page.get_text("text")  # explicit method name for clarity
+    except Exception as e:
+        logger.warning(f"PyMuPDF failed on {pdf_path}: {e}")
+
+    # If the PDF had no embedded text (e.g., it is a scan), optionally fall back
+    # to page-level OCR. We keep this lightweight – only run if PaddleOCR is
+    # already initialised and text is clearly empty.
+    if ocr_fallback and len(text.strip()) < 100:
+        logger.info("PDF appears to have no selectable text – falling back to OCR")
+        try:
+            with fitz.open(pdf_path) as doc:
+                for page in doc:
+                    # Render page to image in memory (RGB)
+                    pix = page.get_pixmap(dpi=200)
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    # Use temporary file-less OCR: PaddleOCR accepts ndarray
+                    ocr_result = ocr.ocr(np.array(img), cls=True)
+                    if ocr_result and ocr_result[0]:
+                        for line in ocr_result[0]:
+                            if len(line) >= 2:
+                                (_, (txt, conf)) = line
+                                if conf > 0.4:
+                                    text += f" {txt}"  # preserve order across pages
+        except Exception as e:
+            logger.error(f"OCR fallback failed: {e}")
+
+    return text.strip()
+
+
+def extract_text_from_docx(docx_path: str) -> str:
+    """Extract full text from a DOCX file using python-docx."""
+    try:
+        document = docx.Document(docx_path)
+        return "\n".join([para.text for para in document.paragraphs]).strip()
+    except Exception as e:
+        logger.error(f"DOCX extraction error: {e}")
+        return ""
 
 def extract_text_from_image(image_path: str) -> List[Dict[str, Any]]:
     """Extract text from image using PaddleOCR"""
@@ -457,38 +516,69 @@ def process_document():
             return jsonify({"error": "No file provided"}), 400
         
         file = request.files['file']
-        job_id = request.form.get('job_id', 'unknown')
+        job_id = request.form.get('job_id') or str(uuid.uuid4())
         
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as tmp_file:
+        # ------------------------------------------------------------------
+        #                    SAVE UPLOADED FILE TO TEMP DISK
+        # ------------------------------------------------------------------
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
             file.save(tmp_file.name)
-            
-            # Extract text using OCR
-            extracted_data = extract_text_from_image(tmp_file.name)
-            
-            # Combine all text
-            full_text = ' '.join([item['text'] for item in extracted_data])
-            
-            # Create text chunks for FAISS
+
+            # Decide extraction strategy based on extension / mimetype
+            ext = Path(file.filename).suffix.lower()
+
+            full_text = ""
+            extracted_data: List[Dict[str, Any]] = []  # For OCR confidence
+
+            if ext == ".pdf":
+                full_text = extract_text_from_pdf(tmp_file.name)
+            elif ext in {".docx", ".doc"}:
+                full_text = extract_text_from_docx(tmp_file.name)
+            elif ext in {".png", ".jpg", ".jpeg", ".gif", ".tiff"}:
+                extracted_data = extract_text_from_image(tmp_file.name)
+                full_text = " ".join([item["text"] for item in extracted_data])
+            else:
+                # Fallback: try treating as image first, then raw read
+                logger.warning(f"Unknown file type {ext}, attempting OCR as image fallback")
+                extracted_data = extract_text_from_image(tmp_file.name)
+                full_text = " ".join([item["text"] for item in extracted_data])
+
+            # If still nothing extracted, read binary as utf-8 best effort
+            if len(full_text.strip()) == 0:
+                try:
+                    full_text = Path(tmp_file.name).read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    full_text = ""
+
+            # Ensure we have SOME text; otherwise inform client early
+            if len(full_text.strip()) == 0:
+                logger.warning("No textual content could be extracted from the document")
+
+            # Create text chunks and FAISS index for retrieval / Q&A
             document_chunks = chunk_text(full_text)
-            
-            # Create FAISS index
+            faiss_idx = None
             if document_chunks:
-                faiss_index, _ = create_faiss_index(document_chunks)
-            
-            # AI analysis
+                faiss_idx, _ = create_faiss_index(document_chunks)
+
             ai_analysis = analyze_document_with_ai(full_text, file.filename)
-            
+
+            # -------------------- Persist to in-memory store -------------------
+            job_record = {
+                "status": "DONE",
+                "progress": 100,
+                "analysis": ai_analysis,
+                "chunks": document_chunks,
+                "faiss_index": faiss_idx,
+                "filename": file.filename,
+            }
+            jobs[job_id] = job_record
+
             # Clean up temp file
             os.unlink(tmp_file.name)
-            
-            return jsonify({
-                "job_id": job_id,
-                "text_extracted": len(full_text) > 0,
-                "total_chunks": len(document_chunks),
-                "ai_analysis": ai_analysis,
-                "ocr_confidence": np.mean([item['confidence'] for item in extracted_data]) if extracted_data else 0
-            })
+
+            # Mimic original API contract – only return job_id, client will poll
+            return jsonify({"job_id": job_id})
             
     except Exception as e:
         logger.error(f"Document processing error: {e}")
@@ -531,15 +621,14 @@ def query_document():
         
         # Query Ollama for answer
         prompt = f"""
-SYSTEM: You are a helpful document analysis assistant. Answer the question based only on the provided context from the document. If the context doesn't contain relevant information, say "I don't have enough information in the document to answer that question."
+SYSTEM: You are a helpful document analysis assistant. Answer the question based ONLY on the provided context. If the context is insufficient, say so.
 
 CONTEXT:
 {context}
 
 QUESTION: {question}
 
-Please provide a clear, concise answer based on the document content:
-"""
+Answer:"""
 
         ai_response = query_ollama(prompt)
         
@@ -552,6 +641,83 @@ Please provide a clear, concise answer based on the document content:
     except Exception as e:
         logger.error(f"Query processing error: {e}")
         return jsonify({"error": str(e)}), 500
+
+# ---------------------------------------------------------------------------
+#                         JOB STATUS & FRONT-END APIs
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    """Alias to /process_document so the React front-end can keep its URL."""
+    return process_document()
+
+
+@app.route('/api/status/<job_id>', methods=['GET'])
+def api_status(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"state": "ERROR", "pct": 0}), 404
+    return jsonify({"state": job["status"], "pct": job["progress"]})
+
+
+@app.route('/api/analyze', methods=['POST'])
+def api_analyze():
+    data = request.get_json()
+    job_id = data.get('job_id') if data else None
+    if not job_id or job_id not in jobs:
+        return jsonify({"error": "Invalid job_id"}), 400
+    return jsonify(jobs[job_id]["analysis"])
+
+
+@app.route('/api/query', methods=['POST'])
+def api_query():
+    data = request.get_json()
+    job_id = data.get('job_id') if data else None
+    question = data.get('question', '') if data else ''
+
+    if not job_id or job_id not in jobs:
+        return jsonify({"error": "Invalid job_id"}), 400
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+
+    job = jobs[job_id]
+    if not job["chunks"] or job["faiss_index"] is None:
+        return jsonify({"error": "Document not suitable for querying"}), 400
+
+    # Perform similarity search against stored index
+    question_embedding = embedding_model.encode([question])
+    question_embedding = np.array(question_embedding).astype('float32')
+    faiss.normalize_L2(question_embedding)
+
+    scores, indices = job['faiss_index'].search(question_embedding, min(5, len(job['chunks'])))
+    relevant_chunks = []
+    for i, idx in enumerate(indices[0]):
+        if idx < len(job['chunks']) and scores[0][i] > 0.3:
+            relevant_chunks.append({
+                "text": job['chunks'][idx],
+                "similarity": float(scores[0][i]),
+                "chunk_id": int(idx)
+            })
+
+    context = '\n'.join([c['text'] for c in relevant_chunks[:3]])
+    prompt = f"""
+SYSTEM: You are a helpful legal document assistant. Answer the question based ONLY on the provided context. If the context is insufficient, say so.
+
+CONTEXT:
+{context}
+
+QUESTION: {question}
+
+Answer:"""
+
+    ai_response = query_ollama(prompt)
+
+    return jsonify({
+        "answer": ai_response,
+        "context": relevant_chunks,
+        "confidence": max([c['similarity'] for c in relevant_chunks], default=0)
+    })
 
 if __name__ == '__main__':
     logger.info("Starting AI Document Analysis Service...")
