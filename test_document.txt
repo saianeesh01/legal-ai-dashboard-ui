@@ -1,31 +1,31 @@
-SAMPLE IMMIGRATION LAW CLINIC PROPOSAL
+NOTICE TO APPEAR
 
-EXECUTIVE SUMMARY
-This proposal outlines the establishment of a comprehensive Immigration Law Clinic to serve underserved communities. The clinic will provide critical legal services including asylum representation, family reunification assistance, and citizenship application support.
+In the Matter of: John Doe, Respondent
+A-Number: A123456789
+File No.: 123-456-789
 
-FUNDING REQUEST
-Total funding requested: $150,000 annually
-- Staff attorney salary: $85,000
-- Administrative costs: $25,000
-- Training and development: $15,000
-- Technology and systems: $10,000
-- Community outreach: $15,000
+TO: John Doe
+123 Main Street
+Anytown, NY 10001
 
-TARGET POPULATION
-- Asylum seekers requiring legal representation
-- Families navigating immigration procedures
-- Low-income immigrants unable to afford private counsel
-- Students and workers requiring visa assistance
+YOU ARE HEREBY NOTIFIED that proceedings under section 240 of the Immigration and Nationality Act have been initiated against you before an Immigration Judge of the United States Immigration Court.
 
-IMPLEMENTATION TIMELINE
-Phase 1: January-March 2025 - Staff recruitment and training
-Phase 2: April-June 2025 - Clinic establishment and initial operations
-Phase 3: July-December 2025 - Full service delivery
+ALLEGATIONS:
+1. You are not a citizen or national of the United States
+2. You are a native and citizen of Nicaragua
+3. You last entered the United States on or about January 15, 2020, near Laredo, Texas, without being admitted or paroled
+4. You are subject to removal under section 212(a)(6)(A)(i) of the Immigration and Nationality Act as an alien present in the United States without being admitted or paroled
 
-EXPECTED OUTCOMES
-- Serve 500+ clients annually
-- 85% success rate for represented cases
-- 24 community workshops per year
-- Sustainable funding model development
+CHARGES:
+Section 212(a)(6)(A)(i) of the Immigration and Nationality Act - Entry without inspection
 
-This proposal demonstrates our commitment to addressing critical legal service gaps in the immigrant community through professional, high-quality representation.
+HEARING DATE: March 15, 2024, at 9:00 AM
+HEARING LOCATION: Immigration Court, 26 Federal Plaza, New York, NY 10278
+
+You must appear before the Immigration Judge at the date, time, and place set forth above. Failure to appear may result in your removal from the United States in your absence.
+
+YOU ARE ADVISED OF YOUR RIGHT TO BE REPRESENTED BY COUNSEL of your own choice at no expense to the Government. If you cannot afford counsel, free legal services may be available.
+
+Date: February 1, 2024
+Immigration and Customs Enforcement
+Department of Homeland Security

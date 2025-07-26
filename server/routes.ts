@@ -460,51 +460,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.storeEncryptedDocument(jobId, req.file.buffer, fileMetadata);
       console.log(`Document encrypted and stored securely: ${req.file.originalname}`);
 
-      // Extract text content for analysis (but keep original encrypted)
+      // Extract text content using comprehensive document extractor
       let fileContent = '';
+      let extractionResult: any = null;
+      
       try {
-        if (req.file.mimetype === 'application/pdf') {
-          console.log(`Extracting text from PDF: ${req.file.originalname}, size: ${req.file.buffer.length} bytes`);
-          
-          // Advanced PDF text extraction with comprehensive error handling
-          console.log(`=== PDF EXTRACTION START: ${req.file.originalname} ===`);
-          console.log(`File size: ${req.file.buffer.length} bytes`);
-          console.log(`MIME type: ${req.file.mimetype}`);
-          
-          try {
-            const extractionResult = await PDFExtractor.extractText(req.file.buffer, req.file.originalname);
-            
-            console.log(`Extraction result: ${extractionResult.extractionMethod}`);
-            console.log(`Success: ${extractionResult.success}`);
-            console.log(`Text length: ${extractionResult.text.length}`);
-            console.log(`Page count: ${extractionResult.pageCount}`);
-            
-            if (extractionResult.success && PDFExtractor.validateTextQuality(extractionResult.text)) {
-              fileContent = PDFExtractor.cleanExtractedText(extractionResult.text);
-              console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}`);
-              console.log(`✓ Final content length: ${fileContent.length} characters`);
-              console.log(`✓ Quality validation passed`);
-            } else {
-              console.log(`✗ PDF extraction failed or poor quality text`);
-              console.log(`✗ Error: ${extractionResult.error || 'Quality validation failed'}`);
-              console.log(`✗ Falling back to enhanced filename analysis`);
-              fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
-            }
-          } catch (pdfError) {
-            console.error(`✗ CRITICAL PDF extraction error for ${req.file.originalname}:`, pdfError);
-            console.error(`✗ Error stack:`, pdfError.stack);
-            console.log(`✗ Using enhanced filename-based analysis as fallback`);
-            fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
-          }
-          
-          console.log(`=== PDF EXTRACTION END: Final content length: ${fileContent.length} ===`);
-        } else if (req.file.mimetype.startsWith('text/')) {
-          fileContent = req.file.buffer.toString('utf8');
+        console.log(`=== DOCUMENT EXTRACTION START: ${req.file.originalname} ===`);
+        console.log(`File size: ${req.file.buffer.length} bytes`);
+        console.log(`MIME type: ${req.file.mimetype}`);
+        
+        // Use the new DocumentExtractor for all file types
+        const { DocumentExtractor } = await import('./document_extractor.js');
+        extractionResult = await DocumentExtractor.extractText(
+          req.file.buffer, 
+          req.file.originalname, 
+          req.file.mimetype
+        );
+        
+        console.log(`Extraction result: ${extractionResult.extractionMethod}`);
+        console.log(`Success: ${extractionResult.success}`);
+        console.log(`Text length: ${extractionResult.text.length}`);
+        console.log(`Page count: ${extractionResult.pageCount}`);
+        
+        if (extractionResult.success && DocumentExtractor.validateTextQuality(extractionResult.text)) {
+          fileContent = extractionResult.text;
+          console.log(`✓ Document extraction successful using ${extractionResult.extractionMethod}`);
+          console.log(`✓ Final content length: ${fileContent.length} characters`);
+          console.log(`✓ Quality validation passed`);
         } else {
-          fileContent = `Document: ${req.file.originalname}. File size: ${req.file.size} bytes.`;
+          console.log(`✗ Document extraction failed or poor quality text`);
+          console.log(`✗ Error: ${extractionResult.error || 'Quality validation failed'}`);
+          console.log(`✗ Falling back to enhanced filename analysis`);
+          fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
         }
+        
+        console.log(`=== DOCUMENT EXTRACTION END: Final content length: ${fileContent.length} ===`);
+        
       } catch (error) {
-        console.log(`Error processing ${req.file.originalname}:`, error);
+        console.error(`✗ CRITICAL document extraction error for ${req.file.originalname}:`, error);
+        console.error(`✗ Error stack:`, error.stack);
+        console.log(`✗ Using enhanced filename-based analysis as fallback`);
         fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
       }
       
@@ -519,7 +514,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateJob(jobId, {
         fileContent: redactedContent, // Store redacted content for analysis
         redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
-        redactedItemsCount: redactionResult.redactedItems.length
+        redactedItemsCount: redactionResult.redactedItems.length,
+        extractionMethod: extractionResult?.extractionMethod || 'fallback',
+        extractionSuccess: extractionResult?.success || false,
+        pageCount: extractionResult?.pageCount || 1,
+        documentMetadata: extractionResult?.metadata || {}
       });
 
       res.json({ job_id: jobId });
@@ -574,62 +573,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Document not ready for analysis" });
       }
 
-      // Enhanced multi-label classification with court document detection
+      // Content-based analysis using actual extracted text
       const fileContent = job.fileContent || '';
-      const smartResult: SmartClassificationResult = SmartLegalClassifier.analyzeDocument(job.fileName, fileContent);
-      const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(job.fileName, fileContent);
+      console.log(`Starting content-based analysis for ${job.fileName}, content length: ${fileContent.length}`);
       
-      // Use multi-label classification for primary categorization
-      const isProposal = multiLabelResult.document_type === 'proposal';
-      const confidence = multiLabelResult.confidence;
-      const isUndetermined = multiLabelResult.document_type === 'undetermined';
-      const documentCategory = multiLabelResult.document_type;
+      // Use the new ContentBasedAnalyzer for comprehensive analysis
+      const { ContentBasedAnalyzer } = await import('./content_based_analyzer.js');
+      const contentAnalysis = ContentBasedAnalyzer.analyzeDocument(job.fileName, fileContent);
       
-      // Log classification details for debugging
-      console.log(`Enhanced classification result for ${job.fileName}:`);
-      console.log(`  Document Type: ${documentCategory}`);
-      console.log(`  Confidence: ${confidence}`);
-      console.log(`  Evidence: ${multiLabelResult.evidence}`);
-      console.log(`  Smart Classifier Court indicators: ${smartResult.contentAnalysis.hasCourtIndicators}`);
-      console.log(`  Smart Classifier Litigation terms: ${smartResult.contentAnalysis.hasLitigationTerms}`);
+      // Log analysis details for debugging
+      console.log(`Content-based analysis result for ${job.fileName}:`);
+      console.log(`  Document Type: ${contentAnalysis.documentType}`);
+      console.log(`  Verdict: ${contentAnalysis.verdict}`);
+      console.log(`  Confidence: ${contentAnalysis.confidence}`);
+      console.log(`  Word Count: ${contentAnalysis.wordCount}`);
+      console.log(`  Key Findings: ${contentAnalysis.keyFindings.length} items`);
       
-      // Generate enhanced analysis based on multi-label classification
+      // Create enhanced analysis result with all the content-based insights
       const analysisResult = {
-        verdict: multiLabelResult.document_type, // Use the actual document type instead of binary classification
-        confidence: confidence,
-        documentCategory: documentCategory,
-        summary: generateEnhancedSummary(job.fileName, fileContent, isProposal, documentCategory),
-        improvements: EnhancedContentAnalyzer.generateContextualSuggestions({
-          fileName: job.fileName,
-          content: fileContent,
-          documentType: documentCategory
-        }),
-        toolkit: generateCategorySpecificToolkit(documentCategory),
-        keyFindings: fileContent.length > 100 ? extractCategorySpecificFindings(fileContent, documentCategory) : ["Content extraction failed - unable to analyze document findings. Re-upload PDF for detailed analysis."],
-        documentType: determineEnhancedDocumentType(job.fileName, fileContent, documentCategory),
-        criticalDates: fileContent.length > 100 ? EnhancedContentAnalyzer.extractCriticalDatesWithContext({
-          fileName: job.fileName,
-          content: fileContent,
-          documentType: documentCategory
-        }) : [],
-        financialTerms: fileContent.length > 100 ? EnhancedContentAnalyzer.extractFinancialTermsWithContext({
-          fileName: job.fileName, 
-          content: fileContent,
-          documentType: documentCategory
-        }) : [],
-        complianceRequirements: fileContent.length > 100 ? EnhancedContentAnalyzer.extractComplianceWithContext({
-          fileName: job.fileName,
-          content: fileContent, 
-          documentType: documentCategory
-        }) : [],
-        evidence: multiLabelResult.evidence,
-        reasoning: multiLabelResult.reasoning,
-        contentAnalysis: smartResult.contentAnalysis,
+        verdict: contentAnalysis.verdict,
+        confidence: contentAnalysis.confidence,
+        documentCategory: contentAnalysis.documentType,
+        summary: contentAnalysis.summary,
+        improvements: contentAnalysis.improvements,
+        toolkit: contentAnalysis.toolkit,
+        keyFindings: contentAnalysis.keyFindings,
+        documentType: contentAnalysis.documentType,
+        criticalDates: contentAnalysis.criticalDates,
+        financialTerms: contentAnalysis.financialTerms,
+        complianceRequirements: contentAnalysis.complianceRequirements,
+        evidence: contentAnalysis.evidence,
+        reasoning: contentAnalysis.reasoning,
+        wordCount: contentAnalysis.wordCount,
+        estimatedReadingTime: contentAnalysis.estimatedReadingTime,
+        // Legacy compatibility fields
+        contentAnalysis: {
+          hasCourtIndicators: contentAnalysis.documentType === 'nta' || contentAnalysis.documentType === 'motion',
+          hasLitigationTerms: contentAnalysis.evidence.length > 0
+        },
         multiLabelAnalysis: {
-          documentType: multiLabelResult.document_type,
-          confidence: multiLabelResult.confidence,
-          evidence: multiLabelResult.evidence,
-          pageReferences: multiLabelResult.pageReferences
+          documentType: contentAnalysis.documentType,
+          confidence: contentAnalysis.confidence,
+          evidence: contentAnalysis.evidence,
+          pageReferences: []
         }
       };
 

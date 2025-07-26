@@ -1,0 +1,464 @@
+/**
+ * Content-Based Document Analyzer
+ * Generates detailed analysis based on actual extracted document content
+ */
+export class ContentBasedAnalyzer {
+    /**
+     * Analyze document content to generate comprehensive insights
+     */
+    static analyzeDocument(fileName, content) {
+        console.log(`Starting content-based analysis for: ${fileName}`);
+        if (!content || content.length < 100) {
+            console.log(`Insufficient content for analysis: ${content.length} characters`);
+            return this.generateFallbackAnalysis(fileName, content);
+        }
+        const wordCount = this.countWords(content);
+        const estimatedReadingTime = Math.ceil(wordCount / 200); // Average reading speed
+        // Extract key information from content
+        const documentType = this.classifyDocumentType(content, fileName);
+        const verdict = this.determineVerdict(content, documentType);
+        const confidence = this.calculateConfidence(content, documentType, verdict);
+        const summary = this.generateContentBasedSummary(content, fileName, documentType);
+        const keyFindings = this.extractKeyFindings(content, documentType);
+        const criticalDates = this.extractDatesFromContent(content);
+        const financialTerms = this.extractFinancialInfo(content);
+        const complianceRequirements = this.extractComplianceInfo(content, documentType);
+        const evidence = this.extractEvidence(content, documentType);
+        const reasoning = this.generateReasoning(content, documentType, verdict);
+        const improvements = this.generateImprovements(content, documentType);
+        const toolkit = this.generateToolkit(documentType);
+        console.log(`Content analysis complete for ${fileName}: ${verdict} (${Math.round(confidence * 100)}% confidence)`);
+        return {
+            verdict,
+            confidence,
+            summary,
+            improvements,
+            toolkit,
+            keyFindings,
+            documentType,
+            criticalDates,
+            financialTerms,
+            complianceRequirements,
+            evidence,
+            reasoning,
+            wordCount,
+            estimatedReadingTime
+        };
+    }
+    static countWords(content) {
+        return content.trim().split(/\s+/).filter(word => word.length > 0).length;
+    }
+    static classifyDocumentType(content, fileName) {
+        const lowerContent = content.toLowerCase();
+        const lowerFileName = fileName.toLowerCase();
+        // Legal document classification based on content
+        if (this.containsPatterns(lowerContent, [
+            'notice to appear', 'nta', 'immigration court', 'removal proceedings',
+            'alien registration', 'a-number', 'date of hearing'
+        ])) {
+            return 'nta';
+        }
+        if (this.containsPatterns(lowerContent, [
+            'motion to', 'brief in support', 'memorandum of law', 'legal argument',
+            'hereby moves', 'respectfully submits', 'court should grant'
+        ])) {
+            return 'motion';
+        }
+        if (this.containsPatterns(lowerContent, [
+            'immigration judge', 'decision and order', 'oral decision',
+            'immigration court grants', 'immigration court denies', 'ij decision'
+        ])) {
+            return 'ij_decision';
+        }
+        if (this.containsPatterns(lowerContent, [
+            'country conditions', 'human rights report', 'state department',
+            'country information', 'political situation', 'security conditions'
+        ])) {
+            return 'country_report';
+        }
+        if (this.containsPatterns(lowerContent, [
+            'form i-', 'uscis form', 'application for', 'petition for',
+            'biographic information', 'alien number'
+        ]) || /form\s+[a-z]-\d+/i.test(lowerContent)) {
+            return 'form';
+        }
+        if (this.containsPatterns(lowerContent, [
+            'proposal', 'statement of work', 'scope of services', 'deliverables',
+            'project timeline', 'budget estimate', 'rfp response'
+        ])) {
+            return 'proposal';
+        }
+        return 'other';
+    }
+    static determineVerdict(content, documentType) {
+        // For legacy compatibility, map to proposal/non-proposal
+        return documentType === 'proposal' ? 'proposal' : 'non-proposal';
+    }
+    static calculateConfidence(content, documentType, verdict) {
+        let confidence = 0.5; // Base confidence
+        // Increase confidence based on content quality and specificity
+        const wordCount = this.countWords(content);
+        if (wordCount > 500)
+            confidence += 0.15;
+        if (wordCount > 1000)
+            confidence += 0.15;
+        // Document type specific confidence boosts
+        const lowerContent = content.toLowerCase();
+        switch (documentType) {
+            case 'nta':
+                if (this.containsPatterns(lowerContent, ['notice to appear', 'immigration court', 'a-number'])) {
+                    confidence += 0.25;
+                }
+                break;
+            case 'motion':
+                if (this.containsPatterns(lowerContent, ['motion to', 'hereby moves', 'legal argument'])) {
+                    confidence += 0.25;
+                }
+                break;
+            case 'proposal':
+                if (this.containsPatterns(lowerContent, ['scope of work', 'deliverables', 'timeline'])) {
+                    confidence += 0.25;
+                }
+                break;
+            case 'country_report':
+                if (this.containsPatterns(lowerContent, ['country conditions', 'human rights', 'state department'])) {
+                    confidence += 0.25;
+                }
+                break;
+        }
+        return Math.min(confidence, 0.95); // Cap at 95%
+    }
+    static generateContentBasedSummary(content, fileName, documentType) {
+        const wordCount = this.countWords(content);
+        // Extract first few sentences for context
+        const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const firstSentences = sentences.slice(0, 3).join('. ').substring(0, 200) + '...';
+        // Extract key entities and dates
+        const dates = this.extractDatesFromContent(content);
+        const amounts = this.extractFinancialAmounts(content);
+        const entities = this.extractNamedEntities(content);
+        let summary = `This ${wordCount}-word ${this.getDocumentTypeLabel(documentType)} `;
+        switch (documentType) {
+            case 'nta':
+                summary += `appears to be a Notice to Appear for immigration proceedings. `;
+                if (dates.length > 0) {
+                    summary += `Key dates identified: ${dates.slice(0, 2).join(', ')}. `;
+                }
+                break;
+            case 'motion':
+                summary += `contains legal arguments and motions. `;
+                if (entities.length > 0) {
+                    summary += `References: ${entities.slice(0, 2).join(', ')}. `;
+                }
+                break;
+            case 'proposal':
+                summary += `outlines a proposed project or service. `;
+                if (amounts.length > 0) {
+                    summary += `Financial terms: ${amounts.slice(0, 2).join(', ')}. `;
+                }
+                break;
+            case 'country_report':
+                summary += `provides country condition information for immigration purposes. `;
+                break;
+            case 'ij_decision':
+                summary += `documents an Immigration Judge's decision. `;
+                break;
+            default:
+                summary += `contains legal or professional content. `;
+        }
+        summary += `The document begins: "${firstSentences}"`;
+        return summary;
+    }
+    static extractKeyFindings(content, documentType) {
+        const findings = [];
+        const lowerContent = content.toLowerCase();
+        // Extract key phrases and important information
+        const importantPhrases = [
+            /granted|approved|denied|dismissed/gi,
+            /deadline|due date|hearing date/gi,
+            /asylum|withholding|cat protection/gi,
+            /persecution|harm|torture/gi,
+            /country conditions|political situation/gi,
+            /legal services|representation|attorney/gi
+        ];
+        importantPhrases.forEach(pattern => {
+            const matches = content.match(pattern);
+            if (matches) {
+                matches.slice(0, 2).forEach(match => {
+                    const context = this.extractContext(content, match, 100);
+                    findings.push(`Key finding: ${context}`);
+                });
+            }
+        });
+        // Document type specific findings
+        switch (documentType) {
+            case 'nta':
+                if (lowerContent.includes('removal proceedings')) {
+                    findings.push('Document initiates removal proceedings');
+                }
+                if (lowerContent.includes('bond')) {
+                    findings.push('Contains bond-related information');
+                }
+                break;
+            case 'motion':
+                if (lowerContent.includes('continuance')) {
+                    findings.push('Motion for continuance filed');
+                }
+                if (lowerContent.includes('asylum')) {
+                    findings.push('Asylum-related motion');
+                }
+                break;
+            case 'proposal':
+                if (lowerContent.includes('immigration law')) {
+                    findings.push('Immigration law services proposed');
+                }
+                break;
+        }
+        return findings.slice(0, 5);
+    }
+    static extractDatesFromContent(content) {
+        const datePatterns = [
+            /\b\d{1,2}\/\d{1,2}\/\d{4}\b/g,
+            /\b\d{1,2}-\d{1,2}-\d{4}\b/g,
+            /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/gi,
+            /\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/gi
+        ];
+        const dates = [];
+        datePatterns.forEach(pattern => {
+            const matches = content.match(pattern);
+            if (matches) {
+                dates.push(...matches.slice(0, 3));
+            }
+        });
+        return Array.from(new Set(dates)).slice(0, 5);
+    }
+    static extractFinancialInfo(content) {
+        const amounts = this.extractFinancialAmounts(content);
+        const terms = [];
+        amounts.forEach(amount => {
+            const context = this.extractContext(content, amount, 50);
+            terms.push(context);
+        });
+        const financialTerms = [
+            /payment terms?/gi,
+            /billing/gi,
+            /invoice/gi,
+            /hourly rate/gi,
+            /retainer/gi,
+            /costs? and fees?/gi
+        ];
+        financialTerms.forEach(pattern => {
+            const matches = content.match(pattern);
+            if (matches) {
+                matches.slice(0, 2).forEach(match => {
+                    const context = this.extractContext(content, match, 50);
+                    terms.push(context);
+                });
+            }
+        });
+        return terms.slice(0, 5);
+    }
+    static extractFinancialAmounts(content) {
+        const amountPattern = /\$[\d,]+(?:\.\d{2})?/g;
+        const matches = content.match(amountPattern);
+        return matches ? Array.from(new Set(matches)).slice(0, 5) : [];
+    }
+    static extractComplianceInfo(content, documentType) {
+        const lowerContent = content.toLowerCase();
+        const requirements = [];
+        // General legal compliance
+        if (lowerContent.includes('comply') || lowerContent.includes('compliance')) {
+            requirements.push('Compliance obligations specified');
+        }
+        if (lowerContent.includes('regulation') || lowerContent.includes('regulatory')) {
+            requirements.push('Regulatory requirements referenced');
+        }
+        // Immigration specific compliance
+        if (documentType === 'nta' || documentType === 'motion') {
+            if (lowerContent.includes('immigration law')) {
+                requirements.push('Immigration law compliance required');
+            }
+            if (lowerContent.includes('uscis') || lowerContent.includes('ice')) {
+                requirements.push('Federal immigration agency requirements');
+            }
+        }
+        return requirements.slice(0, 5);
+    }
+    static extractEvidence(content, documentType) {
+        const evidence = [];
+        // Extract quoted text and exhibits
+        const quotedText = content.match(/"[^"]{20,100}"/g);
+        if (quotedText) {
+            evidence.push(`Quoted material: ${quotedText[0]}`);
+        }
+        // Extract exhibit references
+        const exhibits = content.match(/exhibit\s+[a-z0-9]+/gi);
+        if (exhibits) {
+            evidence.push(`Referenced exhibits: ${exhibits.slice(0, 3).join(', ')}`);
+        }
+        // Extract case citations
+        const citations = content.match(/\b\w+\s+v\.?\s+\w+,?\s+\d+/gi);
+        if (citations) {
+            evidence.push(`Legal citations: ${citations.slice(0, 2).join(', ')}`);
+        }
+        return evidence.slice(0, 5);
+    }
+    static extractNamedEntities(content) {
+        // Simple named entity extraction
+        const entities = [];
+        // Extract proper nouns (capitalized words)
+        const properNouns = content.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
+        if (properNouns) {
+            // Filter out common words
+            const filtered = properNouns.filter(noun => noun.length > 3 &&
+                !['The', 'This', 'That', 'These', 'Those'].includes(noun));
+            entities.push(...filtered.slice(0, 5));
+        }
+        return Array.from(new Set(entities));
+    }
+    static generateReasoning(content, documentType, verdict) {
+        const wordCount = this.countWords(content);
+        let reasoning = `Classification based on ${wordCount}-word content analysis. `;
+        const lowerContent = content.toLowerCase();
+        switch (documentType) {
+            case 'nta':
+                reasoning += 'Document contains Notice to Appear terminology and immigration court references. ';
+                break;
+            case 'motion':
+                reasoning += 'Document contains legal motion language and court filing structure. ';
+                break;
+            case 'proposal':
+                reasoning += 'Document contains proposal elements including scope, deliverables, or project structure. ';
+                break;
+            case 'country_report':
+                reasoning += 'Document contains country condition information and human rights reporting elements. ';
+                break;
+            default:
+                reasoning += 'Document classified based on content patterns and legal document structure. ';
+        }
+        if (lowerContent.includes('immigration')) {
+            reasoning += 'Immigration-related terminology identified. ';
+        }
+        return reasoning;
+    }
+    static generateImprovements(content, documentType) {
+        const improvements = [];
+        const wordCount = this.countWords(content);
+        // General improvements based on content analysis
+        if (wordCount < 500) {
+            improvements.push('Consider expanding document with more detailed information');
+        }
+        if (!this.containsPatterns(content.toLowerCase(), ['date', 'deadline'])) {
+            improvements.push('Add specific dates and deadlines for clarity');
+        }
+        // Document type specific improvements
+        switch (documentType) {
+            case 'proposal':
+                improvements.push('Include detailed project timeline and milestones');
+                improvements.push('Add comprehensive budget breakdown');
+                improvements.push('Specify deliverables and success metrics');
+                break;
+            case 'motion':
+                improvements.push('Include relevant case law citations');
+                improvements.push('Add factual background section');
+                improvements.push('Strengthen legal argument structure');
+                break;
+            case 'nta':
+                improvements.push('Verify all required statutory citations');
+                improvements.push('Ensure proper service requirements noted');
+                break;
+            default:
+                improvements.push('Add executive summary or overview section');
+                improvements.push('Include relevant supporting documentation');
+                improvements.push('Enhance document structure and organization');
+        }
+        return improvements.slice(0, 5);
+    }
+    static generateToolkit(documentType) {
+        const baseTools = [
+            'Westlaw – Legal research and case law database',
+            'Microsoft Office – Document creation and editing',
+            'Adobe Acrobat – PDF management and editing'
+        ];
+        switch (documentType) {
+            case 'nta':
+            case 'motion':
+            case 'ij_decision':
+                return [
+                    'EOIR Portal – Immigration court case management',
+                    'USCIS Website – Immigration forms and guidance',
+                    'Westlaw Immigration Library – Specialized immigration research',
+                    'CM/ECF – Federal court electronic filing system',
+                    ...baseTools
+                ];
+            case 'proposal':
+                return [
+                    'Microsoft Project – Project management and timelines',
+                    'QuickBooks – Financial planning and budgeting',
+                    'Salesforce – Client relationship management',
+                    'DocuSign – Electronic signature management',
+                    ...baseTools
+                ];
+            case 'country_report':
+                return [
+                    'State Department Country Reports – Official government resources',
+                    'UNHCR Refworld – International protection database',
+                    'Human Rights Watch – Country condition reports',
+                    'Immigration Research Library – Country condition research',
+                    ...baseTools
+                ];
+            default:
+                return baseTools;
+        }
+    }
+    static containsPatterns(text, patterns) {
+        return patterns.some(pattern => text.includes(pattern));
+    }
+    static extractContext(content, term, contextLength = 100) {
+        const index = content.toLowerCase().indexOf(term.toLowerCase());
+        if (index === -1)
+            return term;
+        const start = Math.max(0, index - contextLength / 2);
+        const end = Math.min(content.length, index + term.length + contextLength / 2);
+        return content.substring(start, end).trim();
+    }
+    static getDocumentTypeLabel(documentType) {
+        const labels = {
+            'nta': 'Notice to Appear',
+            'motion': 'legal motion or brief',
+            'ij_decision': 'Immigration Judge decision',
+            'form': 'immigration form',
+            'country_report': 'country conditions report',
+            'proposal': 'service proposal',
+            'other': 'legal document'
+        };
+        return labels[documentType] || 'document';
+    }
+    static generateFallbackAnalysis(fileName, content) {
+        return {
+            verdict: 'non-proposal',
+            confidence: 0.3,
+            summary: `Document "${fileName}" could not be fully analyzed due to insufficient readable content. This may be a scanned document that requires OCR processing or a corrupted file. Manual review recommended.`,
+            improvements: [
+                'Re-upload document in a text-readable format',
+                'Ensure document is not corrupted or password-protected',
+                'Consider using OCR if document is image-based',
+                'Verify file format compatibility'
+            ],
+            toolkit: [
+                'Adobe Acrobat – PDF text recognition and repair',
+                'Microsoft Office – Document format conversion',
+                'OCR software – Text extraction from images'
+            ],
+            keyFindings: ['Content extraction failed - unable to analyze document structure'],
+            documentType: 'other',
+            criticalDates: [],
+            financialTerms: [],
+            complianceRequirements: [],
+            evidence: [],
+            reasoning: 'Classification limited due to insufficient readable content',
+            wordCount: this.countWords(content),
+            estimatedReadingTime: 0
+        };
+    }
+}
