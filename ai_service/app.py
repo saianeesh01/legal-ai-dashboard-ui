@@ -18,7 +18,7 @@ from PIL import Image
 import faiss
 from sentence_transformers import SentenceTransformer
 import requests
-
+import time
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -110,34 +110,49 @@ def chunk_text(text: str, chunk_size: int = 450) -> List[str]:
     
     return chunks
 
-def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0") -> str:
+
+
+def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: int = 3) -> str:
     url = get_next_ollama_url()
-    try:
-        response = requests.post(
-            url,
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.05,
-                    "top_p": 0.95,
-                    "max_tokens": 400,
-                    "num_predict": 400,
-                    "top_k": 40,
-                    "repeat_penalty": 1.1
-                }
-            },
-            timeout=15
-        )
-        if response.status_code == 200:
-            return response.json().get("response", "")
-        else:
-            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
-            return ""
-    except Exception as e:
-        logger.error(f"Error querying Ollama: {e}")
-        return ""
+    logger.debug(f"[Ollama] Using URL: {url}")
+    logger.debug(f"[Ollama] Prompt sent:\n{prompt}")
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.post(
+                url,
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.05,
+                        "top_p": 0.95,
+                        "max_tokens": 400,
+                        "num_predict": 400,
+                        "top_k": 40,
+                        "repeat_penalty": 1.1
+                    }
+                },
+                timeout=20
+            )
+
+            if response.status_code == 200:
+                raw_response = response.json()
+                logger.debug(f"[Ollama] Raw response: {raw_response}")
+                return raw_response.get("response", "")
+            else:
+                logger.warning(f"[Ollama] Attempt {attempt} failed with status {response.status_code}: {response.text}")
+
+        except Exception as e:
+            logger.warning(f"[Ollama] Attempt {attempt} error: {e}")
+
+        if attempt < retries:
+            time.sleep(1.5)  # brief wait before retry
+
+    logger.error("[Ollama] All retry attempts failed.")
+    return ""
+
 
 def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
     """Analyze document using Ollama to determine if it's a proposal"""

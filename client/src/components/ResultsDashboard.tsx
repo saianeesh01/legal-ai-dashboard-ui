@@ -208,16 +208,17 @@ The document contains standard commercial lease provisions with some tenant-favo
       onQueryResults(results);
       
       // Enhanced feedback based on query results
-      if (results.cannotAnswer) {
+      if (!results.answer || results.answer.includes("I don't have enough information")) {
         toast({
           title: "Cannot answer",
           description: "The document doesn't contain information to answer this question.",
           variant: "destructive",
         });
       } else {
+        const confidence = results.confidence ?? 0.75; // Default to 75% if undefined
         toast({
           title: "Query complete",
-          description: `Found answer with ${Math.round(results.confidence * 100)}% confidence.`,
+          description: `Found answer with ${Math.round(confidence * 100)}% confidence.`,
         });
       }
     } catch (error) {
@@ -359,7 +360,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                       {aiAnalysis.reasoning}
                     </p>
                     <div className="space-y-2">
-                      {aiAnalysis.evidence.map((evidence, index) => (
+                      {aiAnalysis.evidence.map((evidence: string, index: number) => (
                         <div key={index} className="flex items-start space-x-3 p-2 bg-white dark:bg-slate-800 rounded border">
                           <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
                           <span className="text-sm">{evidence}</span>
@@ -378,7 +379,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                     Key Findings
                   </h4>
                   <div className="grid gap-2">
-                    {aiAnalysis.keyFindings.map((finding, index) => (
+                    {aiAnalysis.keyFindings.map((finding: string, index: number) => (
                       <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                         <span className="text-sm">{finding}</span>
@@ -413,7 +414,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {aiAnalysis.criticalDates.map((date, index) => (
+                    {aiAnalysis.criticalDates.map((date: string, index: number) => (
                       <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20">
                         <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
                         <span className="text-sm font-medium">{date}</span>
@@ -438,7 +439,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {aiAnalysis.financialTerms.map((term, index) => (
+                    {aiAnalysis.financialTerms.map((term: string, index: number) => (
                       <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-green-50 dark:bg-green-950/20">
                         <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                         <span className="text-sm font-medium">{term}</span>
@@ -463,7 +464,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {aiAnalysis.complianceRequirements.map((req, index) => (
+                    {aiAnalysis.complianceRequirements.map((req: string, index: number) => (
                       <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-purple-50 dark:bg-purple-950/20">
                         <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
                         <span className="text-sm font-medium">{req}</span>
@@ -488,7 +489,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </CardHeader>
                 <CardContent>
                   <ul className="list-disc list-inside space-y-2">
-                    {aiAnalysis.improvements.map((improvement, index) => (
+                    {aiAnalysis.improvements.map((improvement: string, index: number) => (
                       <li key={index} className="text-sm">{improvement}</li>
                     ))}
                   </ul>
@@ -507,7 +508,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 </CardHeader>
                 <CardContent>
                   <ul className="list-disc list-inside space-y-2">
-                    {aiAnalysis.toolkit.map((tool, index) => (
+                    {aiAnalysis.toolkit.map((tool: string, index: number) => (
                       <li key={index} className="text-sm">{tool}</li>
                     ))}
                   </ul>
@@ -598,7 +599,7 @@ The document contains standard commercial lease provisions with some tenant-favo
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {queryResults.context.map((item, index) => (
+                {queryResults.context.map((item: any, index: number) => (
                   <div key={index} className="border-l-2 border-primary/20 pl-4 py-2">
                     <div className="flex items-center justify-between mb-2">
                       <Badge variant="outline" className="text-xs">
@@ -632,7 +633,7 @@ The document contains standard commercial lease provisions with some tenant-favo
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {aiAnalysis.criticalDates.map((date, index) => (
+                {aiAnalysis.criticalDates.map((date: string, index: number) => (
                   <div key={index} className="relative">
                     <div className="flex items-center space-x-4">
                       <div className="flex-shrink-0 w-3 h-3 bg-primary rounded-full"></div>
