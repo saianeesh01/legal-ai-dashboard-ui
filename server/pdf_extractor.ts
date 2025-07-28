@@ -182,11 +182,10 @@ export class PDFExtractor {
     const charCount = text.length;
     const avgWordLength = charCount / wordCount;
     
-    // Check for corrupted text patterns
+    // Check for corrupted text patterns - much more conservative
     const corruptedPatterns = [
-      /\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g,  // Scattered single letters
-      /\b\w{1}\s+\w{1}\s+\w{1}/g,  // Single chars with spaces
-      /[^\w\s.,!?;:()\-$%/@]{3,}/g  // Multiple strange characters
+      /\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g,  // 4+ scattered single letters
+      /[^\w\s.,!?;:()\-$%/@]{5,}/g  // 5+ strange characters (increased threshold)
     ];
     
     const hasCorruption = corruptedPatterns.some(pattern => pattern.test(text));
@@ -208,30 +207,30 @@ export class PDFExtractor {
    * Check if text segment is corrupted
    */
   private static isCorruptedTextSegment(segment: string): boolean {
-    // Pattern 1: Scattered single letters (e.g., "d U E u E M 4 C e")
-    if (/\b[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}/.test(segment)) {
+    // Pattern 1: 4+ scattered single letters (e.g., "d U E R u E M 4 C e")
+    if (/\b[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}/.test(segment)) {
       return true;
     }
     
-    // Pattern 2: Mixed case with numbers randomly (e.g., "wH ZP7 M _ w wW P G Y")
-    if (/[A-Z][a-z]*[0-9][A-Z]*[a-z]*/.test(segment) && segment.length < 20) {
+    // Pattern 2: Mixed case with numbers randomly (e.g., "wH ZP7 M _ w wW P G Y") - more specific
+    if (/[A-Z][a-z]*[0-9][A-Z]*[a-z]*\s+[A-Z][a-z]*[0-9]/.test(segment) && segment.length < 15) {
       return true;
     }
     
-    // Pattern 3: Too many single characters separated by spaces
+    // Pattern 3: Too many single characters separated by spaces (increased threshold)
     const singleChars = segment.match(/\b[A-Za-z0-9]{1}\b/g);
-    if (singleChars && singleChars.length > 5) {
+    if (singleChars && singleChars.length > 10) {
       return true;
     }
     
-    // Pattern 4: Random uppercase/lowercase pattern
-    if (/[A-Z][a-z][A-Z][a-z][A-Z]/.test(segment) && segment.length < 15) {
+    // Pattern 4: Random uppercase/lowercase pattern (longer pattern)
+    if (/[A-Z][a-z][A-Z][a-z][A-Z][a-z][A-Z]/.test(segment) && segment.length < 10) {
       return true;
     }
     
-    // Pattern 5: Contains too many non-letter characters
+    // Pattern 5: Contains too many non-letter characters (increased threshold)
     const nonLetters = segment.match(/[^A-Za-z]/g);
-    if (nonLetters && nonLetters.length > segment.length * 0.5) {
+    if (nonLetters && nonLetters.length > segment.length * 0.8) {
       return true;
     }
     
@@ -246,8 +245,7 @@ export class PDFExtractor {
       .replace(/\s+/g, ' ')  // Normalize whitespace
       .replace(/[^\x20-\x7E]/g, ' ')  // Remove non-printable characters
       .replace(/[^\w\s.,!?;:()\-$%/@]/g, ' ')  // Remove strange characters but keep important symbols
-      .replace(/\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g, ' ')  // Remove scattered single letters
-      .replace(/\b\w{1}\s+\w{1}\s+\w{1}/g, ' ')  // Remove pattern of single chars with spaces
+      .replace(/\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g, ' ')  // Remove 4+ scattered single letters
       .replace(/\s+/g, ' ')  // Normalize whitespace again
       .trim();
     

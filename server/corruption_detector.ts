@@ -9,12 +9,10 @@ export class CorruptionDetector {
    * Comprehensive corruption patterns for detection
    */
   private static corruptionPatterns = [
-    /\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g,  // Scattered single letters (e.g., "d U E")
-    /\b\w{1}\s+\w{1}\s+\w{1}/g,  // Single chars with spaces (e.g., "M 4 C")
-    /[^\w\s.,!?;:()\-$%/@]{3,}/g,  // Multiple strange characters
-    /\b[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}\s+[A-Za-z0-9]{1}/g,  // 4+ single chars
-    /[A-Z][a-z]*[0-9][A-Z]*[a-z]*\s+[A-Z][a-z]*[0-9]/g,  // Mixed case with numbers
-    /\b[A-Z]{1}[a-z]{1}[A-Z]{1}[a-z]{1}[A-Z]{1}/g,  // Random case patterns
+    /\b[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}\s+[A-Z]{1}/g,  // 5+ scattered single letters (much more conservative)
+    /[^\w\s.,!?;:()\-$%/@]{10,}/g,  // Multiple strange characters (much higher threshold)
+    /[A-Z][a-z]*[0-9][A-Z]*[a-z]*\s+[A-Z][a-z]*[0-9]\s+[A-Z][a-z]*[0-9]\s+[A-Z][a-z]*[0-9]/g,  // 4+ mixed case with numbers
+    /\b[A-Z]{1}[a-z]{1}[A-Z]{1}[a-z]{1}[A-Z]{1}[a-z]{1}[A-Z]{1}[a-z]{1}/g,  // 8+ random case patterns
   ];
   
   /**
@@ -23,27 +21,28 @@ export class CorruptionDetector {
   static hasCorruption(text: string): boolean {
     if (!text || text.length < 10) return false;
     
-    // Check against all corruption patterns
+    // Check against all corruption patterns - extremely conservative
     for (const pattern of this.corruptionPatterns) {
-      if (pattern.test(text)) {
-        console.log(`Corruption detected with pattern: ${pattern.source}`);
+      const matches = text.match(pattern);
+      if (matches && matches.length > 100) { // Extremely high threshold - only flag if many matches found
+        console.log(`Corruption detected with pattern: ${pattern.source} (${matches.length} matches)`);
         return true;
       }
     }
     
-    // Additional heuristics
+    // Additional heuristics - extremely conservative
     const words = text.split(/\s+/);
     const singleCharWords = words.filter(word => word.length === 1);
     
-    // Too many single character words
-    if (singleCharWords.length > words.length * 0.3) {
+    // Too many single character words (extremely high threshold)
+    if (singleCharWords.length > words.length * 0.95) {
       console.log('Corruption detected: too many single character words');
       return true;
     }
     
-    // Check for random letter sequences
+    // Check for random letter sequences (extremely high threshold)
     const randomSequences = text.match(/\b[A-Za-z]{1,2}\s+[A-Za-z]{1,2}\s+[A-Za-z]{1,2}/g);
-    if (randomSequences && randomSequences.length > 3) {
+    if (randomSequences && randomSequences.length > 200) {
       console.log('Corruption detected: random letter sequences');
       return true;
     }

@@ -5,7 +5,7 @@
  */
 
 export interface MultiLabelClassificationResult {
-  document_type: 'proposal' | 'nta' | 'motion' | 'ij_decision' | 'form' | 'country_report' | 'administrative' | 'other' | 'undetermined';
+  document_type: 'proposal' | 'nta' | 'motion' | 'court_filing' | 'legal_brief' | 'evidence_package' | 'witness_list' | 'cover_letter_uscis' | 'noid' | 'application_i589' | 'affidavit_client' | 'affidavit_expert' | 'psychological_evaluation' | 'country_report' | 'ij_decision' | 'form' | 'administrative' | 'other' | 'undetermined';
   confidence: number;
   evidence: string[];
   reasoning: string;
@@ -27,16 +27,28 @@ export class MultiLabelDocumentClassifier {
     let documentType: MultiLabelClassificationResult['document_type'] = 'undetermined';
     
     // Extract content chunks for analysis
-    const chunks = this.extractContextChunks(content, 20, 400);
+    const chunks = this.extractContextChunks(content, 30, 500);
+    console.log(`Extracted ${chunks.length} chunks for analysis`);
+    console.log(`Sample chunk: ${chunks[0]?.substring(0, 100)}...`);
     
     // Classification patterns with evidence collection
     const classificationResults = [
       this.checkProposalPatterns(chunks, fileName),
       this.checkNTAPatterns(chunks, fileName),
       this.checkMotionPatterns(chunks, fileName),
+      this.checkCourtFilingPatterns(chunks, fileName),
+      this.checkLegalBriefPatterns(chunks, fileName),
+      this.checkEvidencePackagePatterns(chunks, fileName),
+      this.checkWitnessListPatterns(chunks, fileName),
+      this.checkCoverLetterUSCISPatterns(chunks, fileName),
+      this.checkNOIDPatterns(chunks, fileName),
+      this.checkApplicationI589Patterns(chunks, fileName),
+      this.checkAffidavitClientPatterns(chunks, fileName),
+      this.checkAffidavitExpertPatterns(chunks, fileName),
+      this.checkPsychologicalEvaluationPatterns(chunks, fileName),
+      this.checkCountryReportPatterns(chunks, fileName),
       this.checkIJDecisionPatterns(chunks, fileName),
       this.checkFormPatterns(chunks, fileName),
-      this.checkCountryReportPatterns(chunks, fileName),
       this.checkAdministrativePatterns(chunks, fileName),
       this.checkOtherPatterns(chunks, fileName)
     ];
@@ -52,7 +64,7 @@ export class MultiLabelDocumentClassifier {
       }
     }
     
-    if (bestResult && bestResult.confidence >= 0.60) {
+    if (bestResult && bestResult.confidence >= 0.45) {
       documentType = bestResult.type;
       confidence = bestResult.confidence;
       evidence.push(...bestResult.evidence);
@@ -395,21 +407,41 @@ export class MultiLabelDocumentClassifier {
     const pageReferences: string[] = [];
     let confidence = 0.0;
     
+    // Enhanced patterns for better content matching
     const countryPatterns = [
-      { pattern: /country\s+(?:condition|report|information)/i, weight: 0.30, description: "country condition reference" },
-      { pattern: /human\s+rights\s+(?:report|violations)/i, weight: 0.25, description: "human rights report" },
-      { pattern: /State\s+Department\s+Report/i, weight: 0.25, description: "State Department report" },
-      { pattern: /persecution\s+(?:of|in)/i, weight: 0.20, description: "persecution reference" },
-      { pattern: /political\s+conditions/i, weight: 0.15, description: "political conditions" },
-      { pattern: /security\s+situation/i, weight: 0.15, description: "security situation" }
+      { pattern: /country\s+(?:condition|report|information)/i, weight: 0.35, description: "country condition reference" },
+      { pattern: /human\s+rights\s+(?:report|violations|conditions)/i, weight: 0.30, description: "human rights report" },
+      { pattern: /State\s+Department\s+Report/i, weight: 0.30, description: "State Department report" },
+      { pattern: /persecution\s+(?:of|in|by)/i, weight: 0.25, description: "persecution reference" },
+      { pattern: /political\s+(?:conditions|situation|environment)/i, weight: 0.20, description: "political conditions" },
+      { pattern: /security\s+(?:situation|conditions)/i, weight: 0.20, description: "security situation" },
+      { pattern: /government\s+(?:policies|actions|violations)/i, weight: 0.20, description: "government policies" },
+      { pattern: /discrimination\s+(?:against|of|in)/i, weight: 0.20, description: "discrimination reference" },
+      { pattern: /violence\s+(?:against|toward|in)/i, weight: 0.20, description: "violence reference" },
+      { pattern: /asylum\s+(?:claims|applications|seekers)/i, weight: 0.15, description: "asylum reference" },
+      { pattern: /refugee\s+(?:status|protection)/i, weight: 0.15, description: "refugee reference" },
+      { pattern: /immigration\s+(?:policies|laws|procedures)/i, weight: 0.15, description: "immigration policies" }
     ];
     
-    // Filename boost for country reports
-    if (/country|report|condition|human.*rights/i.test(fileName)) {
-      confidence += 0.12;
+    // Enhanced filename analysis for country reports
+    if (/country|report|condition|human.*rights|japan|nicaragua|mexico|china|india|brazil|russia|iran|venezuela|honduras|guatemala|el\s+salvador/i.test(fileName.toLowerCase())) {
+      confidence += 0.25;
       evidence.push(`Filename suggests country report: "${fileName}"`);
     }
     
+    // Check for country names in content
+    const countryNames = ['japan', 'nicaragua', 'mexico', 'china', 'india', 'brazil', 'russia', 'iran', 'venezuela', 'honduras', 'guatemala', 'el salvador'];
+    const allContent = chunks.join(' ').toLowerCase();
+    const foundCountries = countryNames.filter(country => 
+      allContent.includes(country.toLowerCase())
+    );
+    
+    if (foundCountries.length > 0) {
+      confidence += 0.20;
+      evidence.push(`Country-specific content found: ${foundCountries.join(', ')}`);
+    }
+    
+    // Enhanced content analysis
     for (const chunk of chunks) {
       for (const { pattern, weight, description } of countryPatterns) {
         const matches = chunk.match(pattern);
@@ -420,6 +452,12 @@ export class MultiLabelDocumentClassifier {
           break;
         }
       }
+    }
+    
+    // Additional boost for longer content with country report indicators
+    if (allContent.length > 5000 && confidence > 0.3) {
+      confidence += 0.15;
+      evidence.push("Extended content with country report indicators");
     }
     
     return {
@@ -525,16 +563,452 @@ export class MultiLabelDocumentClassifier {
       pageReferences
     };
   }
+
+  /**
+   * Check for court filing patterns (cover page, certificate of service, etc.)
+   */
+  private static checkCourtFilingPatterns(chunks: string[], fileName: string): {
+    type: 'court_filing';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const courtFilingPatterns = [
+      { pattern: /cover\s+page/i, weight: 0.25, description: "cover page indicator" },
+      { pattern: /certificate\s+of\s+service/i, weight: 0.25, description: "certificate of service" },
+      { pattern: /proof\s+of\s+service/i, weight: 0.20, description: "proof of service" },
+      { pattern: /civil\s+cover\s+sheet/i, weight: 0.30, description: "civil cover sheet" },
+      { pattern: /notice\s+of\s+filing/i, weight: 0.20, description: "notice of filing" },
+      { pattern: /docket\s+entry/i, weight: 0.15, description: "docket entry" },
+      { pattern: /filed\s+with\s+the\s+court/i, weight: 0.20, description: "court filing language" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of courtFilingPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'court_filing',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for legal brief patterns
+   */
+  private static checkLegalBriefPatterns(chunks: string[], fileName: string): {
+    type: 'legal_brief';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const legalBriefPatterns = [
+      { pattern: /brief\s+(?:of|for|in\s+support)/i, weight: 0.30, description: "brief title" },
+      { pattern: /memorandum\s+of\s+(?:law|points\s+and\s+authorities)/i, weight: 0.35, description: "memorandum of law" },
+      { pattern: /argument\s+(?:i|ii|iii|iv|v)/i, weight: 0.20, description: "legal argument structure" },
+      { pattern: /standard\s+of\s+review/i, weight: 0.15, description: "legal standard" },
+      { pattern: /conclusion\s+of\s+law/i, weight: 0.15, description: "conclusion of law" },
+      { pattern: /table\s+of\s+contents/i, weight: 0.10, description: "brief structure" },
+      { pattern: /counsel\s+of\s+record/i, weight: 0.15, description: "counsel identification" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of legalBriefPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'legal_brief',
+      confidence: Math.min(confidence, 0.95),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for evidence package patterns
+   */
+  private static checkEvidencePackagePatterns(chunks: string[], fileName: string): {
+    type: 'evidence_package';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const evidencePackagePatterns = [
+      { pattern: /evidence\s+(?:package|submitted|filed)/i, weight: 0.30, description: "evidence package indicator" },
+      { pattern: /exhibit\s+[a-z0-9]/i, weight: 0.25, description: "exhibit designation" },
+      { pattern: /supporting\s+(?:documentation|evidence)/i, weight: 0.20, description: "supporting evidence" },
+      { pattern: /attachments?\s+(?:a|b|c|d)/i, weight: 0.20, description: "attachment designation" },
+      { pattern: /index\s+of\s+exhibits/i, weight: 0.25, description: "exhibit index" },
+      { pattern: /evidence\s+list/i, weight: 0.20, description: "evidence list" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of evidencePackagePatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'evidence_package',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for witness list patterns
+   */
+  private static checkWitnessListPatterns(chunks: string[], fileName: string): {
+    type: 'witness_list';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const witnessListPatterns = [
+      { pattern: /witness\s+list/i, weight: 0.40, description: "witness list title" },
+      { pattern: /list\s+of\s+witnesses/i, weight: 0.35, description: "list of witnesses" },
+      { pattern: /witness\s+(?:name|address|phone)/i, weight: 0.20, description: "witness information" },
+      { pattern: /expert\s+witness/i, weight: 0.25, description: "expert witness" },
+      { pattern: /lay\s+witness/i, weight: 0.20, description: "lay witness" },
+      { pattern: /witness\s+testimony/i, weight: 0.15, description: "witness testimony" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of witnessListPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'witness_list',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for cover letter to USCIS patterns
+   */
+  private static checkCoverLetterUSCISPatterns(chunks: string[], fileName: string): {
+    type: 'cover_letter_uscis';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const coverLetterUSCISPatterns = [
+      { pattern: /cover\s+letter/i, weight: 0.25, description: "cover letter indicator" },
+      { pattern: /uscis\s+(?:service\s+center|office)/i, weight: 0.30, description: "USCIS reference" },
+      { pattern: /u\.?s\.?\s+citizenship\s+and\s+immigration\s+services/i, weight: 0.35, description: "USCIS full name" },
+      { pattern: /dear\s+(?:sir|madam|director)/i, weight: 0.15, description: "formal letter opening" },
+      { pattern: /enclosed\s+(?:please\s+find|is)/i, weight: 0.20, description: "enclosure language" },
+      { pattern: /respectfully\s+submitted/i, weight: 0.15, description: "formal submission" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of coverLetterUSCISPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'cover_letter_uscis',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for Notice of Intent to Deny (NOID) patterns
+   */
+  private static checkNOIDPatterns(chunks: string[], fileName: string): {
+    type: 'noid';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const noidPatterns = [
+      { pattern: /notice\s+of\s+intent\s+to\s+deny/i, weight: 0.50, description: "NOID title" },
+      { pattern: /noid/i, weight: 0.40, description: "NOID abbreviation" },
+      { pattern: /intent\s+to\s+deny/i, weight: 0.35, description: "intent to deny language" },
+      { pattern: /you\s+have\s+\d+\s+days\s+to\s+respond/i, weight: 0.25, description: "response deadline" },
+      { pattern: /failure\s+to\s+respond\s+will\s+result\s+in\s+denial/i, weight: 0.30, description: "denial warning" },
+      { pattern: /evidence\s+to\s+overcome\s+this\s+notice/i, weight: 0.20, description: "evidence requirement" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of noidPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'noid',
+      confidence: Math.min(confidence, 0.95),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for I-589 Application patterns
+   */
+  private static checkApplicationI589Patterns(chunks: string[], fileName: string): {
+    type: 'application_i589';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const i589Patterns = [
+      { pattern: /form\s+i-?589/i, weight: 0.50, description: "I-589 form reference" },
+      { pattern: /application\s+for\s+asylum/i, weight: 0.45, description: "asylum application" },
+      { pattern: /and\s+for\s+withholding\s+of\s+removal/i, weight: 0.30, description: "withholding of removal" },
+      { pattern: /part\s+[a-z]\s*\.\s*[a-z]/i, weight: 0.20, description: "form parts" },
+      { pattern: /alien\s+registration\s+number/i, weight: 0.25, description: "A-number reference" },
+      { pattern: /country\s+of\s+nationality/i, weight: 0.20, description: "nationality information" },
+      { pattern: /fear\s+of\s+persecution/i, weight: 0.25, description: "persecution claim" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of i589Patterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'application_i589',
+      confidence: Math.min(confidence, 0.95),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for client affidavit patterns
+   */
+  private static checkAffidavitClientPatterns(chunks: string[], fileName: string): {
+    type: 'affidavit_client';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const clientAffidavitPatterns = [
+      { pattern: /affidavit\s+of\s+[a-z\s]+/i, weight: 0.30, description: "affidavit of person" },
+      { pattern: /i,\s+[a-z\s]+,\s+being\s+duly\s+sworn/i, weight: 0.35, description: "sworn statement" },
+      { pattern: /depose\s+and\s+say/i, weight: 0.25, description: "deposition language" },
+      { pattern: /personal\s+knowledge/i, weight: 0.20, description: "personal knowledge" },
+      { pattern: /under\s+penalty\s+of\s+perjury/i, weight: 0.30, description: "perjury penalty" },
+      { pattern: /executed\s+on\s+[a-z]+\s+\d+/i, weight: 0.15, description: "execution date" },
+      { pattern: /notary\s+public/i, weight: 0.20, description: "notary reference" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of clientAffidavitPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'affidavit_client',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for expert affidavit patterns
+   */
+  private static checkAffidavitExpertPatterns(chunks: string[], fileName: string): {
+    type: 'affidavit_expert';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const expertAffidavitPatterns = [
+      { pattern: /expert\s+affidavit/i, weight: 0.40, description: "expert affidavit" },
+      { pattern: /affidavit\s+of\s+expert/i, weight: 0.35, description: "affidavit of expert" },
+      { pattern: /qualifications\s+as\s+expert/i, weight: 0.25, description: "expert qualifications" },
+      { pattern: /expertise\s+in/i, weight: 0.20, description: "expertise area" },
+      { pattern: /professional\s+opinion/i, weight: 0.25, description: "professional opinion" },
+      { pattern: /based\s+on\s+my\s+expertise/i, weight: 0.20, description: "expertise basis" },
+      { pattern: /curriculum\s+vitae/i, weight: 0.15, description: "CV reference" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of expertAffidavitPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'affidavit_expert',
+      confidence: Math.min(confidence, 0.90),
+      evidence,
+      pageReferences
+    };
+  }
+
+  /**
+   * Check for psychological evaluation patterns
+   */
+  private static checkPsychologicalEvaluationPatterns(chunks: string[], fileName: string): {
+    type: 'psychological_evaluation';
+    confidence: number;
+    evidence: string[];
+    pageReferences: string[];
+  } {
+    const evidence: string[] = [];
+    const pageReferences: string[] = [];
+    let confidence = 0.0;
+    
+    const psychologicalEvaluationPatterns = [
+      { pattern: /psychological\s+evaluation/i, weight: 0.45, description: "psychological evaluation" },
+      { pattern: /mental\s+health\s+evaluation/i, weight: 0.40, description: "mental health evaluation" },
+      { pattern: /psychiatric\s+evaluation/i, weight: 0.40, description: "psychiatric evaluation" },
+      { pattern: /diagnostic\s+impression/i, weight: 0.25, description: "diagnostic impression" },
+      { pattern: /dsm-?5/i, weight: 0.20, description: "DSM-5 reference" },
+      { pattern: /ptsd|post\s+traumatic\s+stress\s+disorder/i, weight: 0.25, description: "PTSD reference" },
+      { pattern: /trauma\s+assessment/i, weight: 0.20, description: "trauma assessment" },
+      { pattern: /clinical\s+interview/i, weight: 0.20, description: "clinical interview" },
+      { pattern: /mental\s+status\s+examination/i, weight: 0.25, description: "mental status exam" }
+    ];
+    
+    for (const chunk of chunks) {
+      for (const { pattern, weight, description } of psychologicalEvaluationPatterns) {
+        const matches = chunk.match(pattern);
+        if (matches) {
+          confidence += weight;
+          evidence.push(`${description}: "${matches[0]}"`);
+          pageReferences.push(`[p 1]`);
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: 'psychological_evaluation',
+      confidence: Math.min(confidence, 0.95),
+      evidence,
+      pageReferences
+    };
+  }
   
   /**
    * Extract content chunks for analysis
    */
-  private static extractContextChunks(content: string, maxChunks: number = 20, maxCharsPerChunk: number = 400): string[] {
+  private static extractContextChunks(content: string, maxChunks: number = 30, maxCharsPerChunk: number = 500): string[] {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
     const chunks: string[] = [];
     let currentChunk = '';
     
-    for (const sentence of sentences) {
+    // Take chunks from beginning, middle, and end for better coverage
+    const totalSentences = sentences.length;
+    const startIndex = 0;
+    const middleIndex = Math.floor(totalSentences / 2);
+    const endIndex = Math.max(0, totalSentences - 10);
+    
+    // Process beginning sentences
+    for (let i = startIndex; i < Math.min(startIndex + 10, totalSentences); i++) {
+      const sentence = sentences[i];
       if (currentChunk.length + sentence.length > maxCharsPerChunk) {
         if (currentChunk.trim()) {
           chunks.push(currentChunk.trim());
@@ -543,15 +1017,43 @@ export class MultiLabelDocumentClassifier {
       } else {
         currentChunk += sentence + '. ';
       }
-      
-      if (chunks.length >= maxChunks) break;
     }
     
-    if (currentChunk.trim() && chunks.length < maxChunks) {
+    // Process middle sentences
+    currentChunk = '';
+    for (let i = middleIndex; i < Math.min(middleIndex + 10, totalSentences); i++) {
+      const sentence = sentences[i];
+      if (currentChunk.length + sentence.length > maxCharsPerChunk) {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = sentence;
+      } else {
+        currentChunk += sentence + '. ';
+      }
+    }
+    
+    // Process end sentences
+    currentChunk = '';
+    for (let i = endIndex; i < totalSentences; i++) {
+      const sentence = sentences[i];
+      if (currentChunk.length + sentence.length > maxCharsPerChunk) {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = sentence;
+      } else {
+        currentChunk += sentence + '. ';
+      }
+    }
+    
+    if (currentChunk.trim()) {
       chunks.push(currentChunk.trim());
     }
     
-    return chunks;
+    // Remove duplicates and limit to maxChunks
+    const uniqueChunks = Array.from(new Set(chunks));
+    return uniqueChunks.slice(0, maxChunks);
   }
   
   /**
@@ -574,11 +1076,91 @@ export class MultiLabelDocumentClassifier {
       };
     }
     
+    if (lower.includes('noid') || lower.includes('notice of intent to deny')) {
+      return {
+        type: 'noid',
+        confidence: 0.85,
+        evidence: [`Filename indicates Notice of Intent to Deny: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('i-589') || lower.includes('i589') || lower.includes('asylum application')) {
+      return {
+        type: 'application_i589',
+        confidence: 0.85,
+        evidence: [`Filename indicates I-589 Asylum Application: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('affidavit') && (lower.includes('expert') || lower.includes('professional'))) {
+      return {
+        type: 'affidavit_expert',
+        confidence: 0.80,
+        evidence: [`Filename indicates expert affidavit: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('affidavit')) {
+      return {
+        type: 'affidavit_client',
+        confidence: 0.80,
+        evidence: [`Filename indicates client affidavit: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('psychological') || lower.includes('psychiatric') || lower.includes('mental health')) {
+      return {
+        type: 'psychological_evaluation',
+        confidence: 0.85,
+        evidence: [`Filename indicates psychological evaluation: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('witness list') || lower.includes('witnesses')) {
+      return {
+        type: 'witness_list',
+        confidence: 0.80,
+        evidence: [`Filename indicates witness list: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('evidence') && (lower.includes('package') || lower.includes('exhibit'))) {
+      return {
+        type: 'evidence_package',
+        confidence: 0.80,
+        evidence: [`Filename indicates evidence package: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('cover letter') && lower.includes('uscis')) {
+      return {
+        type: 'cover_letter_uscis',
+        confidence: 0.80,
+        evidence: [`Filename indicates USCIS cover letter: "${fileName}"`]
+      };
+    }
+    
     if (lower.includes('motion') || lower.includes('brief')) {
       return {
         type: 'motion',
         confidence: 0.80,
         evidence: [`Filename indicates legal motion/brief: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('legal brief') || lower.includes('memorandum of law')) {
+      return {
+        type: 'legal_brief',
+        confidence: 0.80,
+        evidence: [`Filename indicates legal brief: "${fileName}"`]
+      };
+    }
+    
+    if (lower.includes('court filing') || lower.includes('cover page') || lower.includes('certificate of service')) {
+      return {
+        type: 'court_filing',
+        confidence: 0.80,
+        evidence: [`Filename indicates court filing: "${fileName}"`]
       };
     }
     
@@ -661,14 +1243,36 @@ export class MultiLabelDocumentClassifier {
         return `Document classified as funding proposal based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'nta':
         return `Document classified as Notice to Appear (NTA) based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'noid':
+        return `Document classified as Notice of Intent to Deny (NOID) based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'application_i589':
+        return `Document classified as I-589 Asylum Application based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'affidavit_client':
+        return `Document classified as client affidavit based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'affidavit_expert':
+        return `Document classified as expert affidavit based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'psychological_evaluation':
+        return `Document classified as psychological evaluation based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'witness_list':
+        return `Document classified as witness list based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'evidence_package':
+        return `Document classified as evidence package based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'cover_letter_uscis':
+        return `Document classified as USCIS cover letter based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'motion':
-        return `Document classified as legal motion/brief based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+        return `Document classified as legal motion based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'legal_brief':
+        return `Document classified as legal brief based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'court_filing':
+        return `Document classified as court filing (cover page, certificate of service, etc.) based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'ij_decision':
         return `Document classified as immigration judge decision based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'form':
         return `Document classified as immigration form based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'country_report':
         return `Document classified as country conditions report based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
+      case 'administrative':
+        return `Document classified as administrative document based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       case 'other':
         return `Document classified as other legal document based on ${evidence.length} pieces of evidence. Confidence: ${confidencePercent}%`;
       default:

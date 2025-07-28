@@ -97,7 +97,7 @@ export class DocumentEncryption {
   /**
    * Decrypt document content
    */
-  static decryptContent(encryptedData: string, iv: string, metadata: EncryptionMetadata): string | Buffer {
+  static decryptContent(encryptedData: string, iv: string, metadata: EncryptionMetadata): Buffer {
     try {
       const keyHex = this.getEncryptionKey();
       const key = Buffer.from(keyHex, 'hex');
@@ -111,15 +111,11 @@ export class DocumentEncryption {
       const ivBuffer = Buffer.from(iv, 'hex');
       const decipher = createDecipheriv('aes-256-cbc', key, ivBuffer);
       
-      let decrypted = decipher.update(encryptedData, 'hex', null);
+      let decrypted = decipher.update(encryptedData, 'hex');
       decrypted = Buffer.concat([decrypted, decipher.final()]);
       
-      // Return as Buffer if original content was binary
-      if (metadata.contentType === 'binary') {
-        return decrypted;
-      }
-      
-      return decrypted.toString('utf8');
+      // Always return as Buffer, caller can convert to string if needed
+      return decrypted;
     } catch (error) {
       console.error('Decryption failed:', error);
       throw new Error('Failed to decrypt document content');

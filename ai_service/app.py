@@ -31,6 +31,8 @@ ocr = None
 embedding_model = None
 faiss_index = None
 document_chunks = []
+OLLAMA_PORTS = [11434, 11435, 11436, 11437]
+ollama_index = 0
 
 def initialize_models():
     """Initialize OCR and embedding models"""
@@ -39,7 +41,7 @@ def initialize_models():
     try:
         # Initialize PaddleOCR
         from paddleocr import PaddleOCR
-        ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+        ocr = PaddleOCR(use_textline_orientation=True, lang='en')
         logger.info("PaddleOCR initialized successfully")
         
         # Initialize sentence transformer for embeddings
@@ -50,10 +52,18 @@ def initialize_models():
         logger.error(f"Error initializing models: {e}")
         raise
 
+def get_next_ollama_url():
+    global ollama_index
+    # Use Docker container names instead of localhost
+    ollama_hosts = ['ollama1', 'ollama2', 'ollama3', 'ollama4']
+    host = ollama_hosts[ollama_index]
+    ollama_index = (ollama_index + 1) % len(ollama_hosts)
+    return f"http://{host}:11434/api/generate"
+
 def extract_text_from_image(image_path: str) -> List[Dict[str, Any]]:
     """Extract text from image using PaddleOCR"""
     try:
-        result = ocr.ocr(image_path, cls=True)
+        result = ocr.ocr(image_path)
         
         extracted_text = []
         if result and result[0]:
@@ -100,76 +110,64 @@ def chunk_text(text: str, chunk_size: int = 450) -> List[str]:
     
     return chunks
 
-def query_ollama(prompt: str, model: str = "llama3.2:3b") -> str:
-    """Query local Ollama model"""
+def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0") -> str:
+    url = get_next_ollama_url()
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            url,
             json={
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.2,
-                    "top_p": 0.8,
-                    "max_tokens": 2000
+                    "temperature": 0.05,
+                    "top_p": 0.95,
+                    "max_tokens": 400,
+                    "num_predict": 400,
+                    "top_k": 40,
+                    "repeat_penalty": 1.1
                 }
             },
-            timeout=60
+            timeout=15
         )
-        
         if response.status_code == 200:
             return response.json().get("response", "")
         else:
-            logger.error(f"Ollama API error: {response.status_code}")
-            return "Error: Could not connect to Ollama service"
-            
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Ollama connection error: {e}")
-        return "Error: Ollama service not available. Please ensure Ollama is running locally."
+            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+            return ""
+    except Exception as e:
+        logger.error(f"Error querying Ollama: {e}")
+        return ""
 
 def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
     """Analyze document using Ollama to determine if it's a proposal"""
     
-    # Create chunks for context - use more chunks for better analysis
-    chunks = chunk_text(text_content, 450)
-    context_sample = '\n'.join(chunks[:20])  # Use top 20 chunks for comprehensive analysis
+    # Create chunks for context - use minimal chunks for fastest processing
+    chunks = chunk_text(text_content, 250)
+    context_sample = '\n'.join(chunks[:8])  # Use top 8 chunks for fastest analysis
     
     # Calculate page count estimate
     page_count = max(1, len(chunks) // 8)  # Estimate pages based on chunks
     
     prompt = f"""
-SYSTEM
-You are LegalDoc AI, an assistant that writes **ground-truth summaries** of legal or funding proposals.
-Strict rules:
-• Use only the provided CONTEXT – do not hallucinate.
-• Quote or paraphrase at least 4 concrete data points ($, dates, page numbers, city names, program names).
-• When you cite, add "[p N]" with the source page.
+Analyze this document and return JSON:
 
-USER
-⟪META⟫
-file_name: {filename}
-pages_examined: {page_count}
+Document: {filename}
+Content: {context_sample[:1500]}
 
-⟪CONTEXT⟫
-{context_sample}
+Tasks:
+1. Classify as "proposal" or "non-proposal" with confidence 0.0-1.0
+2. Write 100-word summary
+3. List 2-3 improvements
+4. Suggest 2-3 tools/resources
 
-⟪TASKS⟫
-1. PROPOSAL CLASSIFICATION – Determine if this is a proposal document. Output "proposal" or "non-proposal" with confidence score 0.0-1.0
-2. EXHAUSTIVE SUMMARY
-   • 120-180 words
-   • Must mention: institution, target population, funding amount, timeline start date, and at least one statistic.
-3. 3-5 IMPROVEMENTS – each ≤ 25 words, concrete (e.g., "Add KPIs such as cases closed per semester").
-4. TOOLKIT – list up to 5 software platforms or legal resources that would help this specific clinic/project; 1 sentence each.
-
-Return exactly this JSON (no markdown, no extra keys):
-
+Return JSON:
 {{
-  "verdict": "<proposal | non-proposal>",
+  "verdict": "proposal|non-proposal",
   "confidence": 0.XX,
   "summary": "...",
-  "improvements": ["...", "..."],
-  "toolkit": ["...", "..."]
+  "improvements": ["..."],
+  "toolkit": ["..."]
 }}
 """
 
@@ -345,7 +343,7 @@ def extract_compliance_from_content(content: str, filename: str) -> List[str]:
         requirements.append("Regulatory compliance obligations outlined")
     
     # Look for licensing requirements
-    if 'licens' in content_lower:
+    if 'license' in content_lower:
         requirements.append("Licensing and certification requirements")
     
     # Look for professional standards

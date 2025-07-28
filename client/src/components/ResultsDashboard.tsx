@@ -297,12 +297,12 @@ The document contains standard commercial lease provisions with some tenant-favo
                 <div className="flex items-center space-x-2">
                   <Brain className="h-5 w-5 text-primary" />
                   <span>AI Analysis Results</span>
-                  {aiAnalysis.verdict && (
+                  {(aiAnalysis.documentType || aiAnalysis.verdict) && (
                     <Badge 
                       variant="default"
-                      className={getDocumentTypeBadgeClass(aiAnalysis.verdict)}
+                      className={getDocumentTypeBadgeClass(aiAnalysis.documentType || aiAnalysis.verdict)}
                     >
-                      {getDocumentTypeLabel(aiAnalysis.verdict)}
+                      {getDocumentTypeLabel(aiAnalysis.documentType || aiAnalysis.verdict)}
                     </Badge>
                   )}
                   {aiAnalysis.confidence && (

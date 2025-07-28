@@ -402,7 +402,7 @@ const Index = () => {
                               className={`${getDocumentTypeBadgeClass(document.aiAnalysis?.verdict || 'undetermined')} cursor-help`}
                             >
                               {getDocumentTypeIcon(document.aiAnalysis?.verdict || 'undetermined')}
-                              {getDocumentTypeLabel(document.aiAnalysis?.verdict || 'undetermined')}
+                              {getDocumentTypeLabel(document.aiAnalysis?.documentType || document.aiAnalysis?.verdict || 'undetermined')}
                             </Badge>
                           </DocumentTypesHelp>
                         </div>

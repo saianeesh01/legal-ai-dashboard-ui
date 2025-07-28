@@ -2,6 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import helmet from "helmet";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 // Enable common security-related HTTP headers
@@ -53,8 +59,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve React static files
+const buildPath = path.join(__dirname, '../client/build');
+app.use(express.static(buildPath));
+app.use(express.static(path.join(buildPath, 'public')));
+
 (async () => {
   const server = await registerRoutes(app);
+
+  // SPA fallback - must come AFTER API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'public/index.html'));
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -80,7 +96,6 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });

@@ -215,7 +215,7 @@ export class SmartLegalClassifier {
     
     // Evidence requirement: Must have at least 2 pieces of evidence for high confidence
     if (evidence.length < 2 && !contentAnalysis.hasCourtIndicators) {
-      finalVerdict = 'undetermined';
+      finalVerdict = 'non-proposal' as const;
       finalConfidence = 0.40;
       evidence.push('Insufficient evidence for confident classification');
     }

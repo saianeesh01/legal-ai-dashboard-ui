@@ -12,6 +12,7 @@ import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_reda
 import { PDFRedactor } from "./pdf_redactor";
 import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
+import fetch from 'node-fetch';
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -427,7 +428,52 @@ function getRelevantDomain(fileName: string): string {
   return 'legal services and regulatory compliance frameworks';
 }
 
+// Helper to call Ollama Llama 3 for summarization
+async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
+  console.log(`🤖 Attempting Ollama Llama 3 summarization for: ${fileName}`);
+  console.log(`📄 Document text length: ${documentText.length} characters`);
+  
+  const prompt = `You are a legal document analysis AI. Read the following document and generate a detailed, content-specific summary. Quote or paraphrase key facts, dates, names, monetary amounts, and legal citations. Do NOT state the document type or use generic templates. Focus on the actual content.\n\nDocument: ${fileName}\n\n${documentText}`;
+  
+  try {
+    console.log(`🌐 Sending request to AI Service...`);
+    const response = await fetch('http://ai_service:5001/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: documentText,
+        model: 'llama3.2:3b',
+        prompt: prompt
+      })
+    });
+    
+    console.log(`📡 Ollama response status: ${response.status}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Ollama API error: ${response.status} - ${errorText}`);
+      throw new Error(`Ollama error: ${response.status} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Ollama response received, length: ${data.response?.length || 0} characters`);
+    
+    const summary = data.response || data.message?.content || '[Ollama returned no summary]';
+    console.log(`📝 Generated summary length: ${summary.length} characters`);
+    
+    return summary;
+  } catch (err) {
+    console.error('❌ Ollama Llama 3 summarization failed:', err);
+    return '';
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  });
+
   // File upload endpoint
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
@@ -498,7 +544,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
       } catch (error) {
         console.error(`✗ CRITICAL document extraction error for ${req.file.originalname}:`, error);
-        console.error(`✗ Error stack:`, error.stack);
+        if (error instanceof Error) {
+          console.error(`✗ Error stack:`, error.stack);
+        }
         console.log(`✗ Using enhanced filename-based analysis as fallback`);
         fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
       }
@@ -514,11 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateJob(jobId, {
         fileContent: redactedContent, // Store redacted content for analysis
         redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
-        redactedItemsCount: redactionResult.redactedItems.length,
-        extractionMethod: extractionResult?.extractionMethod || 'fallback',
-        extractionSuccess: extractionResult?.success || false,
-        pageCount: extractionResult?.pageCount || 1,
-        documentMetadata: extractionResult?.metadata || {}
+        redactedItemsCount: redactionResult.redactedItems.length
       });
 
       res.json({ job_id: jobId });
@@ -577,17 +621,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileContent = job.fileContent || '';
       console.log(`Starting content-based analysis for ${job.fileName}, content length: ${fileContent.length}`);
       
-      // Use the new ContentBasedAnalyzer for comprehensive analysis
-      const { ContentBasedAnalyzer } = await import('./content_based_analyzer.js');
-      const contentAnalysis = ContentBasedAnalyzer.analyzeDocument(job.fileName, fileContent);
+      // Use the enhanced MultiLabelDocumentClassifier for comprehensive analysis
+      const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(job.fileName, fileContent);
       
       // Log analysis details for debugging
-      console.log(`Content-based analysis result for ${job.fileName}:`);
-      console.log(`  Document Type: ${contentAnalysis.documentType}`);
-      console.log(`  Verdict: ${contentAnalysis.verdict}`);
-      console.log(`  Confidence: ${contentAnalysis.confidence}`);
-      console.log(`  Word Count: ${contentAnalysis.wordCount}`);
-      console.log(`  Key Findings: ${contentAnalysis.keyFindings.length} items`);
+      console.log(`Multi-label classification result for ${job.fileName}:`);
+      console.log(`  Document Type: ${multiLabelResult.document_type}`);
+      console.log(`  Confidence: ${multiLabelResult.confidence}`);
+      console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
+      console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
+      
+      // Use Ollama Llama 3 for summary
+      console.log(`🔍 Starting analysis with Ollama Llama 3 for: ${job.fileName}`);
+      let summary = await summarizeWithOllamaLlama3(fileContent, job.fileName);
+      
+      if (!summary || summary.trim().length < 20) {
+        console.log(`⚠️ Ollama summary too short or empty, using fallback summary`);
+        // Fallback to current summary logic if Ollama fails
+        summary = generateDetailedDocumentSummary(job.fileName, fileContent, multiLabelResult.document_type, multiLabelResult.confidence, multiLabelResult.reasoning);
+      } else {
+        console.log(`✅ Using Ollama Llama 3 generated summary`);
+      }
+      
+      // Create enhanced analysis result with multi-label insights
+      const contentAnalysis = {
+        documentType: multiLabelResult.document_type,
+        verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
+        confidence: multiLabelResult.confidence,
+        wordCount: fileContent.split(/\s+/).length,
+        keyFindings: multiLabelResult.evidence.slice(0, 5), // Use first 5 evidence items as key findings
+        summary, // Use Llama 3 summary
+        improvements: generateDocumentImprovements(multiLabelResult.document_type, fileContent),
+        toolkit: generateDocumentToolkit(multiLabelResult.document_type),
+        criticalDates: extractCriticalDates(fileContent),
+        financialTerms: extractFinancialTerms(fileContent),
+        complianceRequirements: extractComplianceRequirements(fileContent),
+        evidence: multiLabelResult.evidence,
+        reasoning: multiLabelResult.reasoning,
+        estimatedReadingTime: Math.ceil(fileContent.split(/\s+/).length / 200) // 200 words per minute
+      };
       
       // Create enhanced analysis result with all the content-based insights
       const analysisResult = {
@@ -996,1708 +1068,807 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 // Helper functions for content analysis
+function generateDetailedDocumentSummary(fileName: string, content: string, documentType: string, confidence: number, reasoning: string): string {
+  const wordCount = content.split(/\s+/).length;
+  if (!content || content.trim().length < 100) {
+    return `DOCUMENT ANALYSIS UNAVAILABLE\n\nDocument: ${fileName}\nStatus: Content extraction failed or too little content extracted.\n\nThe document could not be analyzed because the content could not be extracted from the PDF file or is too short. Please ensure the document is not password protected, is not a scanned image-only PDF, and try re-uploading.\n`;
+  }
+  // Extract key sentences, facts, dates, and legal arguments from the content
+  const sentences = content.match(/[^.!?\n]{30,}[.!?\n]/g) || content.split(/\n+/);
+  const keySentences = sentences.slice(0, 8).map(s => s.trim()).filter(Boolean);
+  // Extract dates
+  const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
+  const dates = content.match(datePattern) || [];
+  // Extract monetary amounts
+  const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
+  const amounts = content.match(moneyPattern) || [];
+  // Extract names (simple heuristic: capitalized words)
+  const namePattern = /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g;
+  const names = content.match(namePattern) || [];
+  // Extract legal citations (INA, CFR, etc.)
+  const citationPattern = /INA\s?§?\s?\d+[a-zA-Z\d()\-\.]*|8\s*CFR\s*\d+[\.\d]*/g;
+  const citations = content.match(citationPattern) || [];
+
+  return `**📋 Content-Specific Summary:**\n\n` +
+    keySentences.map(s => `- ${s}`).join("\n") +
+    (dates.length ? `\n\n**📅 Dates Mentioned:**\n${dates.map(d => `- ${d}`).join("\n")}` : "") +
+    (amounts.length ? `\n\n**💵 Amounts Mentioned:**\n${amounts.map(a => `- ${a}`).join("\n")}` : "") +
+    (names.length ? `\n\n**👤 Names Detected:**\n${names.slice(0, 5).map(n => `- ${n}`).join("\n")}` : "") +
+    (citations.length ? `\n\n**⚖️ Legal Citations:**\n${citations.map(c => `- ${c}`).join("\n")}` : "") +
+    `\n\n**Word Count:** ${wordCount}`;
+}
+
 function generateEnhancedSummary(fileName: string, content: string, isProposal: boolean, documentCategory: string): string {
-  // Check if content extraction failed but we have classification-friendly content
-  if (content.includes('Content extraction from PDF failed')) {
-    return generateFilenameBasedSummary(fileName, documentCategory);
+  if (!content || content.trim().length < 100) {
+    return `DOCUMENT ANALYSIS UNAVAILABLE\n\nDocument: ${fileName}\nStatus: Content extraction failed or too little content extracted.\n\nThe document could not be analyzed because the content could not be extracted from the PDF file or is too short. Please ensure the document is not password protected, is not a scanned image-only PDF, and try re-uploading.\n`;
   }
-  
-  // Check for complete content extraction failure
-  if (content.includes('Content extraction failed') || content.includes('Content not available')) {
-    return `DOCUMENT ANALYSIS UNAVAILABLE
-
-Document: ${fileName}
-Status: Content extraction failed
-
-The document could not be analyzed because the content could not be extracted from the PDF file. This could be due to:
-- Password protection or security restrictions
-- Corrupted or damaged file format  
-- Scanned image-only PDF without text layer
-- Technical parsing limitations
-
-To get a proper analysis, please:
-1. Ensure the PDF is not password protected
-2. Try re-uploading the document
-3. Convert scanned PDFs to text-searchable format
-4. Contact support if the issue persists
-
-Document type classification and detailed analysis require readable text content.`;
-  }
-
-  // Enhanced summary generation based on document category
-  switch (documentCategory) {
-    case 'nta':
-      return generateNTASummary(fileName, content);
-    case 'motion':
-      return generateMotionSummary(fileName, content);
-    case 'ij_decision':
-      return generateIJDecisionSummary(fileName, content);
-    case 'form':
-      return generateFormSummary(fileName, content);
-    case 'country_report':
-      return generateCountryReportSummary(fileName, content);
-    case 'proposal':
-      return generateProposalSummary(fileName, content);
-    default:
-      return generateSummary(fileName, content, isProposal);
-  }
-}
-
-function generateFilenameBasedSummary(fileName: string, documentCategory: string): string {
-  const lowerFileName = fileName.toLowerCase();
-  
-  let summary = `DOCUMENT ANALYSIS - LIMITED (Filename-Based Classification)
-
-Document: ${fileName}
-Status: Content extraction failed, analysis based on filename only
-
-`;
-
-  switch (documentCategory) {
-    case 'nta':
-      summary += `NOTICE TO APPEAR ANALYSIS
-This appears to be an Immigration Notice to Appear (Form I-862) based on the filename. This document type formally initiates removal proceedings in Immigration Court.
-
-Key Document Purpose: Immigration court proceeding initiation
-Expected Content: Charging allegations, court information, respondent details
-Legal Significance: Formal commencement of removal proceedings
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    case 'motion':
-      summary += `IMMIGRATION MOTION ANALYSIS
-This appears to be an immigration motion document based on the filename. Immigration motions are legal pleadings filed with the Immigration Court.
-
-Key Document Purpose: Legal motion filing
-Expected Content: Legal arguments, supporting evidence, requested relief  
-Legal Significance: Formal request for court action or reconsideration
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    case 'form':
-      summary += `IMMIGRATION FORM ANALYSIS
-This appears to be an immigration form based on the filename. Immigration forms are official government documents used for various immigration processes.
-
-Key Document Purpose: Official immigration application or petition
-Expected Content: Personal information, immigration history, supporting documentation
-Legal Significance: Official government filing for immigration benefits
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    case 'country_report':
-      summary += `COUNTRY CONDITIONS REPORT ANALYSIS
-This appears to be a country conditions report based on the filename. These reports document human rights conditions and country-specific information.
-
-Key Document Purpose: Country conditions documentation
-Expected Content: Human rights analysis, political conditions, safety information
-Legal Significance: Supporting evidence for asylum and protection claims
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    case 'ij_decision':
-      summary += `IMMIGRATION JUDGE DECISION ANALYSIS
-This appears to be an Immigration Judge decision or court order based on the filename. These documents contain official court rulings.
-
-Key Document Purpose: Official court ruling
-Expected Content: Legal findings, conclusions, orders, and directives
-Legal Significance: Binding legal determination affecting immigration status
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    case 'proposal':
-      summary += `PROPOSAL DOCUMENT ANALYSIS
-This appears to be a proposal or grant application based on the filename. These documents typically request funding or program approval.
-
-Key Document Purpose: Funding or program request
-Expected Content: Project description, budget, timeline, objectives
-Legal Significance: Formal request for resources or authorization
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-      
-    default:
-      summary += `LEGAL DOCUMENT ANALYSIS
-This appears to be a legal document based on the filename. The specific document type requires content analysis for precise classification.
-
-Key Document Purpose: Legal documentation
-Expected Content: Legal text, formal documentation, procedural information
-Legal Significance: Formal legal document requiring professional review
-
-For complete analysis, please ensure the PDF is readable and re-upload.`;
-      break;
-  }
-  
-  summary += `
-
-LIMITATION NOTICE: This analysis is based solely on filename patterns due to PDF content extraction failure. For accurate legal analysis, proper document content extraction is required.`;
-  
-  return summary;
-}
-
-function generateNTASummary(fileName: string, content: string): string {
-  return `NOTICE TO APPEAR (NTA) ANALYSIS
-
-Document: ${fileName}
-Document Type: Immigration Court Notice to Appear (Form I-862)
-
-DOCUMENT OVERVIEW
-This Notice to Appear formally initiates removal proceedings against the respondent. The document contains charging allegations and establishes the Immigration Court's jurisdiction over the case.
-
-KEY COMPONENTS
-- Respondent identification and biographical information
-- Charging allegations and immigration law violations
-- Court hearing date, time, and location
-- Respondent's rights and obligations
-- Legal basis for removal proceedings
-
-LEGAL IMPLICATIONS
-The NTA serves as the foundational charging document in removal proceedings. It must contain specific factual allegations and legal charges to establish the court's jurisdiction. Any defects in the NTA may be grounds for termination of proceedings.
-
-NEXT STEPS
-- Respondent must appear at scheduled hearing
-- Legal representation should be secured
-- Response to charges must be prepared
-- Evidence gathering for potential defenses`;
-}
-
-function generateMotionSummary(fileName: string, content: string): string {
-  return `IMMIGRATION MOTION ANALYSIS
-
-Document: ${fileName}
-Document Type: Legal Motion or Brief
-
-DOCUMENT OVERVIEW
-This legal motion presents arguments and requests specific relief from the Immigration Court or administrative body. The document follows formal legal briefing standards and includes supporting legal authorities.
-
-KEY COMPONENTS
-- Statement of relief requested
-- Factual background and procedural history
-- Legal arguments and analysis
-- Supporting evidence and documentation
-- Conclusion and prayer for relief
-
-LEGAL STRATEGY
-The motion advances specific legal arguments supported by case law, statutes, and regulations. Success depends on the strength of legal precedent and factual support provided.
-
-PROCEDURAL REQUIREMENTS
-- Proper service on opposing counsel
-- Compliance with filing deadlines
-- Supporting documentation requirements
-- Hearing scheduling if required`;
-}
-
-function generateIJDecisionSummary(fileName: string, content: string): string {
-  return `IMMIGRATION JUDGE DECISION ANALYSIS
-
-Document: ${fileName}
-Document Type: Immigration Court Decision or Order
-
-DOCUMENT OVERVIEW
-This judicial decision resolves immigration proceedings and determines the respondent's immigration status. The decision includes legal findings, factual determinations, and final orders.
-
-KEY COMPONENTS
-- Factual findings and credibility determinations
-- Legal conclusions and precedent application
-- Final order (granted/denied relief)
-- Appeal rights and deadline information
-- Compliance requirements if applicable
-
-LEGAL IMPACT
-The decision establishes the respondent's immigration status and may grant or deny requested relief. Adverse decisions may be appealed to the Board of Immigration Appeals within 30 days.
-
-IMPLEMENTATION REQUIREMENTS
-- Compliance with any court orders
-- Appeal filing if applicable
-- Status adjustment procedures if relief granted
-- Departure arrangements if removal ordered`;
-}
-
-function generateFormSummary(fileName: string, content: string): string {
-  return `IMMIGRATION FORM ANALYSIS
-
-Document: ${fileName}
-Document Type: Immigration Form or Application
-
-DOCUMENT OVERVIEW
-This immigration form facilitates the application process for specific immigration benefits or status adjustments. The form contains required information and supporting documentation.
-
-KEY COMPONENTS
-- Applicant biographical information
-- Immigration history and status
-- Specific benefit or relief requested
-- Supporting documentation requirements
-- Filing instructions and procedures
-
-PROCESSING REQUIREMENTS
-- Complete and accurate information
-- Required supporting evidence
-- Proper filing fees
-- Submission to appropriate office
-- Follow-up on case status
-
-COMPLIANCE CONSIDERATIONS
-- Deadline compliance for submissions
-- Truth and accuracy requirements
-- Documentation authentication
-- Legal representation advisability`;
-}
-
-function generateCountryReportSummary(fileName: string, content: string): string {
-  return `COUNTRY CONDITIONS REPORT ANALYSIS
-
-Document: ${fileName}
-Document Type: Country Conditions or Human Rights Report
-
-DOCUMENT OVERVIEW
-This report provides comprehensive information about conditions in a specific country relevant to immigration proceedings. The report serves as evidence for asylum, withholding, and CAT claims.
-
-KEY COMPONENTS
-- Political and security conditions
-- Human rights situation
-- Government protection capabilities
-- Persecution patterns and targets
-- Recent developments and trends
-
-EVIDENTIARY VALUE
-Country reports provide essential background evidence for protection claims. The credibility and recency of the report affects its evidentiary weight in immigration proceedings.
-
-STRATEGIC USE
-- Supporting asylum applications
-- Demonstrating changed country conditions
-- Establishing persecution patterns
-- Rebutting government position`;
-}
-
-function generateProposalSummary(fileName: string, content: string): string {
-  return generateSummary(fileName, content, true);
+  // Use the same logic as generateDetailedDocumentSummary for now
+  return generateDetailedDocumentSummary(fileName, content, '', 0, '');
 }
 
 function generateSummary(fileName: string, content: string, isProposal: boolean): string {
-  const contentLength = content.length;
+  if (!content || content.trim().length < 100) {
+    return `DOCUMENT ANALYSIS UNAVAILABLE\n\nDocument: ${fileName}\nStatus: Content extraction failed or too little content extracted.\n\nThe document could not be analyzed because the content could not be extracted from the PDF file or is too short. Please ensure the document is not password protected, is not a scanned image-only PDF, and try re-uploading.\n`;
+  }
+  // Use the same logic as generateDetailedDocumentSummary for now
+  return generateDetailedDocumentSummary(fileName, content, '', 0, '');
+}
+
+function generateDocumentImprovements(documentType: string, content: string): string[] {
+  const improvements: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  // Document-specific improvement suggestions
+  switch (documentType) {
+    case 'country_report':
+      improvements.push("Verify the report is current and from reliable sources");
+      improvements.push("Ensure country conditions are specific to the client's circumstances");
+      improvements.push("Include recent developments or changes in country conditions");
+      break;
+    
+    case 'nta':
+      improvements.push("Verify all allegations and charges are accurate");
+      improvements.push("Ensure proper service requirements are documented");
+      improvements.push("Check for any missing statutory citations");
+      break;
+    
+    case 'motion':
+      improvements.push("Verify all legal arguments are supported by case law");
+      improvements.push("Ensure proper procedural requirements are met");
+      improvements.push("Check for complete factual basis and evidence");
+      break;
+    
+    case 'legal_brief':
+      improvements.push("Verify all case law citations are current and relevant");
+      improvements.push("Ensure legal arguments are comprehensive and well-structured");
+      improvements.push("Check for proper formatting and court requirements");
+      break;
+    
+    case 'evidence_package':
+      improvements.push("Verify all evidence is properly authenticated");
+      improvements.push("Ensure evidence is relevant and admissible");
+      improvements.push("Check for complete documentation and translations");
+      break;
+    
+    default:
+      improvements.push("Review document for completeness and accuracy");
+      improvements.push("Verify all legal citations and references");
+      improvements.push("Ensure proper formatting and professional presentation");
+  }
+  
+  return improvements;
+}
+
+function generateDocumentToolkit(documentType: string): string[] {
+  const toolkit: string[] = [];
+  
+  // Document-specific toolkit recommendations
+  switch (documentType) {
+    case 'country_report':
+      toolkit.push("U.S. State Department Country Reports");
+      toolkit.push("Human Rights Watch Reports");
+      toolkit.push("Amnesty International Documentation");
+      toolkit.push("UNHCR Country Information");
+      break;
+    
+    case 'nta':
+      toolkit.push("EOIR Portal - Immigration Court Case Management");
+      toolkit.push("USCIS Website - Immigration Forms and Guidance");
+      toolkit.push("Immigration Court Practice Manual");
+      break;
+    
+    case 'motion':
+      toolkit.push("Federal Rules of Civil Procedure");
+      toolkit.push("Immigration Court Practice Manual");
+      toolkit.push("Westlaw Immigration Library");
+      break;
+    
+    case 'legal_brief':
+      toolkit.push("Westlaw Legal Research Database");
+      toolkit.push("LexisNexis Immigration Library");
+      toolkit.push("Federal Court Electronic Filing System (CM/ECF)");
+      break;
+    
+    case 'evidence_package':
+      toolkit.push("Document Authentication Services");
+      toolkit.push("Translation Services");
+      toolkit.push("Evidence Management Systems");
+      break;
+    
+    default:
+      toolkit.push("EOIR Portal - Immigration court case management");
+      toolkit.push("USCIS Website - Immigration forms and guidance");
+      toolkit.push("Westlaw Immigration Library - Specialized immigration research");
+  }
+  
+  return toolkit;
+}
+
+// Content extraction helper functions for detailed analysis
+function extractCountryName(fileName: string, content: string): string {
+  const lowerFileName = fileName.toLowerCase();
+  const lowerContent = content.toLowerCase();
+  
+  // Extract from filename first (more comprehensive)
+  if (lowerFileName.includes('japan')) return 'Japan';
+  if (lowerFileName.includes('nicaragua')) return 'Nicaragua';
+  if (lowerFileName.includes('mexico')) return 'Mexico';
+  if (lowerFileName.includes('china')) return 'China';
+  if (lowerFileName.includes('india')) return 'India';
+  if (lowerFileName.includes('brazil')) return 'Brazil';
+  if (lowerFileName.includes('russia')) return 'Russia';
+  if (lowerFileName.includes('iran')) return 'Iran';
+  if (lowerFileName.includes('venezuela')) return 'Venezuela';
+  if (lowerFileName.includes('honduras')) return 'Honduras';
+  if (lowerFileName.includes('guatemala')) return 'Guatemala';
+  if (lowerFileName.includes('el salvador')) return 'El Salvador';
+  if (lowerFileName.includes('cuba')) return 'Cuba';
+  if (lowerFileName.includes('colombia')) return 'Colombia';
+  if (lowerFileName.includes('peru')) return 'Peru';
+  if (lowerFileName.includes('ecuador')) return 'Ecuador';
+  if (lowerFileName.includes('bolivia')) return 'Bolivia';
+  if (lowerFileName.includes('paraguay')) return 'Paraguay';
+  if (lowerFileName.includes('uruguay')) return 'Uruguay';
+  if (lowerFileName.includes('argentina')) return 'Argentina';
+  if (lowerFileName.includes('chile')) return 'Chile';
+  
+  // Extract from content
+  if (lowerContent.includes('japan')) return 'Japan';
+  if (lowerContent.includes('nicaragua')) return 'Nicaragua';
+  if (lowerContent.includes('mexico')) return 'Mexico';
+  if (lowerContent.includes('china')) return 'China';
+  if (lowerContent.includes('india')) return 'India';
+  if (lowerContent.includes('brazil')) return 'Brazil';
+  if (lowerContent.includes('russia')) return 'Russia';
+  if (lowerContent.includes('iran')) return 'Iran';
+  if (lowerContent.includes('venezuela')) return 'Venezuela';
+  if (lowerContent.includes('honduras')) return 'Honduras';
+  if (lowerContent.includes('guatemala')) return 'Guatemala';
+  if (lowerContent.includes('el salvador')) return 'El Salvador';
+  if (lowerContent.includes('cuba')) return 'Cuba';
+  if (lowerContent.includes('colombia')) return 'Colombia';
+  if (lowerContent.includes('peru')) return 'Peru';
+  if (lowerContent.includes('ecuador')) return 'Ecuador';
+  if (lowerContent.includes('bolivia')) return 'Bolivia';
+  if (lowerContent.includes('paraguay')) return 'Paraguay';
+  if (lowerContent.includes('uruguay')) return 'Uruguay';
+  if (lowerContent.includes('argentina')) return 'Argentina';
+  if (lowerContent.includes('chile')) return 'Chile';
+  
+  return 'Unknown Country';
+}
+
+function extractReportYear(fileName: string, content: string): string {
+  const yearMatch = fileName.match(/(20\d{2})/) || content.match(/(20\d{2})/);
+  return yearMatch ? yearMatch[1] : '2023';
+}
+
+function extractHumanRightsIssues(content: string, fileName: string = ''): string[] {
+  const issues: string[] = [];
   const lowerContent = content.toLowerCase();
   const lowerFileName = fileName.toLowerCase();
   
-  // Extract key document characteristics
-  const documentCharacteristics = analyzeDocumentCharacteristics(content, fileName);
-  
-  if (contentLength < 100) {
-    return `Document "${fileName}" has been processed but contains minimal extractable content (${contentLength} characters). The document appears to be ${documentCharacteristics.documentType} based on filename analysis. Manual review recommended for comprehensive analysis of the full document content.`;
+  // General human rights issues
+  if (lowerContent.includes('human rights') || lowerContent.includes('human rights violation')) {
+    issues.push('Human rights violations and abuses');
+  }
+  if (lowerContent.includes('persecution') || lowerContent.includes('political persecution')) {
+    issues.push('Political persecution and oppression');
+  }
+  if (lowerContent.includes('discrimination') || lowerContent.includes('systemic discrimination')) {
+    issues.push('Systemic discrimination and inequality');
+  }
+  if (lowerContent.includes('violence') || lowerContent.includes('domestic violence')) {
+    issues.push('Violence and domestic abuse');
+  }
+  if (lowerContent.includes('police') || lowerContent.includes('law enforcement')) {
+    issues.push('Police misconduct and lack of accountability');
+  }
+  if (lowerContent.includes('judicial') || lowerContent.includes('court system')) {
+    issues.push('Judicial corruption and lack of due process');
+  }
+  if (lowerContent.includes('lgbtq') || lowerContent.includes('sexual orientation')) {
+    issues.push('LGBTQ+ rights violations');
+  }
+  if (lowerContent.includes('religious') || lowerContent.includes('freedom of religion')) {
+    issues.push('Religious persecution and restrictions');
+  }
+  if (lowerContent.includes('ethnic') || lowerContent.includes('minority')) {
+    issues.push('Ethnic and minority discrimination');
+  }
+  if (lowerContent.includes('labor') || lowerContent.includes('worker rights')) {
+    issues.push('Labor rights violations and exploitation');
   }
   
-  if (isProposal) {
-    // Detailed proposal analysis
-    const proposalElements = [];
-    
-    // Check for specific proposal components
-    if (lowerContent.includes('funding') || lowerContent.includes('grant') || lowerContent.includes('budget')) {
-      proposalElements.push('funding/budget information');
-    }
-    if (lowerContent.includes('timeline') || lowerContent.includes('schedule') || lowerContent.includes('implementation')) {
-      proposalElements.push('implementation timeline');
-    }
-    if (lowerContent.includes('objective') || lowerContent.includes('goal') || lowerContent.includes('target')) {
-      proposalElements.push('project objectives');
-    }
-    if (lowerContent.includes('service') || lowerContent.includes('program') || lowerContent.includes('clinic')) {
-      proposalElements.push('service delivery components');
-    }
-    if (lowerContent.includes('evaluation') || lowerContent.includes('metric') || lowerContent.includes('outcome')) {
-      proposalElements.push('evaluation methodology');
-    }
-    if (lowerContent.includes('staff') || lowerContent.includes('personnel') || lowerContent.includes('team')) {
-      proposalElements.push('staffing structure');
-    }
-    
-    // Determine proposal type and focus
-    let proposalType = 'funding proposal';
-    let focusArea = 'general services';
-    
-    if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
-      proposalType = 'veterans services proposal';
-      focusArea = 'veterans legal services and support';
-    } else if (lowerFileName.includes('clinic') || lowerContent.includes('clinic')) {
-      proposalType = 'legal clinic proposal';
-      focusArea = 'legal services and community support';
-    } else if (lowerFileName.includes('grant') || lowerContent.includes('grant')) {
-      proposalType = 'grant application';
-      focusArea = 'program funding and implementation';
-    }
-    
-    // Generate comprehensive, document-specific summary
-    const summary = generateDocumentSpecificSummary(fileName, content, proposalType, focusArea, proposalElements, documentCharacteristics);
-    
-    return summary;
-    
-  } else {
-    // Detailed non-proposal analysis
-    const documentElements = [];
-    
-    // Check for administrative/legal document components
-    if (lowerContent.includes('meeting') || lowerContent.includes('agenda') || lowerContent.includes('minutes')) {
-      documentElements.push('meeting/administrative content');
-    }
-    if (lowerContent.includes('council') || lowerContent.includes('board') || lowerContent.includes('committee')) {
-      documentElements.push('governance/board content');
-    }
-    if (lowerContent.includes('legal') || lowerContent.includes('court') || lowerContent.includes('case')) {
-      documentElements.push('legal/court documentation');
-    }
-    if (lowerContent.includes('contract') || lowerContent.includes('agreement') || lowerContent.includes('terms')) {
-      documentElements.push('contractual/agreement content');
-    }
-    if (lowerContent.includes('report') || lowerContent.includes('analysis') || lowerContent.includes('summary')) {
-      documentElements.push('analytical/reporting content');
-    }
-    if (lowerContent.includes('policy') || lowerContent.includes('procedure') || lowerContent.includes('guideline')) {
-      documentElements.push('policy/procedural content');
-    }
-    
-    // Determine document type and purpose
-    let documentType = 'administrative document';
-    let documentPurpose = 'organizational operations';
-    
-    if (lowerFileName.includes('council') || lowerContent.includes('council')) {
-      documentType = 'council document';
-      documentPurpose = 'governance and decision-making processes';
-    } else if (lowerFileName.includes('meeting') || lowerContent.includes('meeting')) {
-      documentType = 'meeting document';
-      documentPurpose = 'meeting proceedings and organizational communication';
-    } else if (lowerFileName.includes('contract') || lowerContent.includes('contract')) {
-      documentType = 'contractual document';
-      documentPurpose = 'legal agreements and service arrangements';
-    } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
-      documentType = 'analytical report';
-      documentPurpose = 'information analysis and organizational reporting';
-    }
-    
-    // Generate comprehensive, document-specific summary for non-proposals
-    const summary = generateNonProposalSummary(fileName, content, documentType, documentPurpose, documentElements, documentCharacteristics);
-    
-    return summary;
+  // Country-specific issues based on filename
+  if (lowerFileName.includes('japan')) {
+    issues.push('Workplace discrimination and gender inequality');
+    issues.push('Strict immigration policies and detention conditions');
+    issues.push('Limited freedom of expression and press restrictions');
   }
+  
+  if (lowerFileName.includes('nicaragua')) {
+    issues.push('Political repression and government crackdowns');
+    issues.push('Restrictions on freedom of assembly and protest');
+    issues.push('Arbitrary arrests and political imprisonment');
+    issues.push('Media censorship and press freedom violations');
+  }
+  
+  if (lowerFileName.includes('mexico')) {
+    issues.push('Drug cartel violence and organized crime');
+    issues.push('Corruption in law enforcement and judiciary');
+    issues.push('Disappearances and extrajudicial killings');
+    issues.push('Violence against journalists and human rights defenders');
+  }
+  
+  if (lowerFileName.includes('venezuela')) {
+    issues.push('Economic crisis and humanitarian emergency');
+    issues.push('Political persecution and opposition suppression');
+    issues.push('Food and medicine shortages');
+    issues.push('Arbitrary detentions and torture');
+  }
+  
+  if (lowerFileName.includes('honduras') || lowerFileName.includes('guatemala') || lowerFileName.includes('el salvador')) {
+    issues.push('Gang violence and extortion');
+    issues.push('Gender-based violence and femicide');
+    issues.push('Corruption and impunity');
+    issues.push('Forced displacement and internal migration');
+  }
+  
+  return issues.length > 0 ? issues : ['General human rights conditions assessment'];
 }
 
-function analyzeDocumentCharacteristics(content: string, fileName: string): { documentType: string, confidence: number, evidenceTypes: string[] } {
+function extractSources(content: string): string[] {
+  const sources: string[] = [];
   const lowerContent = content.toLowerCase();
-  const lowerFileName = fileName.toLowerCase();
-  const evidenceTypes = [];
-  let confidence = 0.5;
-  let documentType = 'unknown';
   
-  // Analyze content for evidence types
-  if (lowerContent.includes('funding') || lowerContent.includes('budget') || lowerContent.includes('financial')) {
-    evidenceTypes.push('financial content');
-    confidence += 0.1;
+  if (lowerContent.includes('state department') || lowerContent.includes('u.s. department of state')) {
+    sources.push('U.S. State Department');
   }
-  if (lowerContent.includes('timeline') || lowerContent.includes('schedule') || lowerContent.includes('deadline')) {
-    evidenceTypes.push('temporal planning');
-    confidence += 0.1;
+  if (lowerContent.includes('human rights watch')) {
+    sources.push('Human Rights Watch');
   }
-  if (lowerContent.includes('objective') || lowerContent.includes('goal') || lowerContent.includes('purpose')) {
-    evidenceTypes.push('strategic objectives');
-    confidence += 0.1;
+  if (lowerContent.includes('amnesty international')) {
+    sources.push('Amnesty International');
   }
-  if (lowerContent.includes('service') || lowerContent.includes('program') || lowerContent.includes('delivery')) {
-    evidenceTypes.push('service delivery planning');
-    confidence += 0.1;
+  if (lowerContent.includes('unhcr') || lowerContent.includes('united nations')) {
+    sources.push('UNHCR');
   }
-  if (lowerContent.includes('legal') || lowerContent.includes('compliance') || lowerContent.includes('regulation')) {
-    evidenceTypes.push('legal/regulatory content');
-    confidence += 0.1;
+  if (lowerContent.includes('ngo') || lowerContent.includes('non-governmental')) {
+    sources.push('NGO reports');
   }
-  if (lowerContent.includes('community') || lowerContent.includes('client') || lowerContent.includes('population')) {
-    evidenceTypes.push('community/client focus');
-    confidence += 0.1;
+  if (lowerContent.includes('news') || lowerContent.includes('media')) {
+    sources.push('News media reports');
   }
   
-  // Determine document type from filename and content
-  if (lowerFileName.includes('proposal') || lowerContent.includes('proposal')) {
-    documentType = 'proposal';
-  } else if (lowerFileName.includes('council') || lowerContent.includes('council')) {
-    documentType = 'council document';
-  } else if (lowerFileName.includes('meeting') || lowerContent.includes('meeting')) {
-    documentType = 'meeting document';
-  } else if (lowerFileName.includes('contract') || lowerContent.includes('contract')) {
-    documentType = 'contractual document';
-  } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
-    documentType = 'analytical report';
-  }
-  
-  if (evidenceTypes.length === 0) {
-    evidenceTypes.push('general document structure');
-  }
-  
-  return { documentType, confidence, evidenceTypes };
+  return sources.length > 0 ? sources : ['Official sources and human rights organizations'];
 }
 
-function generateDocumentSpecificSummary(fileName: string, content: string, proposalType: string, focusArea: string, proposalElements: string[], documentCharacteristics: any): string {
+function extractNTAAllegations(content: string): string[] {
+  const allegations: string[] = [];
   const lowerContent = content.toLowerCase();
-  const lowerFileName = fileName.toLowerCase();
   
-  // Extract specific details from document
-  const specificDetails = extractSpecificDetails(content, fileName);
-  const fundingInfo = extractFundingInformation(content);
-  const timelineInfo = extractTimelineInformation(content);
-  const targetBeneficiaries = extractTargetBeneficiaries(content);
-  const competitiveAdvantages = extractCompetitiveAdvantages(content);
-  const challengesRisks = extractChallengesAndRisks(content);
-  
-  // Determine what the document is about and who it pertains to
-  const documentPurpose = getDocumentPurposeAndScope(fileName, content);
-  const targetAudience = getTargetAudienceAndStakeholders(fileName, content);
-  
-  // Generate comprehensive summary starting with document purpose and audience
-  let summary = `This document "${fileName}" is about ${documentPurpose.subject} and pertains to ${targetAudience.primaryAudience}. It represents a comprehensive ${proposalType} specifically designed for ${focusArea}. `;
-  
-  // Add secondary audience information
-  if (targetAudience.secondaryAudiences.length > 0) {
-    summary += `The proposal also involves ${targetAudience.secondaryAudiences.join(', ')} as key stakeholders in the implementation and oversight process. `;
+  if (lowerContent.includes('illegal entry') || lowerContent.includes('entry without inspection')) {
+    allegations.push('Illegal entry without inspection');
+  }
+  if (lowerContent.includes('overstay') || lowerContent.includes('visa violation')) {
+    allegations.push('Visa overstay or violation');
+  }
+  if (lowerContent.includes('criminal') || lowerContent.includes('conviction')) {
+    allegations.push('Criminal conviction grounds');
+  }
+  if (lowerContent.includes('fraud') || lowerContent.includes('misrepresentation')) {
+    allegations.push('Fraud or misrepresentation');
   }
   
-  // Add target beneficiaries
-  if (targetBeneficiaries.length > 0) {
-    summary += `The program targets ${targetBeneficiaries.join(', ')} with tailored services and support mechanisms. `;
-  }
-  
-  // Add funding information
-  if (fundingInfo.length > 0) {
-    summary += `${fundingInfo.join(' ')} `;
-  } else {
-    summary += `The proposal outlines a structured funding framework with budget allocations for personnel, operations, and program implementation. `;
-  }
-  
-  // Add timeline and implementation details
-  if (timelineInfo.length > 0) {
-    summary += `Implementation follows a structured timeline: ${timelineInfo.join(', ')}. `;
-  }
-  
-  // Add key program activities
-  if (proposalElements.length > 0) {
-    summary += `Key program components include ${proposalElements.join(', ')}, demonstrating comprehensive service delivery planning. `;
-  }
-  
-  // Add competitive advantages
-  if (competitiveAdvantages.length > 0) {
-    summary += `The proposal's competitive strengths include ${competitiveAdvantages.join(', ')}. `;
-  }
-  
-  // Add challenges and risks
-  if (challengesRisks.length > 0) {
-    summary += `Identified challenges include ${challengesRisks.join(', ')}, with mitigation strategies outlined. `;
-  }
-  
-  // Add document-specific context
-  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
-    summary += `The immigration law focus addresses critical legal needs in citizenship, visa processing, and deportation defense services. `;
-  }
-  
-  if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
-    summary += `The veterans services component provides specialized legal assistance for military-related benefits, disability claims, and transition support. `;
-  }
-  
-  if (lowerFileName.includes('clinic') || lowerContent.includes('clinic')) {
-    summary += `The legal clinic model emphasizes accessible, community-based services with pro bono representation and volunteer coordination. `;
-  }
-  
-  // Add evidence-based classification reasoning
-  summary += `Classification as a ${proposalType} is supported by evidence of ${documentCharacteristics.evidenceTypes.join(', ')}, with ${Math.round(documentCharacteristics.confidence * 100)}% confidence based on comprehensive content analysis and structural indicators.`;
-  
-  return summary;
+  return allegations;
 }
 
-function extractSpecificDetails(content: string, fileName: string): string[] {
+function extractHearingInfo(content: string): string[] {
+  const info: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('hearing') || lowerContent.includes('court date')) {
+    info.push('Hearing date and time to be scheduled');
+  }
+  if (lowerContent.includes('location') || lowerContent.includes('address')) {
+    info.push('Court location to be provided');
+  }
+  
+  return info;
+}
+
+function extractCharges(content: string): string[] {
+  const charges: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('section 212') || lowerContent.includes('inadmissibility')) {
+    charges.push('Section 212 inadmissibility grounds');
+  }
+  if (lowerContent.includes('section 237') || lowerContent.includes('deportability')) {
+    charges.push('Section 237 deportability grounds');
+  }
+  
+  return charges;
+}
+
+function extractMotionType(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('motion to reopen')) return 'Motion to Reopen';
+  if (lowerContent.includes('motion to reconsider')) return 'Motion to Reconsider';
+  if (lowerContent.includes('motion to suppress')) return 'Motion to Suppress';
+  if (lowerContent.includes('motion to terminate')) return 'Motion to Terminate';
+  if (lowerContent.includes('motion to change venue')) return 'Motion to Change Venue';
+  
+  return 'Immigration Motion';
+}
+
+function extractReliefSought(content: string): string[] {
+  const relief: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('asylum') || lowerContent.includes('withholding')) {
+    relief.push('Asylum or Withholding of Removal');
+  }
+  if (lowerContent.includes('cancellation') || lowerContent.includes('cancellation of removal')) {
+    relief.push('Cancellation of Removal');
+  }
+  if (lowerContent.includes('adjustment') || lowerContent.includes('adjustment of status')) {
+    relief.push('Adjustment of Status');
+  }
+  
+  return relief.length > 0 ? relief : ['Legal relief in immigration proceedings'];
+}
+
+function extractLegalArguments(content: string): string[] {
+  const legalArgs: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('due process') || lowerContent.includes('constitutional')) {
+    legalArgs.push('Due process and constitutional rights');
+  }
+  if (lowerContent.includes('ineffective assistance') || lowerContent.includes('counsel')) {
+    legalArgs.push('Ineffective assistance of counsel');
+  }
+  if (lowerContent.includes('changed circumstances') || lowerContent.includes('country conditions')) {
+    legalArgs.push('Changed country conditions');
+  }
+  
+  return legalArgs.length > 0 ? legalArgs : ['Legal arguments based on immigration law'];
+}
+
+function extractBriefType(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('opening brief')) return 'Opening Brief';
+  if (lowerContent.includes('reply brief')) return 'Reply Brief';
+  if (lowerContent.includes('amicus brief')) return 'Amicus Brief';
+  if (lowerContent.includes('supplemental brief')) return 'Supplemental Brief';
+  
+  return 'Legal Brief';
+}
+
+function extractCaseCitations(content: string): string[] {
+  const citations: string[] = [];
+  const citationRegex = /([A-Z][a-z]+ v\. [A-Z][a-z]+|In re [A-Z][a-z]+)/g;
+  const matches = content.match(citationRegex);
+  
+  if (matches) {
+    citations.push(...matches.slice(0, 3)); // Limit to first 3 citations
+  }
+  
+  return citations.length > 0 ? citations : ['Relevant case law citations'];
+}
+
+function extractLegalIssues(content: string): string[] {
+  const issues: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('asylum') || lowerContent.includes('persecution')) {
+    issues.push('Asylum eligibility and persecution');
+  }
+  if (lowerContent.includes('credibility') || lowerContent.includes('testimony')) {
+    issues.push('Credibility and testimony assessment');
+  }
+  if (lowerContent.includes('procedural') || lowerContent.includes('due process')) {
+    issues.push('Procedural due process rights');
+  }
+  
+  return issues.length > 0 ? issues : ['Immigration law and procedure'];
+}
+
+function extractEvidenceTypes(content: string): string[] {
+  const types: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('affidavit') || lowerContent.includes('declaration')) {
+    types.push('Affidavits and declarations');
+  }
+  if (lowerContent.includes('medical') || lowerContent.includes('health')) {
+    types.push('Medical records and health documentation');
+  }
+  if (lowerContent.includes('police') || lowerContent.includes('criminal')) {
+    types.push('Police reports and criminal records');
+  }
+  if (lowerContent.includes('country') || lowerContent.includes('human rights')) {
+    types.push('Country conditions reports');
+  }
+  
+  return types.length > 0 ? types : ['Supporting documentation and exhibits'];
+}
+
+function extractAuthenticationInfo(content: string): string[] {
+  const auth: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('notarized') || lowerContent.includes('notary')) {
+    auth.push('Notarized documents');
+  }
+  if (lowerContent.includes('certified') || lowerContent.includes('certification')) {
+    auth.push('Certified copies');
+  }
+  if (lowerContent.includes('translation') || lowerContent.includes('translated')) {
+    auth.push('Certified translations');
+  }
+  
+  return auth.length > 0 ? auth : ['Document authentication requirements'];
+}
+
+function extractWitnessCount(content: string): string {
+  const witnessRegex = /(\d+)\s*witness/i;
+  const match = content.match(witnessRegex);
+  return match ? match[1] : 'Multiple';
+}
+
+function extractWitnessTypes(content: string): string[] {
+  const types: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('expert') || lowerContent.includes('professional')) {
+    types.push('Expert witnesses');
+  }
+  if (lowerContent.includes('character') || lowerContent.includes('reputation')) {
+    types.push('Character witnesses');
+  }
+  if (lowerContent.includes('fact') || lowerContent.includes('eyewitness')) {
+    types.push('Fact witnesses');
+  }
+  
+  return types.length > 0 ? types : ['Various witness types'];
+}
+
+function extractApplicationType(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('i-589') || lowerContent.includes('asylum')) return 'I-589 Asylum Application';
+  if (lowerContent.includes('i-485') || lowerContent.includes('adjustment')) return 'I-485 Adjustment of Status';
+  if (lowerContent.includes('i-130') || lowerContent.includes('petition')) return 'I-130 Petition for Alien Relative';
+  if (lowerContent.includes('i-751') || lowerContent.includes('removal of conditions')) return 'I-751 Removal of Conditions';
+  
+  return 'USCIS Application';
+}
+
+function extractSubmissionPurpose(content: string): string[] {
+  const purposes: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('asylum') || lowerContent.includes('protection')) {
+    purposes.push('Request for asylum protection');
+  }
+  if (lowerContent.includes('adjustment') || lowerContent.includes('status')) {
+    purposes.push('Adjustment of immigration status');
+  }
+  if (lowerContent.includes('petition') || lowerContent.includes('relative')) {
+    purposes.push('Petition for family member');
+  }
+  
+  return purposes.length > 0 ? purposes : ['Immigration benefit application'];
+}
+
+function extractDenialReasons(content: string): string[] {
+  const reasons: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('incomplete') || lowerContent.includes('missing')) {
+    reasons.push('Incomplete or missing documentation');
+  }
+  if (lowerContent.includes('ineligible') || lowerContent.includes('not eligible')) {
+    reasons.push('Ineligibility for benefit sought');
+  }
+  if (lowerContent.includes('fraud') || lowerContent.includes('misrepresentation')) {
+    reasons.push('Fraud or misrepresentation');
+  }
+  if (lowerContent.includes('criminal') || lowerContent.includes('conviction')) {
+    reasons.push('Criminal conviction grounds');
+  }
+  
+  return reasons.length > 0 ? reasons : ['Various eligibility or documentation issues'];
+}
+
+function extractResponseDeadline(content: string): string {
+  const deadlineRegex = /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+(?:days?|weeks?|months?))/i;
+  const match = content.match(deadlineRegex);
+  return match ? match[1] : '30 days from notice date';
+}
+
+function extractAsylumBasis(content: string): string[] {
+  const bases: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('race') || lowerContent.includes('racial')) {
+    bases.push('Race or ethnicity');
+  }
+  if (lowerContent.includes('religion') || lowerContent.includes('religious')) {
+    bases.push('Religion');
+  }
+  if (lowerContent.includes('nationality') || lowerContent.includes('national origin')) {
+    bases.push('Nationality or national origin');
+  }
+  if (lowerContent.includes('political') || lowerContent.includes('political opinion')) {
+    bases.push('Political opinion');
+  }
+  if (lowerContent.includes('social group') || lowerContent.includes('particular social group')) {
+    bases.push('Membership in particular social group');
+  }
+  
+  return bases.length > 0 ? bases : ['Fear of persecution based on protected grounds'];
+}
+
+function extractPersecutionDetails(content: string): string[] {
   const details: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('threat') || lowerContent.includes('intimidation')) {
+    details.push('Threats and intimidation');
+  }
+  if (lowerContent.includes('violence') || lowerContent.includes('physical harm')) {
+    details.push('Physical violence and harm');
+  }
+  if (lowerContent.includes('arrest') || lowerContent.includes('detention')) {
+    details.push('Arrest and detention');
+  }
+  if (lowerContent.includes('torture') || lowerContent.includes('abuse')) {
+    details.push('Torture and abuse');
+  }
+  
+  return details.length > 0 ? details : ['Various forms of persecution'];
+}
+
+function extractClientTestimony(content: string): string[] {
+  const testimony: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('personal') || lowerContent.includes('experience')) {
+    testimony.push('Personal experiences and background');
+  }
+  if (lowerContent.includes('fear') || lowerContent.includes('concern')) {
+    testimony.push('Fear of return to home country');
+  }
+  if (lowerContent.includes('family') || lowerContent.includes('relationship')) {
+    testimony.push('Family relationships and circumstances');
+  }
+  
+  return testimony.length > 0 ? testimony : ['Personal testimony and statements'];
+}
+
+function extractPersonalDetails(content: string): string[] {
+  const details: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('birth') || lowerContent.includes('date of birth')) {
+    details.push('Birth information and personal history');
+  }
+  if (lowerContent.includes('education') || lowerContent.includes('school')) {
+    details.push('Educational background');
+  }
+  if (lowerContent.includes('employment') || lowerContent.includes('work')) {
+    details.push('Employment history');
+  }
+  
+  return details.length > 0 ? details : ['Personal background information'];
+}
+
+function extractExpertQualifications(content: string): string[] {
+  const qualifications: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('phd') || lowerContent.includes('doctorate')) {
+    qualifications.push('Advanced academic credentials');
+  }
+  if (lowerContent.includes('professor') || lowerContent.includes('university')) {
+    qualifications.push('Academic or research experience');
+  }
+  if (lowerContent.includes('medical') || lowerContent.includes('physician')) {
+    qualifications.push('Medical or healthcare expertise');
+  }
+  if (lowerContent.includes('legal') || lowerContent.includes('attorney')) {
+    qualifications.push('Legal expertise and qualifications');
+  }
+  
+  return qualifications.length > 0 ? qualifications : ['Professional qualifications and expertise'];
+}
+
+function extractExpertOpinion(content: string): string[] {
+  const opinions: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('country conditions') || lowerContent.includes('human rights')) {
+    opinions.push('Country conditions analysis');
+  }
+  if (lowerContent.includes('medical') || lowerContent.includes('health')) {
+    opinions.push('Medical or health assessment');
+  }
+  if (lowerContent.includes('psychological') || lowerContent.includes('mental health')) {
+    opinions.push('Psychological evaluation');
+  }
+  
+  return opinions.length > 0 ? opinions : ['Expert analysis and opinion'];
+}
+
+function extractEvaluationType(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('asylum') || lowerContent.includes('immigration')) {
+    return 'Immigration Psychological Evaluation';
+  }
+  if (lowerContent.includes('trauma') || lowerContent.includes('ptsd')) {
+    return 'Trauma Assessment';
+  }
+  if (lowerContent.includes('competency') || lowerContent.includes('capacity')) {
+    return 'Competency Evaluation';
+  }
+  
+  return 'Psychological Evaluation';
+}
+
+function extractMentalHealthFindings(content: string): string[] {
+  const findings: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('ptsd') || lowerContent.includes('post-traumatic')) {
+    findings.push('Post-traumatic stress disorder (PTSD)');
+  }
+  if (lowerContent.includes('depression') || lowerContent.includes('depressive')) {
+    findings.push('Depression and mood disorders');
+  }
+  if (lowerContent.includes('anxiety') || lowerContent.includes('anxious')) {
+    findings.push('Anxiety and related disorders');
+  }
+  if (lowerContent.includes('trauma') || lowerContent.includes('traumatic')) {
+    findings.push('Trauma-related symptoms');
+  }
+  
+  return findings.length > 0 ? findings : ['Mental health assessment findings'];
+}
+
+function extractProposalType(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('grant') || lowerContent.includes('funding')) {
+    return 'Grant Proposal';
+  }
+  if (lowerContent.includes('legal services') || lowerContent.includes('pro bono')) {
+    return 'Legal Services Proposal';
+  }
+  if (lowerContent.includes('program') || lowerContent.includes('service')) {
+    return 'Program Development Proposal';
+  }
+  
+  return 'Funding Proposal';
+}
+
+function extractFundingAmount(content: string): string {
+  const amountRegex = /\$[\d,]+(?:\.\d{2})?|\d+\s*(?:thousand|million|billion)/i;
+  const match = content.match(amountRegex);
+  return match ? match[0] : 'Funding amount to be determined';
+}
+
+function extractProgramObjectives(content: string): string[] {
+  const objectives: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('legal services') || lowerContent.includes('representation')) {
+    objectives.push('Legal services and representation');
+  }
+  if (lowerContent.includes('community') || lowerContent.includes('outreach')) {
+    objectives.push('Community outreach and education');
+  }
+  if (lowerContent.includes('pro bono') || lowerContent.includes('volunteer')) {
+    objectives.push('Pro bono legal assistance');
+  }
+  if (lowerContent.includes('training') || lowerContent.includes('capacity building')) {
+    objectives.push('Training and capacity building');
+  }
+  
+  return objectives.length > 0 ? objectives : ['Program development and service delivery'];
+}
+
+// Missing function definitions
+function extractCriticalDates(content: string): string[] {
+  const dates: string[] = [];
+  const lowerContent = content.toLowerCase();
+  
+  // Extract dates in various formats
+  const datePatterns = [
+    /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,
+    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi,
+    /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b/gi
+  ];
+  
+  datePatterns.forEach(pattern => {
+    const matches = content.match(pattern);
+    if (matches) {
+      dates.push(...matches);
+    }
+  });
+  
+  // Remove duplicates and limit to first 5
+  return Array.from(new Set(dates)).slice(0, 5);
+}
+
+function extractFinancialTerms(content: string): string[] {
+  const terms: string[] = [];
   const lowerContent = content.toLowerCase();
   
   // Extract monetary amounts
   const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
   const amounts = content.match(moneyPattern);
   if (amounts) {
-    amounts.slice(0, 3).forEach(amount => {
-      details.push(`funding amount: ${amount}`);
-    });
+    terms.push(...amounts);
   }
   
-  // Extract dates
-  const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
-  const dates = content.match(datePattern);
-  if (dates) {
-    dates.slice(0, 2).forEach(date => {
-      details.push(`key date: ${date}`);
-    });
-  }
-  
-  // Extract percentages
-  const percentPattern = /\d+(?:\.\d+)?%/g;
-  const percentages = content.match(percentPattern);
-  if (percentages) {
-    percentages.slice(0, 2).forEach(percent => {
-      details.push(`percentage metric: ${percent}`);
-    });
-  }
-  
-  return details;
-}
-
-function extractFundingInformation(content: string): string[] {
-  const funding: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('grant') && lowerContent.includes('award')) {
-    funding.push("Grant award funding provides financial support for program implementation and sustainability.");
-  }
-  
-  if (lowerContent.includes('budget') || lowerContent.includes('financial')) {
-    funding.push("Budget framework includes detailed financial projections and resource allocation strategies.");
-  }
-  
-  if (lowerContent.includes('cost') || lowerContent.includes('expense')) {
-    funding.push("Cost analysis demonstrates financial efficiency and strategic resource utilization.");
-  }
-  
-  return funding;
-}
-
-function extractTimelineInformation(content: string): string[] {
-  const timeline: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('implementation') || lowerContent.includes('rollout')) {
-    timeline.push("phased implementation approach");
-  }
-  
-  if (lowerContent.includes('quarterly') || lowerContent.includes('annual')) {
-    timeline.push("structured reporting schedule");
-  }
-  
-  if (lowerContent.includes('milestone') || lowerContent.includes('deliverable')) {
-    timeline.push("milestone-based delivery framework");
-  }
-  
-  return timeline;
-}
-
-function extractTargetBeneficiaries(content: string): string[] {
-  const beneficiaries: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('immigrant') || lowerContent.includes('immigration')) {
-    beneficiaries.push("immigrant communities seeking legal assistance");
-  }
-  
-  if (lowerContent.includes('veteran') || lowerContent.includes('military')) {
-    beneficiaries.push("veterans and military families");
-  }
-  
-  if (lowerContent.includes('low-income') || lowerContent.includes('underserved')) {
-    beneficiaries.push("underserved and low-income populations");
-  }
-  
-  if (lowerContent.includes('client') || lowerContent.includes('community')) {
-    beneficiaries.push("community members requiring legal services");
-  }
-  
-  return beneficiaries;
-}
-
-function extractCompetitiveAdvantages(content: string): string[] {
-  const advantages: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('experience') || lowerContent.includes('expertise')) {
-    advantages.push("demonstrated expertise and experience");
-  }
-  
-  if (lowerContent.includes('partnership') || lowerContent.includes('collaboration')) {
-    advantages.push("strategic partnerships and collaborative approach");
-  }
-  
-  if (lowerContent.includes('innovative') || lowerContent.includes('technology')) {
-    advantages.push("innovative service delivery methods");
-  }
-  
-  if (lowerContent.includes('comprehensive') || lowerContent.includes('holistic')) {
-    advantages.push("comprehensive service integration");
-  }
-  
-  return advantages;
-}
-
-function extractChallengesAndRisks(content: string): string[] {
-  const challenges: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('capacity') || lowerContent.includes('resource')) {
-    challenges.push("resource capacity management");
-  }
-  
-  if (lowerContent.includes('demand') || lowerContent.includes('need')) {
-    challenges.push("meeting increasing service demand");
-  }
-  
-  if (lowerContent.includes('funding') || lowerContent.includes('sustainability')) {
-    challenges.push("long-term funding sustainability");
-  }
-  
-  if (lowerContent.includes('staff') || lowerContent.includes('volunteer')) {
-    challenges.push("staff and volunteer coordination");
-  }
-  
-  return challenges;
-}
-
-function generateNonProposalSummary(fileName: string, content: string, documentType: string, documentPurpose: string, documentElements: string[], documentCharacteristics: any): string {
-  const lowerContent = content.toLowerCase();
-  const lowerFileName = fileName.toLowerCase();
-  
-  // Extract specific details from non-proposal document
-  const specificDetails = extractSpecificDetails(content, fileName);
-  const organizationalContext = extractOrganizationalContext(content);
-  const decisionElements = extractDecisionElements(content);
-  const stakeholderInfo = extractStakeholderInformation(content);
-  const actionItems = extractActionItems(content);
-  
-  // Determine what the document is about and who it pertains to
-  const documentPurpose_obj = getDocumentPurposeAndScope(fileName, content);
-  const targetAudience = getTargetAudienceAndStakeholders(fileName, content);
-  
-  // Generate comprehensive summary starting with document purpose and audience
-  let summary = `This document "${fileName}" is about ${documentPurpose_obj.subject} and pertains to ${targetAudience.primaryAudience}. It represents a ${documentType} serving ${documentPurpose}. `;
-  
-  // Add secondary audience information
-  if (targetAudience.secondaryAudiences.length > 0) {
-    summary += `The document also involves ${targetAudience.secondaryAudiences.join(', ')} as key stakeholders in the process. `;
-  }
-  
-  // Add organizational context
-  if (organizationalContext.length > 0) {
-    summary += `The document addresses ${organizationalContext.join(', ')} within the organizational framework. `;
-  }
-  
-  // Add decision elements
-  if (decisionElements.length > 0) {
-    summary += `Key decision points include ${decisionElements.join(', ')}. `;
-  }
-  
-  // Add stakeholder information
-  if (stakeholderInfo.length > 0) {
-    summary += `Stakeholder involvement encompasses ${stakeholderInfo.join(', ')}. `;
-  }
-  
-  // Add document elements
-  if (documentElements.length > 0) {
-    summary += `Document components include ${documentElements.join(', ')}, demonstrating structured organizational communication. `;
-  }
-  
-  // Add action items
-  if (actionItems.length > 0) {
-    summary += `Action items and next steps include ${actionItems.join(', ')}. `;
-  }
-  
-  // Add document-specific context for non-proposals
-  if (lowerFileName.includes('council') || lowerContent.includes('council')) {
-    summary += `The council document addresses governance matters, policy decisions, and administrative procedures within the organizational structure. `;
-  }
-  
-  if (lowerFileName.includes('meeting') || lowerContent.includes('meeting')) {
-    summary += `The meeting document captures proceedings, decisions, and action items from organizational gatherings and collaborative sessions. `;
-  }
-  
-  if (lowerFileName.includes('contract') || lowerContent.includes('contract')) {
-    summary += `The contractual document establishes legal obligations, terms of service, and mutual agreements between parties. `;
-  }
-  
-  if (lowerFileName.includes('report') || lowerContent.includes('report')) {
-    summary += `The analytical report provides data-driven insights, performance metrics, and strategic recommendations for organizational improvement. `;
-  }
-  
-  // Add evidence-based classification reasoning
-  summary += `Classification as a ${documentType} is supported by evidence of ${documentCharacteristics.evidenceTypes.join(', ')}, with ${Math.round(documentCharacteristics.confidence * 100)}% confidence based on comprehensive content analysis and structural indicators distinguishing it from proposal-type documents.`;
-  
-  return summary;
-}
-
-function extractOrganizationalContext(content: string): string[] {
-  const context: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('policy') || lowerContent.includes('procedure')) {
-    context.push("policy development and procedural implementation");
-  }
-  
-  if (lowerContent.includes('governance') || lowerContent.includes('oversight')) {
-    context.push("governance structures and oversight mechanisms");
-  }
-  
-  if (lowerContent.includes('operations') || lowerContent.includes('administration')) {
-    context.push("operational management and administrative functions");
-  }
-  
-  if (lowerContent.includes('strategic') || lowerContent.includes('planning')) {
-    context.push("strategic planning and organizational development");
-  }
-  
-  return context;
-}
-
-function extractDecisionElements(content: string): string[] {
-  const elements: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('approve') || lowerContent.includes('approval')) {
-    elements.push("approval processes and decision authorization");
-  }
-  
-  if (lowerContent.includes('recommend') || lowerContent.includes('recommendation')) {
-    elements.push("strategic recommendations and suggested actions");
-  }
-  
-  if (lowerContent.includes('vote') || lowerContent.includes('resolution')) {
-    elements.push("voting procedures and resolution adoption");
-  }
-  
-  if (lowerContent.includes('budget') || lowerContent.includes('financial')) {
-    elements.push("budget allocation and financial decisions");
-  }
-  
-  return elements;
-}
-
-function extractStakeholderInformation(content: string): string[] {
-  const stakeholders: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('board') || lowerContent.includes('director')) {
-    stakeholders.push("board members and executive leadership");
-  }
-  
-  if (lowerContent.includes('committee') || lowerContent.includes('commission')) {
-    stakeholders.push("committee members and advisory groups");
-  }
-  
-  if (lowerContent.includes('community') || lowerContent.includes('public')) {
-    stakeholders.push("community representatives and public interests");
-  }
-  
-  if (lowerContent.includes('staff') || lowerContent.includes('employee')) {
-    stakeholders.push("staff members and organizational personnel");
-  }
-  
-  return stakeholders;
-}
-
-function extractActionItems(content: string): string[] {
-  const actions: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('implement') || lowerContent.includes('execute')) {
-    actions.push("implementation planning and execution strategies");
-  }
-  
-  if (lowerContent.includes('review') || lowerContent.includes('assess')) {
-    actions.push("review processes and assessment procedures");
-  }
-  
-  if (lowerContent.includes('follow-up') || lowerContent.includes('monitor')) {
-    actions.push("follow-up activities and monitoring protocols");
-  }
-  
-  if (lowerContent.includes('report') || lowerContent.includes('update')) {
-    actions.push("reporting requirements and status updates");
-  }
-  
-  return actions;
-}
-
-function getDocumentPurposeAndScope(fileName: string, content: string): { subject: string, scope: string } {
-  const lowerFileName = fileName.toLowerCase();
-  const lowerContent = content.toLowerCase();
-  
-  let subject = '';
-  let scope = '';
-  
-  // Determine document subject based on content and filename
-  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
-    subject = 'establishing an immigration law clinic to provide legal services for immigrant communities';
-    scope = 'comprehensive immigration legal assistance including citizenship, visa processing, and deportation defense';
-  } else if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
-    subject = 'creating specialized legal services for veterans and military families';
-    scope = 'veterans benefits advocacy, disability claims, and military family legal support';
-  } else if (lowerFileName.includes('clinic') && lowerFileName.includes('grant')) {
-    subject = 'securing grant funding for legal clinic operations and community service delivery';
-    scope = 'comprehensive legal aid services with professional supervision and quality assurance';
-  } else if (lowerFileName.includes('refugee') || lowerContent.includes('refugee')) {
-    subject = 'refugee admissions and resettlement program policies';
-    scope = 'federal refugee program administration and community integration services';
-  } else if (lowerFileName.includes('justice') || lowerContent.includes('justice')) {
-    subject = 'expanding access to justice through legal services and advocacy programs';
-    scope = 'systemic legal reform and community-based legal assistance initiatives';
-  } else if (lowerFileName.includes('ordinance') || lowerContent.includes('ordinance')) {
-    subject = 'municipal ordinance amendments and land use regulations';
-    scope = 'local government policy changes and zoning administration';
-  } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
-    subject = 'analytical reporting on program performance and policy recommendations';
-    scope = 'data-driven insights and strategic planning for organizational improvement';
-  } else if (lowerFileName.includes('grant') || lowerContent.includes('grant')) {
-    subject = 'grant funding request for program implementation and service expansion';
-    scope = 'comprehensive program development with measurable outcomes and sustainability planning';
-  } else {
-    subject = 'legal services program development and implementation';
-    scope = 'professional legal assistance and community support services';
-  }
-  
-  return { subject, scope };
-}
-
-function getTargetAudienceAndStakeholders(fileName: string, content: string): { primaryAudience: string, secondaryAudiences: string[] } {
-  const lowerFileName = fileName.toLowerCase();
-  const lowerContent = content.toLowerCase();
-  
-  let primaryAudience = '';
-  const secondaryAudiences: string[] = [];
-  
-  // Determine primary audience based on content and filename
-  if (lowerFileName.includes('immigration') || lowerContent.includes('immigration')) {
-    primaryAudience = 'immigrant communities seeking legal assistance and immigration law practitioners';
-    secondaryAudiences.push('federal immigration agencies and policy makers');
-    secondaryAudiences.push('legal aid organizations and pro bono attorneys');
-    secondaryAudiences.push('community organizations serving immigrant populations');
-  } else if (lowerFileName.includes('veteran') || lowerContent.includes('veteran')) {
-    primaryAudience = 'veterans, military service members, and their families';
-    secondaryAudiences.push('Veterans Administration officials and benefit administrators');
-    secondaryAudiences.push('veteran service organizations and advocacy groups');
-    secondaryAudiences.push('military legal assistance offices and JAG personnel');
-  } else if (lowerFileName.includes('clinic') && lowerFileName.includes('grant')) {
-    primaryAudience = 'grant funding agencies and legal services administrators';
-    secondaryAudiences.push('state bar associations and legal aid oversight bodies');
-    secondaryAudiences.push('community members requiring legal assistance');
-    secondaryAudiences.push('volunteer attorneys and legal professionals');
-  } else if (lowerFileName.includes('refugee') || lowerContent.includes('refugee')) {
-    primaryAudience = 'federal refugee resettlement agencies and policy administrators';
-    secondaryAudiences.push('refugee communities and resettlement organizations');
-    secondaryAudiences.push('congressional committees and legislative staff');
-    secondaryAudiences.push('international humanitarian organizations');
-  } else if (lowerFileName.includes('justice') || lowerContent.includes('justice')) {
-    primaryAudience = 'legal aid organizations and access to justice advocates';
-    secondaryAudiences.push('low-income individuals and underserved communities');
-    secondaryAudiences.push('court administrators and judicial personnel');
-    secondaryAudiences.push('legal profession regulatory bodies');
-  } else if (lowerFileName.includes('ordinance') || lowerContent.includes('ordinance')) {
-    primaryAudience = 'municipal government officials and city planning departments';
-    secondaryAudiences.push('local residents and property owners');
-    secondaryAudiences.push('business owners and commercial developers');
-    secondaryAudiences.push('zoning boards and planning commissions');
-  } else if (lowerFileName.includes('report') || lowerContent.includes('report')) {
-    primaryAudience = 'organizational leadership and policy decision makers';
-    secondaryAudiences.push('program staff and service delivery personnel');
-    secondaryAudiences.push('funding agencies and oversight bodies');
-    secondaryAudiences.push('community stakeholders and beneficiaries');
-  } else if (lowerFileName.includes('grant') || lowerContent.includes('grant')) {
-    primaryAudience = 'grant review committees and funding decision makers';
-    secondaryAudiences.push('program beneficiaries and target communities');
-    secondaryAudiences.push('partner organizations and service providers');
-    secondaryAudiences.push('regulatory agencies and compliance officers');
-  } else {
-    primaryAudience = 'legal service providers and community organizations';
-    secondaryAudiences.push('program beneficiaries and target populations');
-    secondaryAudiences.push('funding agencies and oversight bodies');
-    secondaryAudiences.push('legal profession regulatory entities');
-  }
-  
-  return { primaryAudience, secondaryAudiences };
-}
-
-function generateCategorySpecificImprovements(documentCategory: string, contentAnalysis: any): string[] {
-  switch (documentCategory) {
-    case 'nta':
-      return [
-        'Review charging allegations for accuracy and completeness',
-        'Identify potential jurisdictional defects or due process violations',
-        'Assess respondent\'s eligibility for relief from removal',
-        'Prepare comprehensive response to each allegation',
-        'Gather supporting evidence for potential defenses'
-      ];
-    case 'motion':
-      return [
-        'Strengthen legal arguments with additional case law citations',
-        'Expand factual record with supporting documentation',
-        'Address potential counterarguments preemptively',
-        'Ensure compliance with local court rules and procedures',
-        'Include comprehensive prayer for relief'
-      ];
-    case 'ij_decision':
-      return [
-        'Analyze decision for appealable errors of law or fact',
-        'Assess compliance with procedural due process requirements',
-        'Review credibility determinations for clear error',
-        'Identify potential grounds for motion to reopen',
-        'Prepare appeal brief if decision is adverse'
-      ];
-    case 'form':
-      return [
-        'Verify completeness and accuracy of all information',
-        'Ensure proper supporting documentation is included',
-        'Review filing requirements and deadlines',
-        'Confirm proper signatures and notarization',
-        'Prepare for potential requests for additional evidence'
-      ];
-    case 'country_report':
-      return [
-        'Verify currency and reliability of information sources',
-        'Cross-reference with other country condition reports',
-        'Identify specific persecution patterns relevant to case',
-        'Assess government protection capabilities',
-        'Update with most recent developments'
-      ];
-    case 'proposal':
-      return generateImprovements(true, contentAnalysis);
-    default:
-      return generateImprovements(false, contentAnalysis);
-  }
-}
-
-function generateCategorySpecificToolkit(documentCategory: string): string[] {
-  switch (documentCategory) {
-    case 'nta':
-      return [
-        'Immigration Court Practice Manual',
-        'BIA Practice Manual and Precedent Decisions',
-        'Immigration and Nationality Act (INA)',
-        'Code of Federal Regulations (CFR) Title 8',
-        'EOIR Operating Policies and Procedures Memoranda'
-      ];
-    case 'motion':
-      return [
-        'Federal Rules of Civil Procedure',
-        'Local Immigration Court Rules',
-        'Legal brief templates and formatting guides',
-        'Case law research databases (Westlaw, Lexis)',
-        'Immigration law practice guides'
-      ];
-    case 'ij_decision':
-      return [
-        'BIA Appeal Procedures Manual',
-        'Federal Circuit Court Rules',
-        'Administrative record compilation guidelines',
-        'Appeal brief templates and requirements',
-        'Deadline calculation tools'
-      ];
-    case 'form':
-      return [
-        'USCIS Form Instructions and Filing Tips',
-        'Immigration Benefits Application Guidelines',
-        'Supporting Documentation Checklists',
-        'Filing Fee Schedules and Payment Methods',
-        'Case Status Tracking Systems'
-      ];
-    case 'country_report':
-      return [
-        'State Department Country Reports on Human Rights',
-        'UNHCR Country of Origin Information',
-        'Immigration Research databases',
-        'Academic and NGO country analysis',
-        'Recent news and development tracking'
-      ];
-    case 'proposal':
-      return generateToolkit(true);
-    default:
-      return generateToolkit(false);
-  }
-}
-
-function extractCategorySpecificFindings(content: string, documentCategory: string): string[] {
-  switch (documentCategory) {
-    case 'nta':
-      return extractNTAFindings(content);
-    case 'motion':
-      return extractMotionFindings(content);
-    case 'ij_decision':
-      return extractIJDecisionFindings(content);
-    case 'form':
-      return extractFormFindings(content);
-    case 'country_report':
-      return extractCountryReportFindings(content);
-    case 'proposal':
-      return extractKeyFindings(content);
-    default:
-      return extractKeyFindings(content);
-  }
-}
-
-function extractNTAFindings(content: string): string[] {
-  const findings: string[] = [];
-  
-  // Look for charging allegations
-  const chargingPatterns = [
-    /charged?\s+(?:with|under)\s+(?:section|§)\s*\d+/i,
-    /removable\s+(?:as|under)/i,
-    /inadmissible\s+(?:as|under)/i,
-    /violation\s+of\s+(?:section|§)/i
+  // Extract financial terms
+  const financialKeywords = [
+    'funding', 'grant', 'budget', 'cost', 'expense', 'revenue', 'payment',
+    'fee', 'charge', 'amount', 'total', 'sum', 'fund', 'donation'
   ];
   
-  for (const pattern of chargingPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Charging allegation identified: ${matches[0]}`);
+  financialKeywords.forEach(keyword => {
+    if (lowerContent.includes(keyword)) {
+      terms.push(keyword);
     }
-  }
+  });
   
-  // Look for hearing information
-  const hearingPatterns = [
-    /hearing\s+(?:date|time|location)/i,
-    /appear\s+(?:on|at)\s+(?:\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/i,
-    /immigration\s+court/i
-  ];
-  
-  for (const pattern of hearingPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Hearing information: ${matches[0]}`);
-    }
-  }
-  
-  return findings.length > 0 ? findings : ['Standard NTA structure identified'];
+  return terms.slice(0, 5);
 }
 
-function extractMotionFindings(content: string): string[] {
-  const findings: string[] = [];
-  
-  // Look for relief requested
-  const reliefPatterns = [
-    /(?:motion|petition)\s+(?:to|for)\s+(\w+(?:\s+\w+)*)/i,
-    /respectfully\s+(?:moves|requests|asks)\s+(?:the\s+court\s+)?(?:to|for)\s+(\w+(?:\s+\w+)*)/i,
-    /relief\s+(?:requested|sought):\s*(.+)/i
-  ];
-  
-  for (const pattern of reliefPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Relief requested: ${matches[1] || matches[0]}`);
-    }
-  }
-  
-  // Look for legal standards
-  const legalPatterns = [
-    /legal\s+standard/i,
-    /burden\s+of\s+proof/i,
-    /standard\s+of\s+review/i
-  ];
-  
-  for (const pattern of legalPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Legal standard addressed: ${matches[0]}`);
-    }
-  }
-  
-  return findings.length > 0 ? findings : ['Legal motion structure identified'];
-}
-
-function extractIJDecisionFindings(content: string): string[] {
-  const findings: string[] = [];
-  
-  // Look for decision outcomes
-  const decisionPatterns = [
-    /(?:asylum|withholding|cat)\s+(?:is\s+)?(?:granted|denied|sustained|overruled)/i,
-    /removal\s+(?:is\s+)?(?:granted|denied|terminated|ordered)/i,
-    /respondent\s+(?:is|has)\s+(?:ordered|found|determined)/i
-  ];
-  
-  for (const pattern of decisionPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Decision outcome: ${matches[0]}`);
-    }
-  }
-  
-  // Look for appeal rights
-  const appealPatterns = [
-    /appeal\s+rights/i,
-    /board\s+of\s+immigration\s+appeals/i,
-    /thirty\s+\(?30\)?\s+days?/i
-  ];
-  
-  for (const pattern of appealPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Appeal information: ${matches[0]}`);
-    }
-  }
-  
-  return findings.length > 0 ? findings : ['Immigration judge decision structure identified'];
-}
-
-function extractFormFindings(content: string): string[] {
-  const findings: string[] = [];
-  
-  // Look for form identifiers
-  const formPatterns = [
-    /form\s+i-\d{3}/i,
-    /(?:application|petition)\s+for\s+(.+)/i,
-    /part\s+\d+\.\s+(.+)/i
-  ];
-  
-  for (const pattern of formPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Form element: ${matches[0]}`);
-    }
-  }
-  
-  return findings.length > 0 ? findings : ['Immigration form structure identified'];
-}
-
-function extractCountryReportFindings(content: string): string[] {
-  const findings: string[] = [];
-  
-  // Look for country conditions
-  const countryPatterns = [
-    /(?:political|security|human\s+rights)\s+(?:conditions|situation)/i,
-    /persecution\s+(?:of|against)/i,
-    /government\s+(?:protection|response)/i,
-    /recent\s+developments/i
-  ];
-  
-  for (const pattern of countryPatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      findings.push(`Country condition: ${matches[0]}`);
-    }
-  }
-  
-  return findings.length > 0 ? findings : ['Country conditions report structure identified'];
-}
-
-function determineEnhancedDocumentType(fileName: string, content: string, documentCategory: string): string {
-  switch (documentCategory) {
-    case 'nta':
-      return 'Notice to Appear (NTA)';
-    case 'motion':
-      return 'Immigration Motion/Brief';
-    case 'ij_decision':
-      return 'Immigration Judge Decision';
-    case 'form':
-      return 'Immigration Form';
-    case 'country_report':
-      return 'Country Conditions Report';
-    case 'proposal':
-      return 'Funding Proposal';
-    default:
-      return determineDocumentType(fileName, content, documentCategory === 'proposal');
-  }
-}
-
-function generateImprovements(isProposal: boolean, contentAnalysis: any): string[] {
-  const improvements: string[] = [];
-  
-  if (isProposal) {
-    // Financial and budget improvements
-    if (!contentAnalysis.hasFinancialTerms) {
-      improvements.push("Add comprehensive budget breakdown with detailed cost projections and financial sustainability plan");
-    }
-    improvements.push("Include cost-benefit analysis demonstrating value proposition and return on investment");
-    improvements.push("Specify funding sources diversification strategy to reduce dependency on single funding stream");
-    
-    // Timeline and project management improvements
-    if (!contentAnalysis.hasTimelines) {
-      improvements.push("Develop detailed implementation timeline with specific milestones, deadlines, and phase-based deliverables");
-    }
-    improvements.push("Create project management framework with risk assessment and contingency planning");
-    improvements.push("Establish clear accountability structures and reporting mechanisms");
-    
-    // Deliverables and outcomes improvements
-    if (!contentAnalysis.hasDeliverables) {
-      improvements.push("Define specific, measurable project deliverables with quantifiable success metrics and performance indicators");
-    }
-    improvements.push("Develop comprehensive evaluation methodology with baseline measurements and outcome tracking");
-    improvements.push("Create impact assessment framework demonstrating community benefit and social value");
-    
-    // Service delivery improvements
-    improvements.push("Enhance service delivery model with client-centered approach and accessibility considerations");
-    improvements.push("Develop quality assurance protocols and continuous improvement processes");
-    improvements.push("Create stakeholder engagement strategy involving community partners and beneficiaries");
-    
-    // Sustainability and long-term planning
-    improvements.push("Establish sustainability plan addressing long-term viability and growth potential");
-    improvements.push("Develop capacity building strategy for staff development and institutional strengthening");
-    improvements.push("Create knowledge management system for documentation and best practices sharing");
-    
-    // Legal and compliance improvements
-    improvements.push("Strengthen legal compliance framework addressing regulatory requirements and professional standards");
-    improvements.push("Develop risk management strategy with insurance coverage and liability protection");
-    improvements.push("Create ethics and conflict of interest policies ensuring professional integrity");
-    
-    // Technology and innovation improvements
-    improvements.push("Integrate technology solutions to enhance service efficiency and client experience");
-    improvements.push("Develop data management system for case tracking and outcome measurement");
-    improvements.push("Create digital accessibility features ensuring inclusive service delivery");
-    
-    // Partnership and collaboration improvements
-    improvements.push("Expand partnership network with complementary organizations and service providers");
-    improvements.push("Develop referral system and resource sharing agreements");
-    improvements.push("Create community advisory board for stakeholder input and guidance");
-    
-  } else {
-    // Non-proposal document improvements
-    improvements.push("Enhance document structure with clear sections and logical organization");
-    improvements.push("Add executive summary highlighting key points and recommendations");
-    improvements.push("Include supporting documentation and evidence to strengthen arguments");
-    improvements.push("Develop action items with assigned responsibilities and timelines");
-    improvements.push("Create follow-up procedures for implementation and monitoring");
-    improvements.push("Add stakeholder analysis and communication strategy");
-    improvements.push("Include risk assessment and mitigation strategies");
-    improvements.push("Develop performance metrics and evaluation criteria");
-  }
-  
-  return improvements;
-}
-
-function generateToolkit(isProposal: boolean): string[] {
-  if (isProposal) {
-    return [
-      "Budget planning templates",
-      "Timeline development tools",
-      "Evaluation framework guides",
-      "Grant writing resources"
-    ];
-  } else {
-    return [
-      "Document management systems",
-      "Legal compliance tools",
-      "Administrative templates",
-      "Review and approval workflows"
-    ];
-  }
-}
-
-function extractKeyFindings(content: string, fileName: string = '', documentType: string = 'document'): string[] {
-  // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available')) {
-    return ["Content extraction failed - unable to analyze document findings. Re-upload PDF for detailed analysis."];
-  }
-
-  // Use comprehensive corruption detection system
-  if (CorruptionDetector.hasCorruption(content)) {
-    console.log('Corrupted text detected in key findings extraction, using contextual findings');
-    return CorruptionDetector.getContextualFindings(fileName, documentType);
-  }
-
-  const findings: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  // Comprehensive key findings analysis
-  if (lowerContent.includes('grant') || lowerContent.includes('funding')) {
-    findings.push("Grant/funding opportunities and requirements identified");
-  }
-  if (lowerContent.includes('budget') || lowerContent.includes('cost') || lowerContent.includes('financial')) {
-    findings.push("Budget planning and financial considerations documented");
-  }
-  if (lowerContent.includes('timeline') || lowerContent.includes('schedule') || lowerContent.includes('deadline')) {
-    findings.push("Project timeline and scheduling requirements specified");
-  }
-  if (lowerContent.includes('legal') || lowerContent.includes('compliance') || lowerContent.includes('regulation')) {
-    findings.push("Legal compliance and regulatory requirements outlined");
-  }
-  if (lowerContent.includes('service') || lowerContent.includes('program') || lowerContent.includes('delivery')) {
-    findings.push("Service delivery model and program structure defined");
-  }
-  if (lowerContent.includes('client') || lowerContent.includes('community') || lowerContent.includes('population')) {
-    findings.push("Target client population and community impact addressed");
-  }
-  if (lowerContent.includes('staff') || lowerContent.includes('personnel') || lowerContent.includes('team')) {
-    findings.push("Staffing structure and personnel requirements detailed");
-  }
-  if (lowerContent.includes('objective') || lowerContent.includes('goal') || lowerContent.includes('outcome')) {
-    findings.push("Project objectives and expected outcomes clearly articulated");
-  }
-  if (lowerContent.includes('evaluation') || lowerContent.includes('assessment') || lowerContent.includes('metric')) {
-    findings.push("Evaluation methodology and success metrics established");
-  }
-  if (lowerContent.includes('partnership') || lowerContent.includes('collaboration') || lowerContent.includes('stakeholder')) {
-    findings.push("Partnership opportunities and stakeholder engagement planned");
-  }
-  if (lowerContent.includes('innovation') || lowerContent.includes('technology') || lowerContent.includes('approach')) {
-    findings.push("Innovative approaches and technological solutions incorporated");
-  }
-  if (lowerContent.includes('sustainability') || lowerContent.includes('long-term') || lowerContent.includes('continuation')) {
-    findings.push("Sustainability planning and long-term viability considerations");
-  }
-  
-  // Immigration-specific findings
-  if (lowerContent.includes('immigration') || lowerContent.includes('visa') || lowerContent.includes('citizenship')) {
-    findings.push("Immigration law services and visa/citizenship assistance programs");
-  }
-  
-  // Veterans-specific findings
-  if (lowerContent.includes('veteran') || lowerContent.includes('military') || lowerContent.includes('service member')) {
-    findings.push("Veterans services and military-related legal assistance programs");
-  }
-  
-  // Clinic-specific findings
-  if (lowerContent.includes('clinic') || lowerContent.includes('pro bono') || lowerContent.includes('volunteer')) {
-    findings.push("Legal clinic operations and volunteer coordination systems");
-  }
-  
-  return findings.length > 0 ? findings : ["Document structure analyzed - specific findings extracted based on content type"];
-}
-
-function determineDocumentType(fileName: string, content: string, isProposal: boolean): string {
-  const lowerName = fileName.toLowerCase();
-  const lowerContent = content.toLowerCase();
-  
-  if (isProposal) {
-    if (lowerName.includes('grant') || lowerContent.includes('grant')) {
-      return "Grant Proposal";
-    }
-    if (lowerName.includes('clinic') || lowerContent.includes('clinic')) {
-      return "Legal Clinic Proposal";
-    }
-    return "Funding Proposal";
-  } else {
-    if (lowerName.includes('council') || lowerContent.includes('council')) {
-      return "Council Document";
-    }
-    if (lowerName.includes('meeting') || lowerContent.includes('meeting')) {
-      return "Meeting Document";
-    }
-    if (lowerName.includes('contract') || lowerContent.includes('contract')) {
-      return "Contract Document";
-    }
-    return "Administrative Document";
-  }
-}
-
-function extractCriticalDates(content: string, fileName: string = '', documentType: string = 'document'): string[] {
-  // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available') || content.includes('LEGAL DOCUMENT ANALYSIS')) {
-    return []; // Return empty array instead of generic message
-  }
-  
-  // Use comprehensive corruption detection system
-  if (CorruptionDetector.hasCorruption(content)) {
-    console.log('Corrupted text detected in date extraction, using contextual dates');
-    return CorruptionDetector.getContextualDates(fileName, documentType);
-  }
-  
-  const dates: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  // Extract specific date patterns
-  const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
-  
-  const matches = content.match(datePattern);
-  if (matches) {
-    matches.slice(0, 5).forEach(date => {
-      const context = getDateContext(content, date);
-      dates.push(context || `Important date: ${date}`);
-    });
-  }
-  
-  // Extract relative date references
-  if (lowerContent.includes('deadline') || lowerContent.includes('due date')) {
-    dates.push("Application deadline and submission requirements specified");
-  }
-  if (lowerContent.includes('start date') || lowerContent.includes('commencement')) {
-    dates.push("Project start date and implementation timeline");
-  }
-  if (lowerContent.includes('end date') || lowerContent.includes('completion')) {
-    dates.push("Project completion date and deliverable timeline");
-  }
-  if (lowerContent.includes('milestone') || lowerContent.includes('phase')) {
-    dates.push("Project milestones and phase-based timeline");
-  }
-  if (lowerContent.includes('quarterly') || lowerContent.includes('annually')) {
-    dates.push("Recurring reporting and evaluation schedule");
-  }
-  if (lowerContent.includes('renewal') || lowerContent.includes('extension')) {
-    dates.push("Contract renewal and extension timeline");
-  }
-  
-  // Grant-specific dates
-  if (lowerContent.includes('grant') && (lowerContent.includes('period') || lowerContent.includes('term'))) {
-    dates.push("Grant period and funding term specifications");
-  }
-  if (lowerContent.includes('award') && (lowerContent.includes('date') || lowerContent.includes('notification'))) {
-    dates.push("Award notification and decision timeline");
-  }
-  if (lowerContent.includes('budget') && (lowerContent.includes('year') || lowerContent.includes('period'))) {
-    dates.push("Budget period and fiscal year considerations");
-  }
-  
-  // Legal service specific dates
-  if (lowerContent.includes('clinic') && (lowerContent.includes('hours') || lowerContent.includes('schedule'))) {
-    dates.push("Legal clinic operating hours and service schedule");
-  }
-  if (lowerContent.includes('training') && (lowerContent.includes('schedule') || lowerContent.includes('program'))) {
-    dates.push("Staff training schedule and professional development timeline");
-  }
-  if (lowerContent.includes('evaluation') && (lowerContent.includes('schedule') || lowerContent.includes('timeline'))) {
-    dates.push("Program evaluation schedule and assessment timeline");
-  }
-  
-  // Return empty array if no dates found instead of generic placeholder
-  return dates;
-}
-
-function extractFinancialTerms(content: string, fileName: string = '', documentType: string = 'document'): string[] {
-  // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available') || content.includes('LEGAL DOCUMENT ANALYSIS')) {
-    return []; // Return empty array instead of generic message
-  }
-  
-  // Use comprehensive corruption detection system
-  if (CorruptionDetector.hasCorruption(content)) {
-    console.log('Corrupted text detected in financial extraction, using contextual terms');
-    return CorruptionDetector.getContextualFinancialTerms(fileName, documentType);
-  }
-  
-  const terms: string[] = [];
-  const lowerContent = content.toLowerCase();
-  
-  // Extract specific dollar amounts
-  const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
-  const matches = content.match(moneyPattern);
-  if (matches) {
-    const uniqueAmounts = [...new Set(matches)].slice(0, 5);
-    uniqueAmounts.forEach(amount => {
-      const context = getFinancialContext(content, amount);
-      terms.push(context || `Financial amount: ${amount}`);
-    });
-  }
-  
-  // Extract budget-related terms
-  if (lowerContent.includes('budget') || lowerContent.includes('budgetary')) {
-    terms.push("Budget planning and allocation requirements specified");
-  }
-  if (lowerContent.includes('cost') || lowerContent.includes('expenses')) {
-    terms.push("Cost analysis and expense management considerations");
-  }
-  if (lowerContent.includes('funding') || lowerContent.includes('funds')) {
-    terms.push("Funding sources and financial resource requirements");
-  }
-  if (lowerContent.includes('grant') && (lowerContent.includes('amount') || lowerContent.includes('award'))) {
-    terms.push("Grant award amounts and funding distribution details");
-  }
-  if (lowerContent.includes('salary') || lowerContent.includes('compensation') || lowerContent.includes('wages')) {
-    terms.push("Personnel compensation and salary structure outlined");
-  }
-  if (lowerContent.includes('overhead') || lowerContent.includes('administrative cost')) {
-    terms.push("Overhead expenses and administrative cost considerations");
-  }
-  if (lowerContent.includes('revenue') || lowerContent.includes('income') || lowerContent.includes('earnings')) {
-    terms.push("Revenue streams and income generation strategies");
-  }
-  if (lowerContent.includes('payment') || lowerContent.includes('reimbursement')) {
-    terms.push("Payment schedules and reimbursement procedures");
-  }
-  if (lowerContent.includes('financial sustainability') || lowerContent.includes('long-term funding')) {
-    terms.push("Financial sustainability and long-term funding strategies");
-  }
-  if (lowerContent.includes('matching funds') || lowerContent.includes('cost sharing')) {
-    terms.push("Matching fund requirements and cost-sharing arrangements");
-  }
-  if (lowerContent.includes('indirect costs') || lowerContent.includes('direct costs')) {
-    terms.push("Direct and indirect cost allocation methodology");
-  }
-  if (lowerContent.includes('performance-based') || lowerContent.includes('milestone payment')) {
-    terms.push("Performance-based funding and milestone payment structures");
-  }
-  
-  // Range-based amounts (e.g., "$10,000 to $15,000")
-  const rangePattern = /\$[\d,]+(?:\.\d{2})?\s*(?:to|-)\s*\$[\d,]+(?:\.\d{2})?/g;
-  const rangeMatches = content.match(rangePattern);
-  if (rangeMatches) {
-    rangeMatches.slice(0, 3).forEach(range => {
-      terms.push(`Funding range: ${range}`);
-    });
-  }
-  
-  // Percentage-based financial terms
-  const percentPattern = /\d+(?:\.\d+)?%/g;
-  const percentMatches = content.match(percentPattern);
-  if (percentMatches) {
-    percentMatches.slice(0, 3).forEach(percent => {
-      const context = getPercentageContext(content, percent);
-      terms.push(context || `Percentage allocation: ${percent}`);
-    });
-  }
-  
-  // Return only real content, no generic fallbacks
-  return terms;
-}
-
-function getFinancialContext(content: string, amount: string): string | null {
-  const amountIndex = content.indexOf(amount);
-  if (amountIndex === -1) return null;
-  
-  const contextStart = Math.max(0, amountIndex - 100);
-  const contextEnd = Math.min(content.length, amountIndex + amount.length + 100);
-  const context = content.substring(contextStart, contextEnd).toLowerCase();
-  
-  if (context.includes('grant') || context.includes('award')) {
-    return `Grant funding: ${amount}`;
-  }
-  if (context.includes('budget') || context.includes('total')) {
-    return `Budget allocation: ${amount}`;
-  }
-  if (context.includes('salary') || context.includes('compensation')) {
-    return `Personnel cost: ${amount}`;
-  }
-  if (context.includes('operating') || context.includes('operational')) {
-    return `Operating expense: ${amount}`;
-  }
-  
-  return null;
-}
-
-function getPercentageContext(content: string, percent: string): string | null {
-  const percentIndex = content.indexOf(percent);
-  if (percentIndex === -1) return null;
-  
-  const contextStart = Math.max(0, percentIndex - 80);
-  const contextEnd = Math.min(content.length, percentIndex + percent.length + 80);
-  const context = content.substring(contextStart, contextEnd).toLowerCase();
-  
-  if (context.includes('match') || context.includes('matching')) {
-    return `Matching requirement: ${percent}`;
-  }
-  if (context.includes('overhead') || context.includes('indirect')) {
-    return `Overhead rate: ${percent}`;
-  }
-  if (context.includes('admin') || context.includes('administrative')) {
-    return `Administrative cost: ${percent}`;
-  }
-  
-  return null;
-}
-
-function extractComplianceRequirements(content: string, fileName: string = '', documentType: string = 'document'): string[] {
-  // Check if content extraction failed to prevent data leakage
-  if (content.includes('Content extraction from PDF failed') || content.includes('Content extraction failed') || content.includes('Content not available') || content.includes('LEGAL DOCUMENT ANALYSIS')) {
-    return []; // Return empty array instead of generic message
-  }
-  
-  // Use comprehensive corruption detection system
-  if (CorruptionDetector.hasCorruption(content)) {
-    console.log('Corrupted text detected in compliance extraction, using contextual requirements');
-    return CorruptionDetector.getContextualCompliance(fileName, documentType);
-  }
-  
+function extractComplianceRequirements(content: string): string[] {
   const requirements: string[] = [];
   const lowerContent = content.toLowerCase();
   
-  // General compliance requirements
-  if (lowerContent.includes('compliance') || lowerContent.includes('compliant')) {
-    requirements.push("Regulatory compliance standards and adherence requirements");
-  }
-  if (lowerContent.includes('regulation') || lowerContent.includes('regulatory')) {
-    requirements.push("Federal and state regulatory framework compliance");
-  }
-  if (lowerContent.includes('legal') && (lowerContent.includes('requirement') || lowerContent.includes('obligation'))) {
-    requirements.push("Legal obligations and statutory requirements");
-  }
+  // Extract compliance-related terms
+  const complianceKeywords = [
+    'compliance', 'regulation', 'requirement', 'standard', 'policy',
+    'procedure', 'guideline', 'rule', 'law', 'statute', 'regulation',
+    'deadline', 'due date', 'filing', 'submission', 'documentation'
+  ];
   
-  // Specific legal compliance areas
-  if (lowerContent.includes('confidentiality') || lowerContent.includes('privacy')) {
-    requirements.push("Client confidentiality and privacy protection protocols");
-  }
-  if (lowerContent.includes('ethics') || lowerContent.includes('ethical')) {
-    requirements.push("Professional ethics and conduct standards");
-  }
-  if (lowerContent.includes('bar') && (lowerContent.includes('rule') || lowerContent.includes('standard'))) {
-    requirements.push("State bar association rules and professional standards");
-  }
-  if (lowerContent.includes('audit') || lowerContent.includes('auditing')) {
-    requirements.push("Financial auditing and accountability requirements");
-  }
-  if (lowerContent.includes('reporting') && (lowerContent.includes('require') || lowerContent.includes('mandate'))) {
-    requirements.push("Mandatory reporting and documentation requirements");
-  }
-  if (lowerContent.includes('disclosure') || lowerContent.includes('transparency')) {
-    requirements.push("Disclosure obligations and transparency requirements");
-  }
-  
-  // Grant-specific compliance
-  if (lowerContent.includes('grant') && (lowerContent.includes('compliance') || lowerContent.includes('condition'))) {
-    requirements.push("Grant condition compliance and funding requirements");
-  }
-  if (lowerContent.includes('federal') && (lowerContent.includes('guideline') || lowerContent.includes('standard'))) {
-    requirements.push("Federal funding guidelines and compliance standards");
-  }
-  if (lowerContent.includes('eligible') || lowerContent.includes('eligibility')) {
-    requirements.push("Program eligibility criteria and qualification requirements");
-  }
-  
-  // Legal service specific compliance
-  if (lowerContent.includes('pro bono') || lowerContent.includes('volunteer')) {
-    requirements.push("Pro bono service requirements and volunteer coordination standards");
-  }
-  if (lowerContent.includes('conflict') && lowerContent.includes('interest')) {
-    requirements.push("Conflict of interest identification and management protocols");
-  }
-  if (lowerContent.includes('supervision') || lowerContent.includes('oversight')) {
-    requirements.push("Professional supervision and oversight requirements");
-  }
-  if (lowerContent.includes('record') && (lowerContent.includes('keeping') || lowerContent.includes('maintenance'))) {
-    requirements.push("Legal record keeping and case file maintenance standards");
-  }
-  
-  // Insurance and liability
-  if (lowerContent.includes('insurance') || lowerContent.includes('liability')) {
-    requirements.push("Professional liability insurance and risk management requirements");
-  }
-  if (lowerContent.includes('malpractice') || lowerContent.includes('liability coverage')) {
-    requirements.push("Malpractice insurance and professional liability coverage");
-  }
-  
-  // Quality assurance
-  if (lowerContent.includes('quality') && (lowerContent.includes('standard') || lowerContent.includes('control'))) {
-    requirements.push("Quality assurance protocols and service delivery standards");
-  }
-  if (lowerContent.includes('evaluation') && (lowerContent.includes('program') || lowerContent.includes('service'))) {
-    requirements.push("Program evaluation and service assessment requirements");
-  }
-  
-  // Immigration-specific compliance
-  if (lowerContent.includes('immigration') && (lowerContent.includes('law') || lowerContent.includes('regulation'))) {
-    requirements.push("Immigration law compliance and federal regulation adherence");
-  }
-  if (lowerContent.includes('citizenship') || lowerContent.includes('naturalization')) {
-    requirements.push("Citizenship and naturalization process compliance requirements");
-  }
-  
-  // Veterans-specific compliance
-  if (lowerContent.includes('veteran') && (lowerContent.includes('benefit') || lowerContent.includes('service'))) {
-    requirements.push("Veterans benefits administration and service delivery compliance");
-  }
-  if (lowerContent.includes('military') && (lowerContent.includes('regulation') || lowerContent.includes('standard'))) {
-    requirements.push("Military service regulations and compliance standards");
-  }
-  
-  // Return only real content, no generic fallbacks
-  return requirements;
-}
-
-function generateQueryResponse(query: string, content: string, fileName: string): string {
-  const lowerQuery = query.toLowerCase();
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerQuery.includes('summary') || lowerQuery.includes('about')) {
-    return `This document "${fileName}" contains ${content.length} characters of content. Based on the query, I can provide that the document has been processed and analyzed.`;
-  }
-  
-  if (lowerQuery.includes('proposal') || lowerQuery.includes('funding')) {
-    if (lowerContent.includes('proposal') || lowerContent.includes('funding')) {
-      return "The document contains proposal or funding-related content based on text analysis.";
-    } else {
-      return "The document does not appear to contain explicit proposal or funding language.";
+  complianceKeywords.forEach(keyword => {
+    if (lowerContent.includes(keyword)) {
+      requirements.push(keyword);
     }
-  }
+  });
   
-  return `I've analyzed the document "${fileName}" for your query about "${query}". The document contains ${content.length} characters of content that has been processed for analysis.`;
+  return requirements.slice(0, 5);
 }
