@@ -3,6 +3,7 @@
 AI Document Analysis Service using PaddleOCR, Faiss, and Ollama
 """
 
+
 import os
 import json
 import logging
@@ -10,7 +11,7 @@ from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import tempfile
 import base64
-
+from PyPDF2 import PdfReader
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -53,12 +54,10 @@ def initialize_models():
         raise
 
 def get_next_ollama_url():
-    global ollama_index
-    # Use Docker container names instead of localhost
-    ollama_hosts = ['ollama1', 'ollama2', 'ollama3', 'ollama4']
-    host = ollama_hosts[ollama_index]
-    ollama_index = (ollama_index + 1) % len(ollama_hosts)
-    return f"http://{host}:11434/api/generate"
+    # Dynamically read from environment variable or fallback to host.docker.internal
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+    return f"{base_url}/api/generate"
+
 
 def extract_text_from_image(image_path: str) -> List[Dict[str, Any]]:
     """Extract text from image using PaddleOCR"""
@@ -112,11 +111,18 @@ def chunk_text(text: str, chunk_size: int = 450) -> List[str]:
 
 
 
+
+
 def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: int = 3) -> str:
+    """
+    Query Ollama API with retries, exponential backoff, and fallback to tinyllama if primary model fails.
+    Ensures non-empty response before returning.
+    """
     url = get_next_ollama_url()
     logger.debug(f"[Ollama] Using URL: {url}")
     logger.debug(f"[Ollama] Prompt sent:\n{prompt}")
 
+    # ---- Try primary model ----
     for attempt in range(1, retries + 1):
         try:
             response = requests.post(
@@ -128,30 +134,64 @@ def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: 
                     "options": {
                         "temperature": 0.05,
                         "top_p": 0.95,
-                        "max_tokens": 400,
-                        "num_predict": 400,
+                        "max_tokens": 500,
+                        "num_predict": 500,
                         "top_k": 40,
                         "repeat_penalty": 1.1
                     }
                 },
-                timeout=20
+                timeout=180
             )
 
             if response.status_code == 200:
-                raw_response = response.json()
-                logger.debug(f"[Ollama] Raw response: {raw_response}")
-                return raw_response.get("response", "")
+                result = response.json()
+                text = (result.get("response") or "").strip()
+                if text and len(text) > 50:
+                    return text
+                logger.warning(f"⚠️ Attempt {attempt}: Ollama returned empty/short response ({len(text)} chars)")
             else:
-                logger.warning(f"[Ollama] Attempt {attempt} failed with status {response.status_code}: {response.text}")
+                logger.warning(f"⚠️ Attempt {attempt}: Status {response.status_code} ({response.text})")
 
         except Exception as e:
-            logger.warning(f"[Ollama] Attempt {attempt} error: {e}")
+            logger.warning(f"⚠️ Attempt {attempt} error: {e}")
 
-        if attempt < retries:
-            time.sleep(1.5)  # brief wait before retry
+        time.sleep(2 ** attempt)  # exponential backoff
 
-    logger.error("[Ollama] All retry attempts failed.")
-    return ""
+    # ---- Fallback to tinyllama ----
+    logger.error("❌ Primary model failed. Switching to tinyllama:latest")
+
+    for attempt in range(1, 2):  # single attempt fallback
+        try:
+            response = requests.post(
+                url,
+                json={
+                    "model": "tinyllama:latest",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.5,
+                        "top_p": 0.95,
+                        "max_tokens": 500,
+                        "num_predict": 500,
+                        "top_k": 40,
+                        "repeat_penalty": 1.1
+                    }
+                },
+                timeout=120
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                text = (result.get("response") or "").strip()
+                return text if text else "[Fallback model returned no response]"
+            else:
+                logger.error(f"❌ Fallback model failed ({response.status_code}) {response.text}")
+
+        except Exception as e:
+            logger.error(f"❌ Fallback model error: {e}")
+
+    return "[Ollama query failed: no response from both models]"
+
 
 
 def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
@@ -408,7 +448,27 @@ def determine_document_type_from_content(content: str, filename: str) -> str:
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "models_loaded": ocr is not None})
+    # Check if OCR model is loaded
+    ocr_ready = ocr is not None
+
+    # Check if Ollama model is accessible
+    try:
+        ollama_tags_url = "http://host.docker.internal:11434/api/tags"
+        response = requests.get(ollama_tags_url, timeout=5)
+        if response.status_code == 200:
+            ollama_ready = True
+        else:
+            ollama_ready = False
+    except Exception as e:
+        logger.warning(f"Ollama health check failed: {e}")
+        ollama_ready = False
+
+    return jsonify({
+        "status": "healthy" if ocr_ready and ollama_ready else "degraded",
+        "ocr_loaded": ocr_ready,
+        "ollama_available": ollama_ready
+    })
+
 
 @app.route('/analyze', methods=['POST'])
 def analyze_document():
@@ -460,52 +520,56 @@ def analyze_document():
         logger.error(f"Document analysis error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+
+def extract_text_fallback(file_path):
+    """Try extracting text from PDF without OCR"""
+    text = ""
+    try:
+        reader = PdfReader(file_path)
+        for page in reader.pages:
+            text += page.extract_text() or ""
+    except Exception as e:
+        logger.warning(f"PDF fallback extraction failed: {e}")
+    return text
+
 @app.route('/process_document', methods=['POST'])
 def process_document():
-    """Process uploaded document with OCR and AI analysis"""
     global faiss_index, document_chunks
-    
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided"}), 400
-        
+
         file = request.files['file']
         job_id = request.form.get('job_id', 'unknown')
-        
-        # Save uploaded file temporarily
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as tmp_file:
             file.save(tmp_file.name)
-            
-            # Extract text using OCR
-            extracted_data = extract_text_from_image(tmp_file.name)
-            
-            # Combine all text
-            full_text = ' '.join([item['text'] for item in extracted_data])
-            
-            # Create text chunks for FAISS
+
+            # ✅ Fallback: try PyPDF2 if OCR is not loaded
+            if ocr:
+                extracted_data = extract_text_from_image(tmp_file.name)
+                full_text = ' '.join([item['text'] for item in extracted_data])
+            else:
+                full_text = extract_text_fallback(tmp_file.name)
+
             document_chunks = chunk_text(full_text)
-            
-            # Create FAISS index
             if document_chunks:
                 faiss_index, _ = create_faiss_index(document_chunks)
-            
-            # AI analysis
+
             ai_analysis = analyze_document_with_ai(full_text, file.filename)
-            
-            # Clean up temp file
             os.unlink(tmp_file.name)
-            
+
             return jsonify({
                 "job_id": job_id,
                 "text_extracted": len(full_text) > 0,
                 "total_chunks": len(document_chunks),
                 "ai_analysis": ai_analysis,
-                "ocr_confidence": np.mean([item['confidence'] for item in extracted_data]) if extracted_data else 0
             })
-            
     except Exception as e:
         logger.error(f"Document processing error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/query_document', methods=['POST'])
 def query_document():
@@ -565,8 +629,71 @@ Please provide a clear, concise answer based on the document content:
     except Exception as e:
         logger.error(f"Query processing error: {e}")
         return jsonify({"error": str(e)}), 500
+def warmup_ollama(retries=3):
+    """
+    Send a warm-up request to preload the Mistral model.
+    Falls back to tinyllama if mistral fails to load after retries.
+    """
+    url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434") + "/api/generate"
+
+    # --- Try warming up Mistral first ---
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.post(
+                url,
+                json={
+                    "model": "mistral:7b-instruct-q4_0",
+                    "prompt": "Warm-up ping",
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.01,
+                        "num_predict": 10
+                    }
+                },
+                timeout=45
+            )
+
+            if response.status_code == 200:
+                logger.info("✅ Ollama warmed up successfully (Mistral model loaded)")
+                return
+            else:
+                logger.warning(f"⚠️ Attempt {attempt}: Warm-up failed ({response.status_code}) {response.text}")
+
+        except requests.exceptions.Timeout:
+            logger.warning(f"⚠️ Attempt {attempt}: Warm-up timed out")
+        except Exception as e:
+            logger.warning(f"⚠️ Attempt {attempt}: Warm-up request error: {e}")
+
+        time.sleep(3 * attempt)  # exponential backoff
+
+    # --- Fallback to tinyllama ---
+    logger.error("❌ Mistral warm-up failed. Falling back to tinyllama:latest")
+
+    try:
+        response = requests.post(
+            url,
+            json={
+                "model": "tinyllama:latest",
+                "prompt": "Warm-up ping",
+                "stream": False,
+                "options": {
+                    "temperature": 0.01,
+                    "num_predict": 10
+                }
+            },
+            timeout=30
+        )
+        if response.status_code == 200:
+            logger.info("✅ Ollama fallback warm-up successful (tinyllama loaded)")
+        else:
+            logger.error(f"❌ Fallback warm-up failed ({response.status_code}) {response.text}")
+
+    except Exception as e:
+        logger.error(f"❌ Fallback warm-up error: {e}")
+
 
 if __name__ == '__main__':
+    warmup_ollama()
     logger.info("Starting AI Document Analysis Service...")
     initialize_models()
     app.run(host='0.0.0.0', port=5001, debug=True)

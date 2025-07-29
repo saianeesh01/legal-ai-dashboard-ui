@@ -1,0 +1,10 @@
+FROM ollama/ollama:latest
+
+# Install curl (optional, for health checks or debugging)
+RUN apk add --no-cache curl
+
+# Use a custom entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

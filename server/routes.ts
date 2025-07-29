@@ -442,7 +442,7 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: documentText,
-        model: 'llama3.2:3b',
+        model: 'mistral:7b-instruct-q4_0',
         prompt: prompt
       })
     });

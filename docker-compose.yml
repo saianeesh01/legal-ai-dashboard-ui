@@ -1,47 +1,41 @@
+#version: "3.9"
+
 services:
-  ollama1:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    environment:
-      - OLLAMA_NUM_THREADS=4
-  ollama2:
-    image: ollama/ollama:latest
-    ports:
-      - "11435:11434"
-    environment:
-      - OLLAMA_NUM_THREADS=4
-  ollama3:
-    image: ollama/ollama:latest
-    ports:
-      - "11436:11434"
-    environment:
-      - OLLAMA_NUM_THREADS=4
-  ollama4:
-    image: ollama/ollama:latest
-    ports:
-      - "11437:11434"
-    environment:
-      - OLLAMA_NUM_THREADS=4
+  # ollama1:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   environment:
+  #     - OLLAMA_NUM_THREADS=4
+  #   command: serve
+  #   networks:
+  #     - backendnet
+
   ai_service:
     build: ./ai_service
+    command: sh -c "python3 -c 'import app; app.warmup_ollama()' && gunicorn --timeout 180 -b 0.0.0.0:5001 app:app"
+
     ports:
       - "5002:5001"
     environment:
-      - OLLAMA_HOSTS=http://ollama1:11434,http://ollama2:11434,http://ollama3:11434,http://ollama4:11434
+      - OLLAMA_HOSTS=http://host.docker.internal:11434
       - DATABASE_URL=postgresql://neondb_owner:npg_oNhiQsanu4p2@ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
       - PGDATABASE=neondb
       - PGHOST=ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech
       - PGPORT=5432
       - PGUSER=neondb_owner
       - PGPASSWORD=npg_oNhiQsanu4p2
-    depends_on:
-      - ollama1
-      - ollama2
-      - ollama3
-      - ollama4
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python3", "check_ollama.py"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
     networks:
       - backendnet
+
   backend:
     build:
       context: .
@@ -59,6 +53,7 @@ services:
       - ai_service
     networks:
       - backendnet
+
 networks:
   backendnet:
-    driver: bridge 
+    driver: bridge
