@@ -30,6 +30,13 @@ export async function uploadFile(file: File): Promise<{ job_id: string }> {
     
     // Normalize the response - backend returns both jobId and job_id
     const jobId = result.job_id || result.jobId;
+    
+    if (!jobId) {
+      console.error("No job ID in upload response:", result);
+      throw new ApiError(500, "Upload succeeded but no job ID returned");
+    }
+    
+    console.log(`Upload successful, job ID: ${jobId}`);
     return { job_id: jobId };
   } catch (err) {
     console.error("Unexpected error in uploadFile:", err);
@@ -46,22 +53,36 @@ export async function pollJobStatus(
   onProgress: (pct: number) => void,
   interval = 1500
 ): Promise<void> {
+  console.log(`Starting status polling for job: ${jobId}`);
+  
   while (true) {
-    const res = await fetch(`/api/status/${jobId}`);
-    if (!res.ok) throw new ApiError(res.status, await res.text());
+    try {
+      const res = await fetch(`/api/status/${jobId}`);
+      if (!res.ok) throw new ApiError(res.status, await res.text());
 
-    const { pct = 0, state } = (await res.json()) as {
-      pct?: number;
-      state: "PENDING" | "PROCESSING" | "DONE" | "ERROR";
-    };
+      const data = await res.json();
+      console.log(`Status poll result:`, data);
+      
+      const { pct = 0, state } = data as {
+        pct?: number;
+        state: "PENDING" | "PROCESSING" | "DONE" | "ERROR";
+      };
 
-    onProgress(pct);
+      onProgress(pct);
 
-    if (state === "DONE") return;
-    if (state === "ERROR")
-      throw new ApiError(500, "Server reported processing error");
+      if (state === "DONE") {
+        console.log(`Job ${jobId} completed successfully`);
+        return;
+      }
+      if (state === "ERROR") {
+        throw new ApiError(500, "Server reported processing error");
+      }
 
-    await new Promise((r) => setTimeout(r, interval));
+      await new Promise((r) => setTimeout(r, interval));
+    } catch (error) {
+      console.error(`Status polling error for ${jobId}:`, error);
+      throw error;
+    }
   }
 }
 export async function analyzeDocument(jobId: string): Promise<{
