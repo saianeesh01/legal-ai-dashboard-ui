@@ -1,59 +1,61 @@
-#version: "3.9"
+version: '3.8'
 
 services:
-  # ollama1:
-  #   image: ollama/ollama:latest
-  #   ports:
-  #     - "11434:11434"
-  #   environment:
-  #     - OLLAMA_NUM_THREADS=4
-  #   command: serve
-  #   networks:
-  #     - backendnet
-
-  ai_service:
-    build: ./ai_service
-    command: sh -c "python3 -c 'import app; app.warmup_ollama()' && gunicorn --timeout 180 -b 0.0.0.0:5001 app:app"
-
-    ports:
-      - "5002:5001"
-    environment:
-      - OLLAMA_HOSTS=http://host.docker.internal:11434
-      - DATABASE_URL=postgresql://neondb_owner:npg_oNhiQsanu4p2@ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
-      - PGDATABASE=neondb
-      - PGHOST=ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech
-      - PGPORT=5432
-      - PGUSER=neondb_owner
-      - PGPASSWORD=npg_oNhiQsanu4p2
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "python3", "check_ollama.py"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-    networks:
-      - backendnet
-
+  # Frontend (React + Express backend)
   frontend:
     build:
       context: .
-      dockerfile: server/Dockerfile
+      dockerfile: Dockerfile
+    container_name: legal-ai-frontend
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=postgresql://neondb_owner:npg_oNhiQsanu4p2@ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
-      - PGDATABASE=neondb
-      - PGHOST=ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech
-      - PGPORT=5432
-      - PGUSER=neondb_owner
-      - PGPASSWORD=npg_oNhiQsanu4p2
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - AI_SERVICE_URL=http://ai_service:5001
+    volumes:
+      - ./Legal_docs:/app/Legal_docs:ro
     depends_on:
       - ai_service
+    restart: unless-stopped
     networks:
-      - backendnet
+      - legal-ai-network
+
+  # AI Service (Flask + Ollama client)
+  ai_service:
+    build:
+      context: ./ai_service
+      dockerfile: Dockerfile
+    container_name: legal-ai-service
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=production
+      - OLLAMA_HOST=host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - legal-ai-network
+
+  # Optional: Local Ollama service (if not running on host)
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_HOST=0.0.0.0
+  #   restart: unless-stopped
+  #   networks:
+  #     - legal-ai-network
 
 networks:
-  backendnet:
+  legal-ai-network:
     driver: bridge
+
+# volumes:
+#   ollama_data:

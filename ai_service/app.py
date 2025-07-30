@@ -1,717 +1,381 @@
-#!/usr/bin/env python3
 """
-AI Document Analysis Service using PaddleOCR, Faiss, and Ollama
+Flask AI Service for Legal Document Summarization
+Connects to Ollama running on host for AI-powered document analysis
 """
-
 
 import os
 import json
 import logging
-from typing import List, Dict, Any, Tuple
-from pathlib import Path
-import tempfile
-import base64
-from PyPDF2 import PdfReader
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import numpy as np
-from PIL import Image
-import faiss
-from sentence_transformers import SentenceTransformer
 import requests
-import time
+from typing import Dict, List, Any, Optional
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
 
-# Global variables for models
-ocr = None
-embedding_model = None
-faiss_index = None
-document_chunks = []
-OLLAMA_PORTS = [11434, 11435, 11436, 11437]
-ollama_index = 0
+# Configuration
+OLLAMA_HOST = os.environ.get('OLLAMA_HOST', '127.0.0.1:11434')
+OLLAMA_BASE_URL = f"http://{OLLAMA_HOST}"
+DEFAULT_MODEL = "mistral:latest"
 
-def initialize_models():
-    """Initialize OCR and embedding models"""
-    global ocr, embedding_model
+class OllamaClient:
+    """Client for interacting with Ollama API"""
     
-    try:
-        # Initialize PaddleOCR
-        from paddleocr import PaddleOCR
-        ocr = PaddleOCR(use_textline_orientation=True, lang='en')
-        logger.info("PaddleOCR initialized successfully")
+    def __init__(self, base_url: str = OLLAMA_BASE_URL):
+        self.base_url = base_url.rstrip('/')
         
-        # Initialize sentence transformer for embeddings
-        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        logger.info("Embedding model initialized successfully")
-        
-    except Exception as e:
-        logger.error(f"Error initializing models: {e}")
-        raise
-
-def get_next_ollama_url():
-    # Dynamically read from environment variable or fallback to host.docker.internal
-    base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-    return f"{base_url}/api/generate"
-
-
-def extract_text_from_image(image_path: str) -> List[Dict[str, Any]]:
-    """Extract text from image using PaddleOCR"""
-    try:
-        result = ocr.ocr(image_path)
-        
-        extracted_text = []
-        if result and result[0]:
-            for line in result[0]:
-                if len(line) >= 2:
-                    bbox, (text, confidence) = line
-                    if confidence > 0.5:  # Filter low confidence text
-                        extracted_text.append({
-                            'text': text,
-                            'confidence': confidence,
-                            'bbox': bbox
-                        })
-        
-        return extracted_text
-    except Exception as e:
-        logger.error(f"OCR extraction error: {e}")
-        return []
-
-def create_faiss_index(texts: List[str]) -> Tuple[faiss.Index, List[str]]:
-    """Create FAISS index from text chunks"""
-    global embedding_model
-    
-    # Generate embeddings
-    embeddings = embedding_model.encode(texts)
-    embeddings = np.array(embeddings).astype('float32')
-    
-    # Create FAISS index
-    dimension = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dimension)  # Inner product for similarity
-    faiss.normalize_L2(embeddings)  # Normalize for cosine similarity
-    index.add(embeddings)
-    
-    return index, texts
-
-def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[str]:
-    """Split text into overlapping chunks (character-based) for better AI processing."""
-    chunks = []
-    step = max(1, chunk_size - overlap)
-    for i in range(0, len(text), step):
-        chunk = text[i:i + chunk_size]
-        if len(chunk.strip()) > 100:  # Keep meaningful chunks
-            chunks.append(chunk.strip())
-    return chunks
-
-
-
-
-
-
-def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: int = 3) -> str:
-    """
-    Query Ollama API with retries, exponential backoff, and fallback to tinyllama if primary model fails.
-    Ensures non-empty response before returning.
-    """
-    url = get_next_ollama_url()
-    logger.debug(f"[Ollama] Using URL: {url}")
-    logger.debug(f"[Ollama] Prompt sent:\n{prompt[:500]}...")  # limit log length
-
-    # ---- Try primary model (Mistral) ----
-    for attempt in range(1, retries + 1):
+    def is_available(self) -> bool:
+        """Check if Ollama is available"""
         try:
-            response = requests.post(
-                url,
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.05,
-                        "top_p": 0.95,
-                        "max_tokens": 500,
-                        "num_predict": 500,
-                        "top_k": 40,
-                        "repeat_penalty": 1.1
-                    }
-                },
-                timeout=180
-            )
-
+            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            return response.status_code == 200
+        except requests.RequestException as e:
+            logger.error(f"Ollama not available: {e}")
+            return False
+    
+    def list_models(self) -> List[str]:
+        """List available models"""
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=10)
             if response.status_code == 200:
-                result = response.json()
-                text = (result.get("response") or result.get("message", {}).get("content", "")).strip()
-
-                if not text or len(text) < 50:
-                    logger.warning(f"⚠️ Attempt {attempt}: Ollama returned empty/short response ({len(text)} chars)")
-                continue
-
-            else:
-                logger.warning(f"⚠️ Attempt {attempt}: Status {response.status_code} ({response.text})")
-
-        except Exception as e:
-            logger.warning(f"⚠️ Attempt {attempt} error: {e}")
-
-        time.sleep(2 ** attempt)  # exponential backoff
-
-    # ---- Fallback to tinyllama ----
-    logger.error("❌ Primary model failed. Switching to tinyllama:latest")
-
-    try:
-        response = requests.post(
-            url,
-            json={
-                "model": "tinyllama:latest",
+                data = response.json()
+                return [model['name'] for model in data.get('models', [])]
+            return []
+        except requests.RequestException as e:
+            logger.error(f"Failed to list models: {e}")
+            return []
+    
+    def generate(self, model: str, prompt: str, max_tokens: int = 2000) -> Optional[str]:
+        """Generate text using Ollama"""
+        try:
+            payload = {
+                "model": model,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.5,
-                    "top_p": 0.95,
-                    "max_tokens": 500,
-                    "num_predict": 500,
-                    "top_k": 40,
-                    "repeat_penalty": 1.1
+                    "num_predict": max_tokens,
+                    "temperature": 0.7,
+                    "top_p": 0.9
                 }
-            },
-            timeout=120
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            text = (result.get("response") or result.get("message", {}).get("content", "")).strip()
-
-            if text and len(text) > 50:
-                logger.info(f"✅ Fallback TinyLlama succeeded ({len(text)} chars)")
-                return text
-
-            logger.warning("⚠️ Fallback TinyLlama returned empty/short response")
-        else:
-            logger.error(f"❌ Fallback model failed ({response.status_code}) {response.text}")
-
-    except Exception as e:
-        logger.error(f"❌ Fallback model error: {e}")
-
-    return "[Ollama query failed: no response from both models]"
-
-
-
-
-def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
-    """Analyze document using Ollama with better validation, chunking, and fallbacks."""
-
-    # --- 1. Validate extracted text ---
-    if not text_content or len(text_content.strip()) < 500:
-        logger.warning("⚠️ Extracted text too short or unreadable. Skipping AI call.")
-        return {
-            "verdict": "non-proposal",
-            "confidence": 0.3,
-            "summary": "Document text could not be extracted properly. Manual review needed.",
-            "improvements": [],
-            "toolkit": []
-        }
-
-    # --- 2. Chunk text ---
-    chunks = chunk_text(text_content, 2000, overlap=200)
-    if not chunks:
-        chunks = [text_content[:2000]]  # fallback
-    logger.info(f"🔹 Document split into {len(chunks)} chunks for AI analysis.")
-
-    summaries, verdicts, confidences = [], [], []
-
-    # --- 3. Process chunks ---
-    for chunk in chunks[:10]:
-        prompt = f"""
-Analyze this legal document chunk and return ONLY valid JSON:
-
-Document: {filename}
-Content: {chunk}
-
-Tasks:
-1. Classify as "proposal" or "non-proposal" with confidence (0.0-1.0)
-2. Write a concise summary (50-100 words)
-3. List 1-2 improvements
-4. Suggest 1-2 tools/resources
-
-JSON format:
-{{
-  "verdict": "proposal|non-proposal",
-  "confidence": 0.XX,
-  "summary": "...",
-  "improvements": ["..."],
-  "toolkit": ["..."]
-}}
-"""
-        try:
-            response = query_ollama(prompt)
-            if not response:
-                logger.warning("⚠️ Empty AI response for this chunk")
-                continue
-
-            # Extract JSON
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                verdicts.append(result.get("verdict", "non-proposal"))
-                confidences.append(float(result.get("confidence", 0.5)))
-                summaries.append(result.get("summary", ""))
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json=payload,
+                timeout=120
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('response', '').strip()
             else:
-                logger.warning("⚠️ AI response not in JSON format")
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return None
+                
+        except requests.RequestException as e:
+            logger.error(f"Request to Ollama failed: {e}")
+            return None
 
-        except Exception as e:
-            logger.error(f"❌ AI chunk analysis error: {e}")
+# Initialize Ollama client
+ollama = OllamaClient()
 
-    # --- 4. Combine results ---
-    if verdicts:
-        final_verdict = "proposal" if verdicts.count("proposal") > verdicts.count("non-proposal") else "non-proposal"
-        final_confidence = sum(confidences) / len(confidences)
-        combined_summary = " ".join(summaries)[:2000]
-    else:
-        logger.warning("⚠️ No AI results, using keyword fallback.")
-        keywords = ['proposal', 'request for proposal', 'rfp', 'bid', 'tender']
-        is_proposal = any(k in text_content.lower() for k in keywords)
-        final_verdict = "proposal" if is_proposal else "non-proposal"
-        final_confidence = 0.7 if is_proposal else 0.6
-        combined_summary = "Document analyzed with fallback keyword detection. AI returned no summary."
-
+def validate_text_content(text: str) -> Dict[str, Any]:
+    """Validate text content for AI processing"""
+    if not text or not text.strip():
+        return {
+            "valid": False,
+            "reason": "Empty or whitespace-only text",
+            "word_count": 0
+        }
+    
+    words = text.split()
+    word_count = len(words)
+    
+    if word_count < 10:
+        return {
+            "valid": False,
+            "reason": f"Insufficient content: only {word_count} words",
+            "word_count": word_count
+        }
+    
+    # Check for corruption patterns
+    alphabetic_chars = sum(1 for c in text if c.isalpha())
+    total_chars = len(text)
+    alphabetic_ratio = alphabetic_chars / total_chars if total_chars > 0 else 0
+    
+    if alphabetic_ratio < 0.3:
+        return {
+            "valid": False,
+            "reason": f"Text appears corrupted: {alphabetic_ratio:.2%} alphabetic characters",
+            "word_count": word_count
+        }
+    
     return {
-        "verdict": final_verdict,
-        "confidence": round(final_confidence, 2),
-        "summary": combined_summary,
-        "improvements": ["Add more structured sections", "Include clear objectives", "Provide timeline details"],
-        "toolkit": ["Clio – legal practice management", "DocuSign – electronic signature management"]
+        "valid": True,
+        "word_count": word_count,
+        "alphabetic_ratio": alphabetic_ratio
     }
 
-
-def extract_key_findings_from_content(content: str, filename: str) -> List[str]:
-    """Extract key findings from actual document content"""
-    content_lower = content.lower()
-    findings = []
+def chunk_text(text: str, max_chunk_size: int = 4000) -> List[str]:
+    """Split text into manageable chunks for AI processing"""
+    if len(text) <= max_chunk_size:
+        return [text]
     
-    # Look for specific patterns in the document
-    if 'immigration' in content_lower or 'immigration' in filename.lower():
-        findings.append("Immigration-related legal services document")
-        if 'cuban' in content_lower:
-            findings.append("Specific focus on Cuban immigrant population")
-        if 'clinic' in content_lower:
-            findings.append("Law clinic service delivery model")
+    chunks = []
+    sentences = text.split('. ')
+    current_chunk = ""
     
-    # Look for dates and timeframes
-    import re
-    dates = re.findall(r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}|\b\d{1,2}\/\d{1,2}\/\d{4}', content_lower)
-    if dates:
-        findings.append(f"Document contains {len(dates)} specific date reference(s)")
+    for sentence in sentences:
+        potential_chunk = current_chunk + ". " + sentence if current_chunk else sentence
+        
+        if len(potential_chunk) <= max_chunk_size:
+            current_chunk = potential_chunk
+        else:
+            if current_chunk:
+                chunks.append(current_chunk + ".")
+            current_chunk = sentence
     
-    # Look for financial information
-    money_patterns = re.findall(r'\$[\d,]+(?:\.\d{2})?', content)
-    if money_patterns:
-        findings.append(f"Financial information includes amounts: {', '.join(money_patterns[:3])}")
+    if current_chunk:
+        chunks.append(current_chunk + ".")
     
-    # Look for organizational structure
-    if 'university' in content_lower or 'school' in content_lower:
-        findings.append("Academic institution involvement")
-    
-    # Look for service delivery patterns
-    if 'service' in content_lower and 'client' in content_lower:
-        findings.append("Client service delivery framework documented")
-    
-    # Default findings if nothing specific found
-    if not findings:
-        findings = [
-            "Document contains structured professional content",
-            "Standard legal or business document format",
-            "Contains specific requirements and procedures"
-        ]
-    
-    return findings[:5]  # Return top 5 findings
-
-def extract_critical_dates_from_content(content: str, filename: str) -> List[str]:
-    """Extract critical dates from document content"""
-    import re
-    dates = []
-    
-    # Look for specific date patterns
-    date_patterns = re.findall(r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}|\b\d{1,2}\/\d{1,2}\/\d{4}', content, re.IGNORECASE)
-    
-    if date_patterns:
-        for date in date_patterns[:3]:  # Take first 3 dates found
-            dates.append(f"Document date reference: {date}")
-    
-    # Look for deadline-related terms
-    content_lower = content.lower()
-    if 'deadline' in content_lower:
-        dates.append("Document contains deadline information")
-    
-    if 'due' in content_lower and 'date' in content_lower:
-        dates.append("Due date requirements specified")
-    
-    # Look for timeline information
-    if 'timeline' in content_lower or 'schedule' in content_lower:
-        dates.append("Timeline and schedule information provided")
-    
-    # Default dates if nothing found
-    if not dates:
-        dates = [
-            "Document effective date upon execution",
-            "Review periods as specified in agreement",
-            "Notice requirements for modifications"
-        ]
-    
-    return dates[:5]
-
-def extract_financial_terms_from_content(content: str, filename: str) -> List[str]:
-    """Extract financial terms from document content"""
-    import re
-    terms = []
-    
-    # Look for monetary amounts
-    money_patterns = re.findall(r'\$[\d,]+(?:\.\d{2})?', content)
-    if money_patterns:
-        terms.append(f"Financial amounts specified: {', '.join(money_patterns[:3])}")
-    
-    content_lower = content.lower()
-    
-    # Look for payment terms
-    if 'payment' in content_lower:
-        terms.append("Payment terms and conditions outlined")
-    
-    if 'net 30' in content_lower or 'net30' in content_lower:
-        terms.append("Net 30 day payment terms specified")
-    
-    if 'billing' in content_lower:
-        terms.append("Billing procedures and requirements documented")
-    
-    # Look for budget information
-    if 'budget' in content_lower:
-        terms.append("Budget framework and allocations provided")
-    
-    # Look for funding information
-    if 'funding' in content_lower or 'fund' in content_lower:
-        terms.append("Funding sources and requirements detailed")
-    
-    # Default terms if nothing found
-    if not terms:
-        terms = [
-            "Financial terms and conditions apply",
-            "Payment schedules as per agreement",
-            "Standard billing and invoicing procedures"
-        ]
-    
-    return terms[:5]
-
-def extract_compliance_from_content(content: str, filename: str) -> List[str]:
-    """Extract compliance requirements from document content"""
-    content_lower = content.lower()
-    requirements = []
-    
-    # Look for legal compliance
-    if 'legal' in content_lower or 'law' in content_lower:
-        requirements.append("Legal compliance requirements specified")
-    
-    # Look for regulatory terms
-    if 'regulation' in content_lower or 'regulatory' in content_lower:
-        requirements.append("Regulatory compliance obligations outlined")
-    
-    # Look for licensing requirements
-    if 'license' in content_lower:
-        requirements.append("Licensing and certification requirements")
-    
-    # Look for professional standards
-    if 'professional' in content_lower and 'standard' in content_lower:
-        requirements.append("Professional standards and ethics compliance")
-    
-    # Look for documentation requirements
-    if 'document' in content_lower and 'requir' in content_lower:
-        requirements.append("Documentation and record-keeping requirements")
-    
-    # Look for reporting requirements
-    if 'report' in content_lower:
-        requirements.append("Reporting and monitoring obligations")
-    
-    # Immigration-specific compliance
-    if 'immigration' in content_lower or 'immigration' in filename.lower():
-        requirements.append("Immigration law compliance and USCIS requirements")
-    
-    # Default requirements if nothing found
-    if not requirements:
-        requirements = [
-            "Standard professional compliance requirements",
-            "Industry-specific regulatory adherence",
-            "Quality assurance and documentation standards"
-        ]
-    
-    return requirements[:5]
-
-def determine_document_type_from_content(content: str, filename: str) -> str:
-    """Determine document type from content analysis"""
-    content_lower = content.lower()
-    filename_lower = filename.lower()
-    
-    if 'proposal' in filename_lower:
-        return "Legal Service Proposal"
-    elif 'immigration' in filename_lower or 'immigration' in content_lower:
-        return "Immigration Law Document"
-    elif 'contract' in content_lower or 'agreement' in content_lower:
-        return "Legal Agreement"
-    elif 'statement of work' in content_lower or 'sow' in filename_lower:
-        return "Statement of Work"
-    elif 'medical' in content_lower or 'healthcare' in content_lower:
-        return "Healthcare Document"
-    else:
-        return "Professional Legal Document"
+    return [chunk.strip() for chunk in chunks if chunk.strip()]
 
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    # Check if OCR model is loaded
-    ocr_ready = ocr is not None
-
-    # Check if Ollama model is accessible
-    try:
-        ollama_tags_url = "http://host.docker.internal:11434/api/tags"
-        response = requests.get(ollama_tags_url, timeout=5)
-        if response.status_code == 200:
-            ollama_ready = True
-        else:
-            ollama_ready = False
-    except Exception as e:
-        logger.warning(f"Ollama health check failed: {e}")
-        ollama_ready = False
-
+    ollama_status = ollama.is_available()
+    models = ollama.list_models() if ollama_status else []
+    
     return jsonify({
-        "status": "healthy" if ocr_ready and ollama_ready else "degraded",
-        "ocr_loaded": ocr_ready,
-        "ollama_available": ollama_ready
+        "status": "healthy" if ollama_status else "degraded",
+        "ollama_available": ollama_status,
+        "ollama_host": OLLAMA_HOST,
+        "available_models": models,
+        "default_model": DEFAULT_MODEL
     })
 
-
-@app.route('/analyze', methods=['POST'])
-def analyze_document():
-    """Analyze document content and provide detailed insights"""
+@app.route('/summarize', methods=['POST'])
+def summarize_document():
+    """Summarize document text using AI"""
     try:
         data = request.get_json()
+        
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "No JSON data provided"}), 400
         
-        filename = data.get('filename', 'unknown')
-        job_id = data.get('job_id', 'unknown')
+        text = data.get('text', '')
+        model = data.get('model', DEFAULT_MODEL)
+        max_tokens = data.get('max_tokens', 1000)
         
-        # Try to get the document content from the file or database
-        # For now, we'll use the filename to determine document type and generate analysis
-        # In a real implementation, you'd fetch the actual document content
-        
-        # Get cached document content if available
-        if document_chunks and len(document_chunks) > 0:
-            document_content = '\n'.join(document_chunks[:10])  # Use first 10 chunks for analysis
-        else:
-            document_content = f"Document filename: {filename}"
-        
-        # Perform detailed analysis using the document content
-        ai_result = analyze_document_with_ai(document_content, filename)
-        
-        # Extract additional insights from document content
-        key_findings = extract_key_findings_from_content(document_content, filename)
-        critical_dates = extract_critical_dates_from_content(document_content, filename)
-        financial_terms = extract_financial_terms_from_content(document_content, filename)
-        compliance_requirements = extract_compliance_from_content(document_content, filename)
-        
-        # Create comprehensive analysis result
-        analysis_result = {
-            "verdict": ai_result.get("verdict", "non-proposal"),
-            "confidence": ai_result.get("confidence", 0.75),
-            "summary": ai_result.get("summary", "Document analysis completed"),
-            "improvements": ai_result.get("improvements", []),
-            "toolkit": ai_result.get("toolkit", []),
-            "key_findings": key_findings,
-            "document_type": determine_document_type_from_content(document_content, filename),
-            "critical_dates": critical_dates,
-            "financial_terms": financial_terms,
-            "compliance_requirements": compliance_requirements
-        }
-        
-        return jsonify(analysis_result)
-        
-    except Exception as e:
-        logger.error(f"Document analysis error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-
-def extract_text_fallback(file_path):
-    """Try extracting text from PDF without OCR"""
-    text = ""
-    try:
-        reader = PdfReader(file_path)
-        for page in reader.pages:
-            text += page.extract_text() or ""
-    except Exception as e:
-        logger.warning(f"PDF fallback extraction failed: {e}")
-    return text
-
-@app.route('/process_document', methods=['POST'])
-def process_document():
-    global faiss_index, document_chunks
-    try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file provided"}), 400
-
-        file = request.files['file']
-        job_id = request.form.get('job_id', 'unknown')
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as tmp_file:
-            file.save(tmp_file.name)
-
-            # ✅ Fallback: try PyPDF2 if OCR is not loaded
-            if ocr:
-                extracted_data = extract_text_from_image(tmp_file.name)
-                full_text = ' '.join([item['text'] for item in extracted_data])
-            else:
-                full_text = extract_text_fallback(tmp_file.name)
-
-            document_chunks = chunk_text(full_text)
-            if document_chunks:
-                faiss_index, _ = create_faiss_index(document_chunks)
-
-            ai_analysis = analyze_document_with_ai(full_text, file.filename)
-            os.unlink(tmp_file.name)
-
+        # Validate text content
+        validation = validate_text_content(text)
+        if not validation['valid']:
             return jsonify({
-                "job_id": job_id,
-                "text_extracted": len(full_text) > 0,
-                "total_chunks": len(document_chunks),
-                "ai_analysis": ai_analysis,
-            })
-    except Exception as e:
-        logger.error(f"Document processing error: {e}")
-        return jsonify({"error": str(e)}), 500
+                "error": "Invalid text content",
+                "reason": validation['reason'],
+                "word_count": validation['word_count']
+            }), 400
+        
+        # Check Ollama availability
+        if not ollama.is_available():
+            return jsonify({
+                "error": "AI service unavailable",
+                "reason": "Ollama is not responding"
+            }), 503
+        
+        # Check if model is available
+        available_models = ollama.list_models()
+        if model not in available_models:
+            logger.warning(f"Model {model} not found, using {DEFAULT_MODEL}")
+            model = DEFAULT_MODEL
+        
+        # Chunk text if necessary
+        chunks = chunk_text(text, 4000)
+        summaries = []
+        
+        for i, chunk in enumerate(chunks):
+            prompt = f"""Please provide a comprehensive summary of this legal document excerpt. Focus on:
 
+1. Main purpose and type of document
+2. Key parties involved
+3. Important dates and deadlines
+4. Critical requirements or obligations
+5. Financial aspects (if any)
+6. Legal significance
 
-@app.route('/query_document', methods=['POST'])
-def query_document():
-    """Answer questions about the processed document"""
-    global faiss_index, document_chunks, embedding_model
-    
-    try:
-        data = request.get_json()
-        question = data.get('question', '')
-        
-        if not question:
-            return jsonify({"error": "No question provided"}), 400
-        
-        if faiss_index is None or not document_chunks:
-            return jsonify({"error": "No document processed yet"}), 400
-        
-        # Find relevant chunks using FAISS
-        question_embedding = embedding_model.encode([question])
-        question_embedding = np.array(question_embedding).astype('float32')
-        faiss.normalize_L2(question_embedding)
-        
-        # Search for top 5 most relevant chunks
-        scores, indices = faiss_index.search(question_embedding, min(5, len(document_chunks)))
-        
-        relevant_chunks = []
-        for i, idx in enumerate(indices[0]):
-            if idx < len(document_chunks) and scores[0][i] > 0.3:  # Similarity threshold
-                relevant_chunks.append({
-                    "text": document_chunks[idx],
-                    "similarity": float(scores[0][i]),
-                    "chunk_id": int(idx)
+Document excerpt {i+1} of {len(chunks)}:
+
+{chunk}
+
+Summary:"""
+            
+            summary = ollama.generate(model, prompt, max_tokens)
+            
+            if summary:
+                summaries.append({
+                    "chunk": i + 1,
+                    "summary": summary,
+                    "word_count": len(chunk.split())
+                })
+            else:
+                summaries.append({
+                    "chunk": i + 1,
+                    "summary": f"Failed to generate summary for chunk {i+1}",
+                    "word_count": len(chunk.split()),
+                    "error": True
                 })
         
-        # Create context for AI
-        context = '\n'.join([chunk['text'] for chunk in relevant_chunks[:3]])
-        
-        # Query Ollama for answer
-        prompt = f"""
-SYSTEM: You are a helpful document analysis assistant. Answer the question based only on the provided context from the document. If the context doesn't contain relevant information, say "I don't have enough information in the document to answer that question."
+        # Generate overall summary if multiple chunks
+        if len(chunks) > 1:
+            combined_summaries = "\n\n".join([s["summary"] for s in summaries if not s.get("error")])
+            
+            overall_prompt = f"""Based on these individual summaries of a legal document, provide a comprehensive overall summary:
 
-CONTEXT:
-{context}
+{combined_summaries}
 
-QUESTION: {question}
-
-Please provide a clear, concise answer based on the document content:
-"""
-
-        ai_response = query_ollama(prompt)
+Overall Summary:"""
+            
+            overall_summary = ollama.generate(model, overall_prompt, max_tokens)
+        else:
+            overall_summary = summaries[0]["summary"] if summaries else "No summary generated"
         
         return jsonify({
-            "answer": ai_response,
-            "relevant_chunks": relevant_chunks,
-            "context_used": len(relevant_chunks)
+            "success": True,
+            "overall_summary": overall_summary,
+            "chunk_summaries": summaries,
+            "model_used": model,
+            "total_chunks": len(chunks),
+            "original_word_count": validation['word_count']
         })
         
     except Exception as e:
-        logger.error(f"Query processing error: {e}")
-        return jsonify({"error": str(e)}), 500
-def warmup_ollama(retries=3):
-    """
-    Send a warm-up request to preload the Mistral model.
-    Falls back to tinyllama if mistral fails to load after retries.
-    """
-    url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434") + "/api/generate"
+        logger.error(f"Summarization error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
 
-    # --- Try warming up Mistral first ---
-    for attempt in range(1, retries + 1):
-        try:
-            response = requests.post(
-                url,
-                json={
-                    "model": "mistral:7b-instruct-q4_0",
-                    "prompt": "Warm-up ping",
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.01,
-                        "num_predict": 10
-                    }
-                },
-                timeout=45
-            )
-
-            if response.status_code == 200:
-                logger.info("✅ Ollama warmed up successfully (Mistral model loaded)")
-                return
-            else:
-                logger.warning(f"⚠️ Attempt {attempt}: Warm-up failed ({response.status_code}) {response.text}")
-
-        except requests.exceptions.Timeout:
-            logger.warning(f"⚠️ Attempt {attempt}: Warm-up timed out")
-        except Exception as e:
-            logger.warning(f"⚠️ Attempt {attempt}: Warm-up request error: {e}")
-
-        time.sleep(3 * attempt)  # exponential backoff
-
-    # --- Fallback to tinyllama ---
-    logger.error("❌ Mistral warm-up failed. Falling back to tinyllama:latest")
-
+@app.route('/analyze', methods=['POST'])
+def analyze_document():
+    """Perform detailed document analysis"""
     try:
-        response = requests.post(
-            url,
-            json={
-                "model": "tinyllama:latest",
-                "prompt": "Warm-up ping",
-                "stream": False,
-                "options": {
-                    "temperature": 0.01,
-                    "num_predict": 10
-                }
-            },
-            timeout=30
-        )
-        if response.status_code == 200:
-            logger.info("✅ Ollama fallback warm-up successful (tinyllama loaded)")
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        text = data.get('text', '')
+        filename = data.get('filename', 'document.pdf')
+        analysis_type = data.get('analysis_type', 'comprehensive')
+        model = data.get('model', DEFAULT_MODEL)
+        
+        # Validate text content
+        validation = validate_text_content(text)
+        if not validation['valid']:
+            return jsonify({
+                "error": "Invalid text content",
+                "reason": validation['reason'],
+                "word_count": validation['word_count']
+            }), 400
+        
+        # Check Ollama availability
+        if not ollama.is_available():
+            return jsonify({
+                "error": "AI service unavailable",
+                "reason": "Ollama is not responding"
+            }), 503
+        
+        # Prepare analysis prompt based on type
+        if analysis_type == 'proposal':
+            prompt = f"""Analyze this document to determine if it's a proposal and provide detailed analysis:
+
+Document filename: {filename}
+
+{text[:4000]}
+
+Please analyze:
+1. Is this a proposal? (Yes/No with confidence %)
+2. If yes, what type of proposal?
+3. Key elements that indicate it's a proposal
+4. Main objectives and goals
+5. Target audience
+6. Strengths and areas for improvement
+
+Analysis:"""
         else:
-            logger.error(f"❌ Fallback warm-up failed ({response.status_code}) {response.text}")
+            prompt = f"""Provide a comprehensive legal document analysis:
 
+Document filename: {filename}
+
+{text[:4000]}
+
+Please analyze:
+1. Document type and category
+2. Legal significance
+3. Key parties and stakeholders
+4. Important dates and deadlines
+5. Critical requirements
+6. Potential risks or concerns
+7. Recommendations
+
+Analysis:"""
+        
+        analysis = ollama.generate(model, prompt, 2000)
+        
+        if not analysis:
+            return jsonify({
+                "error": "Analysis generation failed",
+                "reason": "AI model did not return a response"
+            }), 500
+        
+        return jsonify({
+            "success": True,
+            "analysis": analysis,
+            "analysis_type": analysis_type,
+            "model_used": model,
+            "filename": filename,
+            "word_count": validation['word_count']
+        })
+        
     except Exception as e:
-        logger.error(f"❌ Fallback warm-up error: {e}")
+        logger.error(f"Analysis error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
 
+@app.route('/models', methods=['GET'])
+def list_available_models():
+    """List available AI models"""
+    try:
+        models = ollama.list_models()
+        return jsonify({
+            "available_models": models,
+            "default_model": DEFAULT_MODEL,
+            "ollama_available": ollama.is_available()
+        })
+    except Exception as e:
+        logger.error(f"Model listing error: {e}")
+        return jsonify({
+            "error": "Failed to list models",
+            "message": str(e)
+        }), 500
 
 if __name__ == '__main__':
-    warmup_ollama()
-    logger.info("Starting AI Document Analysis Service...")
-    initialize_models()
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Log startup information
+    logger.info(f"Starting AI Service on port 5001")
+    logger.info(f"Ollama host: {OLLAMA_HOST}")
+    logger.info(f"Default model: {DEFAULT_MODEL}")
+    
+    # Check initial Ollama connection
+    if ollama.is_available():
+        models = ollama.list_models()
+        logger.info(f"✓ Ollama connected successfully. Available models: {models}")
+    else:
+        logger.warning("⚠ Ollama not available at startup. Check connection.")
+    
+    # Run Flask app
+    app.run(host='0.0.0.0', port=5001, debug=False)

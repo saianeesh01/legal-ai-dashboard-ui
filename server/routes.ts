@@ -6,10 +6,10 @@ import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_cl
 import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
 import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
 import { DocumentQueryEngine } from "./document_query_engine";
-import { PDFExtractor } from "./pdf_extractor";
+import { PDFExtractor } from "./pdf_extractor.js";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
-import { PDFRedactor } from "./pdf_redactor";
+import { PDFRedactor } from "./pdf_redactor.js";
 import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 import fetch from 'node-fetch';
@@ -942,14 +942,15 @@ if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
         redactedItemsCount = result.patternsFound?.length || 0;
       } else {
         // Use existing PDF redaction system
-        const { redactedPdfBuffer: existingRedactedPdf, redactionResult } = await PDFRedactor.createRedactedPDF(
-          originalPdfBuffer,
-          job.fileName
-        );
+        const result = await PDFRedactor.redactPDF(originalPdfBuffer, job.fileName, false);
+        if (!result.success) {
+          throw new Error(`Redaction failed: ${result.error}`);
+        }
+        const existingRedactedPdf = result.redactedPDFBuffer;
         
-        redactedPdfBuffer = existingRedactedPdf;
-        redactionSummary = PersonalInfoRedactor.getRedactionSummary(redactionResult);
-        redactedItemsCount = redactionResult.redactedItems.length;
+        redactedPdfBuffer = existingRedactedPdf || originalPdfBuffer;
+        redactionSummary = `Standard redaction completed. Patterns found: ${result.patternsFound.join(', ')}`;
+        redactedItemsCount = result.itemsRedacted;
       }
 
       // Build ETag for caching / integrity verification
@@ -1078,6 +1079,112 @@ if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
     } catch (error) {
       console.error("Security overview error:", error);
       res.status(500).json({ error: "Failed to get security overview" });
+    }
+  });
+
+  // Add AI summarization endpoint with proper text validation
+  app.post("/api/documents/:jobId/summarize", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { model = 'mistral:latest', max_tokens = 1000 } = req.body;
+
+      console.log(`Starting AI summarization for job: ${jobId}`);
+
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Extract text with validation
+      const originalPdfBuffer = await storage.getDecryptedContent(jobId);
+      if (!originalPdfBuffer) {
+        return res.status(500).json({ error: "Could not retrieve document content" });
+      }
+
+      // Use new PDF extractor with validation
+      const extractionResult = await PDFExtractor.extractText(originalPdfBuffer, job.fileName);
+      
+      if (!extractionResult.success || !extractionResult.hasValidContent) {
+        return res.status(400).json({ 
+          error: "Document text extraction failed",
+          details: {
+            method: extractionResult.extractionMethod,
+            quality: extractionResult.quality,
+            wordCount: extractionResult.wordCount,
+            hasValidContent: extractionResult.hasValidContent
+          }
+        });
+      }
+
+      // Validate text for AI processing
+      const textValidation = PDFRedactor.validateTextForAI(extractionResult.text);
+      
+      if (!textValidation.isValid) {
+        return res.status(400).json({
+          error: "Text validation failed",
+          reason: textValidation.reason,
+          wordCount: textValidation.wordCount
+        });
+      }
+
+      // Call AI service
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
+      
+      try {
+        const aiResponse = await fetch(`${AI_SERVICE_URL}/summarize`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: extractionResult.text,
+            model: model,
+            max_tokens: max_tokens
+          })
+        });
+
+        if (!aiResponse.ok) {
+          const errorData = await aiResponse.json().catch(() => ({ error: 'AI service error' }));
+          return res.status(502).json({
+            error: "AI service error",
+            status: aiResponse.status,
+            details: errorData
+          });
+        }
+
+        const aiResult = await aiResponse.json();
+        
+        res.json({
+          success: true,
+          summary: aiResult.overall_summary,
+          chunks: aiResult.chunk_summaries,
+          extraction: {
+            method: extractionResult.extractionMethod,
+            quality: extractionResult.quality,
+            wordCount: extractionResult.wordCount,
+            pageCount: extractionResult.pageCount
+          },
+          validation: textValidation,
+          ai_service: {
+            model_used: aiResult.model_used,
+            total_chunks: aiResult.total_chunks
+          }
+        });
+
+      } catch (aiError: any) {
+        console.error('AI service communication error:', aiError);
+        return res.status(503).json({
+          error: "Failed to communicate with AI service",
+          details: aiError.message
+        });
+      }
+
+    } catch (error: any) {
+      console.error("Summarization error:", error);
+      res.status(500).json({ 
+        error: "Failed to generate summary",
+        details: error.message
+      });
     }
   });
 
