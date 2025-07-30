@@ -1,0 +1,104 @@
+Got it. The **backend is successfully receiving uploads**, but the **frontend (UI) is not updating properly** after a document is uploaded. Let's fix only the UI issue (in Replit), leaving other features untouched.
+
+---
+
+## 1️⃣ Verify Current Issue
+
+From your logs:
+
+```
+POST /api/upload 200 ... {"job_id":"job_1753866438184_at1526ttd"}
+GET /api/status/job_1753866438184_at1526ttd 200
+```
+
+* ✅ The file upload API works.
+* ❌ The uploaded document does **not appear in the UI**.
+
+This typically means:
+
+* The **frontend isn't refreshing the document list** after upload.
+* Or the UI is expecting a different key (e.g., `jobId` vs. `job_id`) from `/api/upload`.
+
+---
+
+## 2️⃣ Minimal Fix for `api.ts`
+
+Your `api.ts` upload function expects:
+
+```ts
+export async function uploadFile(file: File): Promise<{ job_id: string }>
+```
+
+But your backend returns:
+
+```json
+{
+  "jobId": "job_1753866438184_at1526ttd",
+  "job_id": "job_1753866438184_at1526ttd",
+  ...
+}
+```
+
+Some parts of the UI may only be reading `job_id` and ignoring `jobId` or vice versa.
+
+### ✅ Fix:
+
+Modify `uploadFile` in `api.ts` to normalize both:
+
+```ts
+const result = await res.json();
+const jobId = result.job_id || result.jobId;
+
+return { job_id: jobId };
+```
+
+---
+
+## 3️⃣ Ensure UI Refreshes Document List
+
+In your React code (probably in `DocumentsList` or similar):
+
+```tsx
+const handleUpload = async (file) => {
+  await uploadFile(file);
+  await fetchDocuments(); // 👈 ensure document list updates immediately
+};
+```
+
+If this is missing, the uploaded document won’t appear until you manually refresh.
+
+---
+
+## 4️⃣ Quick Replit Patch (Only UI Change)
+
+In `api.ts`, change:
+
+```ts
+return result;
+```
+
+to:
+
+```ts
+return { job_id: result.job_id || result.jobId };
+```
+
+In your upload button handler (if not already):
+
+```tsx
+await uploadFile(file);
+await getAllDocuments(); // or fetchDocuments()
+```
+
+---
+
+### ✅ Expected Behavior After Patch:
+
+1. You upload a file via UI.
+2. API returns `job_id` correctly.
+3. UI immediately refreshes and shows the uploaded document in the list.
+4. No other feature (query, delete, analyze) is affected.
+
+---
+
+Would you like me to create a **drop-in replacement for `api.ts` (upload + normalization fix)** that you can paste into Replit and test immediately? This will be the **only change**, keeping the rest of your features untouched.

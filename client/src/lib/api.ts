@@ -27,7 +27,10 @@ export async function uploadFile(file: File): Promise<{ job_id: string }> {
     }
     const result = await res.json();
     console.log("Upload result:", result); // Log the result for debugging
-    return result;
+    
+    // Normalize the response - backend returns both jobId and job_id
+    const jobId = result.job_id || result.jobId;
+    return { job_id: jobId };
   } catch (err) {
     console.error("Unexpected error in uploadFile:", err);
     throw err;

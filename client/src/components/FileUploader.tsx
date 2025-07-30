@@ -132,6 +132,9 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
         description: "Your document has been processed successfully.",
       });
 
+      // Invalidate document queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      
       onUploadComplete({
         jobId: job_id,
         fileName: file.name,
