@@ -13,6 +13,8 @@ import { PDFRedactor } from "./pdf_redactor";
 import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 import fetch from 'node-fetch';
+import { DocumentExtractor } from './document_extractor';
+
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -430,7 +432,7 @@ function getRelevantDomain(fileName: string): string {
 
 // Helper to call Ollama Llama 3 for summarization
 async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama Llama 3 summarization for: ${fileName}`);
+  console.log(`🤖 Attempting Ollama  summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
   
   const prompt = `You are a legal document analysis AI. Read the following document and generate a detailed, content-specific summary. Quote or paraphrase key facts, dates, names, monetary amounts, and legal citations. Do NOT state the document type or use generic templates. Focus on the actual content.\n\nDocument: ${fileName}\n\n${documentText}`;
@@ -522,6 +524,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname, 
           req.file.mimetype
         );
+
+        // ✅ Validate extracted text quality before proceeding
+if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
+    console.warn(`⚠️ Low-quality text detected for ${req.file.originalname}. Skipping AI analysis.`);
+
+    return res.status(200).json({
+        verdict: "non-proposal",
+        confidence: 0.3,
+        summary: "Document text could not be extracted properly. Manual review required.",
+        improvements: [],
+        toolkit: [],
+        extractionMethod: extractionResult.extractionMethod || "unknown",
+        textLength: extractionResult.text ? extractionResult.text.length : 0
+    });
+}
+
         
         console.log(`Extraction result: ${extractionResult.extractionMethod}`);
         console.log(`Success: ${extractionResult.success}`);

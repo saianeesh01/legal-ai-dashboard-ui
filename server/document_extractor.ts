@@ -4,8 +4,19 @@
  */
 
 import * as mammoth from 'mammoth';
-import * as tesseract from 'tesseract.js';
+import Tesseract from 'tesseract.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { join } from 'path';
+// ✅ Node.js compatible import
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import 'pdfjs-dist/legacy/build/pdf.worker.js';
 
+import { DOMMatrix } from 'canvas';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// (global as any).DOMMatrix = DOMMatrix; // Polyfill for Node.js
 interface DocumentExtractionResult {
   text: string;
   pageCount: number;
@@ -32,25 +43,24 @@ export class DocumentExtractor {
     console.log(`Starting document extraction for: ${fileName} (${mimeType})`);
     
     try {
-      // Route to appropriate extractor based on MIME type
       switch (mimeType) {
         case 'application/pdf':
           return await this.extractFromPDF(buffer, fileName);
-        
+
         case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         case 'application/msword':
           return await this.extractFromDOCX(buffer, fileName);
-        
+
         case 'text/plain':
           return await this.extractFromText(buffer, fileName);
-        
+
         case 'image/jpeg':
         case 'image/png':
         case 'image/gif':
         case 'image/bmp':
         case 'image/tiff':
           return await this.extractFromImage(buffer, fileName);
-        
+
         default:
           console.log(`Unsupported file type: ${mimeType}, attempting text extraction`);
           return await this.extractFromText(buffer, fileName);
@@ -68,20 +78,20 @@ export class DocumentExtractor {
   }
 
   /**
-   * Extract text from PDF using multiple robust methods
+   * Extract text from PDF
    */
   private static async extractFromPDF(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     console.log(`Extracting PDF text from: ${fileName}`);
     
-    // Method 1: Try PDF.js (most reliable)
+    // Method 1: PDF.js
     try {
       const pdfjsResult = await this.extractWithPDFJS(buffer, fileName);
       if (pdfjsResult.success && pdfjsResult.text.length > 100) {
-        console.log(`PDF.js extraction successful: ${pdfjsResult.text.length} characters from ${pdfjsResult.pageCount} pages`);
+        console.log(`PDF.js extraction successful: ${pdfjsResult.text.length} characters`);
         return pdfjsResult;
       }
     } catch (error) {
-      console.error(`PDF.js extraction failed for ${fileName}:`, error);
+      console.error(`PDF.js extraction failed:`, error);
     }
 
     // Method 2: Enhanced buffer parsing
@@ -92,254 +102,194 @@ export class DocumentExtractor {
         return bufferResult;
       }
     } catch (error) {
-      console.error(`Buffer extraction failed for ${fileName}:`, error);
+      console.error(`Buffer extraction failed:`, error);
     }
 
-    // Method 3: OCR fallback for image-based PDFs
-    try {
-      const ocrResult = await this.extractFromPDFWithOCR(buffer, fileName);
-      if (ocrResult.success && ocrResult.text.length > 20) {
-        console.log(`OCR extraction successful: ${ocrResult.text.length} characters`);
-        return ocrResult;
-      }
-    } catch (error) {
-      console.error(`OCR extraction failed for ${fileName}:`, error);
-    }
-
-    // Final fallback
-    console.error(`All PDF extraction methods failed for ${fileName}`);
+    // Method 3: Skip direct OCR on PDF to avoid crashes
+    console.warn(`⚠️ OCR skipped for PDFs to avoid unsupported raw PDF input to Tesseract.`);
+    
     return {
       text: '',
       pageCount: 0,
       extractionMethod: 'all-methods-failed',
       success: false,
-      error: 'All PDF extraction methods failed'
+      error: 'No reliable PDF extraction method succeeded'
     };
   }
 
   /**
-   * Extract text using PDF.js (most reliable method)
+ * Extract text using PDF.js (most reliable method)
+ */
+ /*
+private static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
+  try {
+    console.log(`Using PDF.js extraction for: ${fileName}`);
+    
+    // Import PDF.js dynamically
+    const pdfjsLib = await import('pdfjs-dist');
+
+    // Set up PDF.js worker - use CDN version for Node.js compatibility
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
+
+    // ✅ Convert Buffer → Uint8Array
+    const uint8ArrayData = new Uint8Array(buffer);
+
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: uint8ArrayData });
+    const pdf = await loadingTask.promise;
+
+    console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
+    
+    let extractedText = '';
+    const pageCount = pdf.numPages;
+
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      extractedText += pageText + '\n';
+      console.log(`Extracted ${pageText.length} characters from page ${pageNum}`);
+    }
+
+    const cleanText = this.cleanExtractedText(extractedText);
+
+    return {
+      text: cleanText,
+      pageCount: pageCount,
+      extractionMethod: 'pdfjs',
+      success: cleanText.length > 0,
+      metadata: {}
+    };
+
+  } catch (error) {
+    console.error(`PDF.js extraction failed for ${fileName}:`, error);
+    throw error;
+  }
+}
+
+*/
+  /**
+   * Extract text using PDF.js
    */
+
+  
   private static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     try {
-      console.log(`Using PDF.js extraction for: ${fileName}`);
-      
-      // Import PDF.js dynamically
-      const pdfjsLib = await import('pdfjs-dist');
-      
-      // Set up PDF.js worker - use CDN version for Node.js compatibility
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
-      
-      // Load the PDF document
-      const loadingTask = pdfjsLib.getDocument({ data: buffer });
-      const pdf = await loadingTask.promise;
-      
-      console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
-      
-      let extractedText = '';
-      const pageCount = pdf.numPages;
-      
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        
-        // Combine text items into a single string
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        
-        extractedText += pageText + '\n';
-        console.log(`Extracted ${pageText.length} characters from page ${pageNum}`);
-      }
-      
-      const cleanText = this.cleanExtractedText(extractedText);
-      
-      return {
-        text: cleanText,
-        pageCount: pageCount,
-        extractionMethod: 'pdfjs',
-        success: cleanText.length > 0,
-        metadata: {
-          title: undefined,
-          author: undefined,
-          subject: undefined,
-          creator: undefined,
-          producer: undefined,
-          creationDate: undefined,
-          modificationDate: undefined
+        console.log(`Using PDF.js extraction for: ${fileName}`);
+
+        // ✅ Set workerSrc correctly for Node.js
+        const workerPath = join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.js');
+         (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerPath;
+
+        // Convert Buffer → Uint8Array
+        const uint8ArrayData = new Uint8Array(buffer);
+
+        // Load PDF
+        const loadingTask = pdfjsLib.getDocument({ data: uint8ArrayData });
+        const pdf = await loadingTask.promise;
+
+        console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
+
+        let extractedText = '';
+        const pageCount = pdf.numPages;
+
+        // Extract text from each page
+        for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(' ');
+            extractedText += pageText + '\n';
+            console.log(`Extracted ${pageText.length} characters from page ${pageNum}`);
         }
-      };
-      
+
+        const cleanText = this.cleanExtractedText(extractedText);
+
+        return {
+            text: cleanText,
+            pageCount: pageCount,
+            extractionMethod: 'pdfjs',
+            success: cleanText.length > 0,
+            metadata: {}
+        };
+
     } catch (error) {
-      console.error(`PDF.js extraction failed for ${fileName}:`, error);
-      throw error;
+        console.error(`PDF.js extraction failed:`, error);
+        throw error;
     }
-  }
+}
+
 
   /**
-   * Enhanced buffer-based PDF extraction with intelligent content detection
+   * Enhanced buffer-based PDF extraction
    */
   private static async extractFromPDFBuffer(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     try {
       console.log(`Using enhanced buffer-based PDF extraction for: ${fileName}`);
-      
-      // Convert buffer to string and look for readable text
       const bufferString = buffer.toString('binary');
-      
-      // Detect document type for targeted extraction
       const documentType = this.detectDocumentTypeFromBuffer(bufferString, fileName);
       console.log(`Detected document type: ${documentType}`);
-      
-      // Enhanced text extraction patterns for better content capture
+
       const textPatterns = [
-        // Look for longer text sequences (most reliable)
         /[\x20-\x7E]{30,}/g,
-        // Look for structured content
         /[A-Z][A-Za-z\s\d]{20,}[.!?]/g,
-        // Look for document headers
         /[A-Z][A-Z\s]+(?:REPORT|DOCUMENT|FORM|APPLICATION)/g,
-        // Look for country names with years
         /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:202[0-9]|20[0-9][0-9])/g,
-        // Look for legal terms
         /(?:NOTICE|COURT|HEARING|CHARGE|ALLEGATION|IMMIGRATION|ASYLUM)[A-Za-z\s]*/g
       ];
       
       let extractedText = '';
-      
       for (const pattern of textPatterns) {
         const matches = bufferString.match(pattern) || [];
-        const filteredMatches = matches
-          .filter(text => text.length > 20 && /[a-zA-Z]/.test(text))
-          .map(text => text.trim())
-          .filter(text => text.length > 0)
-          .slice(0, 100); // Limit to prevent overwhelming
-        
-        if (filteredMatches.length > 0) {
-          extractedText += filteredMatches.join(' ') + ' ';
-        }
-      }
-      
-      // Also extract specific keywords and phrases that might be in the document
-      const keywords = [
-        'human rights', 'country conditions', 'persecution', 'discrimination',
-        'government', 'police', 'violence', 'asylum', 'refugee', 'immigration',
-        'legal', 'court', 'proceedings', 'evidence', 'testimony', 'witness',
-        'affidavit', 'declaration', 'certification', 'notarized', 'sworn',
-        'japan', 'nicaragua', 'mexico', 'china', 'india', 'brazil', 'russia',
-        'iran', 'venezuela', 'honduras', 'guatemala', 'el salvador'
-      ];
-      
-      const foundKeywords = keywords.filter(keyword => 
-        bufferString.toLowerCase().includes(keyword.toLowerCase())
-      );
-      
-      if (foundKeywords.length > 0) {
-        extractedText += `Document contains references to: ${foundKeywords.join(', ')}. `;
-      }
-      
-      // Extract year information
-      const yearMatch = bufferString.match(/(20\d{2})/);
-      if (yearMatch) {
-        extractedText += `Document dated: ${yearMatch[1]}. `;
-      }
-      
-      // Extract document type indicators
-      const documentTypes = [
-        'country report', 'human rights report', 'conditions report',
-        'notice to appear', 'motion', 'brief', 'affidavit', 'declaration',
-        'application', 'petition', 'cover letter', 'evidence'
-      ];
-      
-      const foundDocTypes = documentTypes.filter(docType => 
-        bufferString.toLowerCase().includes(docType.toLowerCase())
-      );
-      
-      if (foundDocTypes.length > 0) {
-        extractedText += `Document type indicators: ${foundDocTypes.join(', ')}. `;
+        const filteredMatches = matches.filter(text => text.length > 20).map(text => text.trim()).slice(0, 100);
+        if (filteredMatches.length > 0) extractedText += filteredMatches.join(' ') + ' ';
       }
       
       const cleanText = this.cleanExtractedText(extractedText);
-      
-      console.log(`Enhanced buffer extraction successful: ${cleanText.length} characters`);
-      console.log(`Found keywords: ${foundKeywords.join(', ')}`);
-      console.log(`Document types: ${foundDocTypes.join(', ')}`);
-      
+
+      if (cleanText.length < 1000 || cleanText.startsWith('<</Linearized')) {
+        console.warn(`⚠️ Low-quality buffer extraction for ${fileName}.`);
+      }
+
       return {
         text: cleanText,
         pageCount: 1,
         extractionMethod: 'enhanced-buffer-fallback',
         success: cleanText.length > 50,
       };
+
     } catch (error) {
-      console.error(`Buffer extraction failed for ${fileName}:`, error);
-      return {
-        text: '',
-        pageCount: 0,
-        extractionMethod: 'buffer-fallback',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error(`Buffer extraction failed:`, error);
+      return { text: '', pageCount: 0, extractionMethod: 'buffer-fallback', success: false };
     }
   }
 
   /**
-   * Extract text from DOCX using mammoth
+   * Extract text from DOCX
    */
   private static async extractFromDOCX(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     try {
       console.log(`Extracting DOCX text from: ${fileName}`);
-      
       const result = await mammoth.extractRawText({ buffer });
       const cleanText = this.cleanExtractedText(result.value);
-      
-      console.log(`DOCX extraction successful: ${cleanText.length} characters`);
-      
-      return {
-        text: cleanText,
-        pageCount: 1,
-        extractionMethod: 'mammoth',
-        success: true,
-      };
+      return { text: cleanText, pageCount: 1, extractionMethod: 'mammoth', success: true };
     } catch (error) {
-      console.error(`DOCX extraction failed for ${fileName}:`, error);
-      return {
-        text: '',
-        pageCount: 0,
-        extractionMethod: 'mammoth',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error(`DOCX extraction failed:`, error);
+      return { text: '', pageCount: 0, extractionMethod: 'mammoth', success: false };
     }
   }
 
   /**
-   * Extract text from plain text files
+   * Extract text from plain text
    */
   private static async extractFromText(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     try {
-      console.log(`Extracting text from: ${fileName}`);
-      
       const text = buffer.toString('utf8');
       const cleanText = this.cleanExtractedText(text);
-      
-      console.log(`Text extraction successful: ${cleanText.length} characters`);
-      
-      return {
-        text: cleanText,
-        pageCount: 1,
-        extractionMethod: 'utf8',
-        success: true,
-      };
+      return { text: cleanText, pageCount: 1, extractionMethod: 'utf8', success: true };
     } catch (error) {
-      console.error(`Text extraction failed for ${fileName}:`, error);
-      return {
-        text: '',
-        pageCount: 0,
-        extractionMethod: 'utf8',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error(`Text extraction failed:`, error);
+      return { text: '', pageCount: 0, extractionMethod: 'utf8', success: false };
     }
   }
 
@@ -349,125 +299,76 @@ export class DocumentExtractor {
   private static async extractFromImage(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
     try {
       console.log(`Extracting text from image: ${fileName}`);
-      
-      const result = await tesseract.recognize(buffer, 'eng', {
-        logger: m => console.log(m)
-      });
-      
+      const result = await Tesseract.recognize(buffer, 'eng');
       const cleanText = this.cleanExtractedText(result.data.text);
-      
-      console.log(`Image OCR extraction successful: ${cleanText.length} characters`);
-      
-      return {
-        text: cleanText,
-        pageCount: 1,
-        extractionMethod: 'tesseract-ocr',
-        success: true,
-      };
+      return { text: cleanText, pageCount: 1, extractionMethod: 'tesseract-ocr', success: true };
     } catch (error) {
-      console.error(`Image OCR extraction failed for ${fileName}:`, error);
-      return {
-        text: '',
-        pageCount: 0,
-        extractionMethod: 'tesseract-ocr',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error(`Image OCR extraction failed:`, error);
+      return { text: '', pageCount: 0, extractionMethod: 'tesseract-ocr', success: false };
     }
   }
 
   /**
-   * OCR fallback for PDFs that are image-based
-   */
-  private static async extractFromPDFWithOCR(buffer: Buffer, fileName: string): Promise<DocumentExtractionResult> {
-    try {
-      console.log(`Attempting OCR extraction for PDF: ${fileName}`);
-      
-      // This is a simplified OCR approach - in a full implementation,
-      // you would convert PDF pages to images first
-      const result = await tesseract.recognize(buffer, 'eng', {
-        logger: m => console.log(m)
-      });
-      
-      const cleanText = this.cleanExtractedText(result.data.text);
-      
-      return {
-        text: cleanText,
-        pageCount: 1,
-        extractionMethod: 'pdf-ocr-fallback',
-        success: cleanText.length > 20,
-      };
-    } catch (error) {
-      console.error(`PDF OCR extraction failed for ${fileName}:`, error);
-      return {
-        text: '',
-        pageCount: 0,
-        extractionMethod: 'pdf-ocr-fallback',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  /**
-   * Clean and normalize extracted text
+   * Clean extracted text
    */
   private static cleanExtractedText(text: string): string {
     if (!text) return '';
-    
-    return text
-      .replace(/\s+/g, ' ')           // Normalize whitespace
-      .replace(/\n+/g, '\n')          // Normalize line breaks
-      .replace(/\t+/g, ' ')           // Replace tabs with spaces
-      .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
+    return text.replace(/\s+/g, ' ')
+      .replace(/\n+/g, '\n')
+      .replace(/\t+/g, ' ')
+      .replace(/[^\x09\x0A\x0D\x20-\uFFFF]/g, '')
       .trim();
   }
 
-  /**
-   * Validate text quality
-   */
-  static validateTextQuality(text: string): boolean {
-    if (!text || text.length < 10) return false;
-    
-    // Check for reasonable character distribution
-    const alphaCount = (text.match(/[a-zA-Z]/g) || []).length;
-    const totalChars = text.length;
-    const alphaRatio = alphaCount / totalChars;
-    
-    return alphaRatio > 0.1; // At least 10% should be alphabetic
-  }
-  
-  /**
-   * Detect document type from buffer content
-   */
   private static detectDocumentTypeFromBuffer(bufferString: string, fileName: string): string {
     const lowerBuffer = bufferString.toLowerCase();
     const lowerFileName = fileName.toLowerCase();
-    
-    // Country report detection
+
     if (lowerFileName.includes('country') || lowerFileName.includes('human rights') || 
         lowerBuffer.includes('country conditions') || lowerBuffer.includes('human rights report')) {
       return 'country_report';
     }
-    
-    // NTA detection
     if (lowerFileName.includes('nta') || lowerFileName.includes('notice to appear') ||
         lowerBuffer.includes('notice to appear') || lowerBuffer.includes('form i-862')) {
       return 'nta';
     }
-    
-    // I-589 detection
     if (lowerFileName.includes('i-589') || lowerBuffer.includes('form i-589') ||
         lowerBuffer.includes('asylum application')) {
       return 'application_i589';
     }
-    
-    // Proposal detection
     if (lowerFileName.includes('proposal') || lowerFileName.includes('grant') ||
         lowerBuffer.includes('proposal') || lowerBuffer.includes('grant application')) {
       return 'proposal';
     }
-    
     return 'unknown';
   }
+
+  /**
+ * Validate text quality
+ */
+static validateTextQuality(text: string): boolean {
+    if (!text || text.length < 200) {
+        // Reject very short text, likely failed extraction
+        return false;
+    }
+
+    // Count alphabetic characters
+    const alphaCount = (text.match(/[a-zA-Z]/g) || []).length;
+    const totalChars = text.length;
+    const alphaRatio = totalChars > 0 ? alphaCount / totalChars : 0;
+
+    // Reject text with too few readable characters
+    if (alphaRatio < 0.3) {
+        return false;
+    }
+
+    // Reject known garbage patterns from buffer extraction
+    if (/^<</.test(text.trim()) || text.includes("obj") && text.includes("endobj")) {
+        return false;
+    }
+
+    return true;
+}
+
+
 }

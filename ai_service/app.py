@@ -97,17 +97,16 @@ def create_faiss_index(texts: List[str]) -> Tuple[faiss.Index, List[str]]:
     
     return index, texts
 
-def chunk_text(text: str, chunk_size: int = 450) -> List[str]:
-    """Split text into chunks for better processing"""
-    words = text.split()
+def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[str]:
+    """Split text into overlapping chunks (character-based) for better AI processing."""
     chunks = []
-    
-    for i in range(0, len(words), chunk_size//4):  # Overlap chunks
-        chunk = ' '.join(words[i:i + chunk_size//4])
-        if len(chunk.strip()) > 50:  # Only keep substantial chunks
+    step = max(1, chunk_size - overlap)
+    for i in range(0, len(text), step):
+        chunk = text[i:i + chunk_size]
+        if len(chunk.strip()) > 100:  # Keep meaningful chunks
             chunks.append(chunk.strip())
-    
     return chunks
+
 
 
 
@@ -120,9 +119,9 @@ def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: 
     """
     url = get_next_ollama_url()
     logger.debug(f"[Ollama] Using URL: {url}")
-    logger.debug(f"[Ollama] Prompt sent:\n{prompt}")
+    logger.debug(f"[Ollama] Prompt sent:\n{prompt[:500]}...")  # limit log length
 
-    # ---- Try primary model ----
+    # ---- Try primary model (Mistral) ----
     for attempt in range(1, retries + 1):
         try:
             response = requests.post(
@@ -145,10 +144,12 @@ def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: 
 
             if response.status_code == 200:
                 result = response.json()
-                text = (result.get("response") or "").strip()
-                if text and len(text) > 50:
-                    return text
-                logger.warning(f"⚠️ Attempt {attempt}: Ollama returned empty/short response ({len(text)} chars)")
+                text = (result.get("response") or result.get("message", {}).get("content", "")).strip()
+
+                if not text or len(text) < 50:
+                    logger.warning(f"⚠️ Attempt {attempt}: Ollama returned empty/short response ({len(text)} chars)")
+                continue
+
             else:
                 logger.warning(f"⚠️ Attempt {attempt}: Status {response.status_code} ({response.text})")
 
@@ -160,63 +161,82 @@ def query_ollama(prompt: str, model: str = "mistral:7b-instruct-q4_0", retries: 
     # ---- Fallback to tinyllama ----
     logger.error("❌ Primary model failed. Switching to tinyllama:latest")
 
-    for attempt in range(1, 2):  # single attempt fallback
-        try:
-            response = requests.post(
-                url,
-                json={
-                    "model": "tinyllama:latest",
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.5,
-                        "top_p": 0.95,
-                        "max_tokens": 500,
-                        "num_predict": 500,
-                        "top_k": 40,
-                        "repeat_penalty": 1.1
-                    }
-                },
-                timeout=120
-            )
+    try:
+        response = requests.post(
+            url,
+            json={
+                "model": "tinyllama:latest",
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.5,
+                    "top_p": 0.95,
+                    "max_tokens": 500,
+                    "num_predict": 500,
+                    "top_k": 40,
+                    "repeat_penalty": 1.1
+                }
+            },
+            timeout=120
+        )
 
-            if response.status_code == 200:
-                result = response.json()
-                text = (result.get("response") or "").strip()
-                return text if text else "[Fallback model returned no response]"
-            else:
-                logger.error(f"❌ Fallback model failed ({response.status_code}) {response.text}")
+        if response.status_code == 200:
+            result = response.json()
+            text = (result.get("response") or result.get("message", {}).get("content", "")).strip()
 
-        except Exception as e:
-            logger.error(f"❌ Fallback model error: {e}")
+            if text and len(text) > 50:
+                logger.info(f"✅ Fallback TinyLlama succeeded ({len(text)} chars)")
+                return text
+
+            logger.warning("⚠️ Fallback TinyLlama returned empty/short response")
+        else:
+            logger.error(f"❌ Fallback model failed ({response.status_code}) {response.text}")
+
+    except Exception as e:
+        logger.error(f"❌ Fallback model error: {e}")
 
     return "[Ollama query failed: no response from both models]"
 
 
 
+
 def analyze_document_with_ai(text_content: str, filename: str) -> Dict[str, Any]:
-    """Analyze document using Ollama to determine if it's a proposal"""
-    
-    # Create chunks for context - use minimal chunks for fastest processing
-    chunks = chunk_text(text_content, 250)
-    context_sample = '\n'.join(chunks[:8])  # Use top 8 chunks for fastest analysis
-    
-    # Calculate page count estimate
-    page_count = max(1, len(chunks) // 8)  # Estimate pages based on chunks
-    
-    prompt = f"""
-Analyze this document and return JSON:
+    """Analyze document using Ollama with better validation, chunking, and fallbacks."""
+
+    # --- 1. Validate extracted text ---
+    if not text_content or len(text_content.strip()) < 500:
+        logger.warning("⚠️ Extracted text too short or unreadable. Skipping AI call.")
+        return {
+            "verdict": "non-proposal",
+            "confidence": 0.3,
+            "summary": "Document text could not be extracted properly. Manual review needed.",
+            "improvements": [],
+            "toolkit": []
+        }
+
+    # --- 2. Chunk text ---
+    chunks = chunk_text(text_content, 2000, overlap=200)
+    if not chunks:
+        chunks = [text_content[:2000]]  # fallback
+    logger.info(f"🔹 Document split into {len(chunks)} chunks for AI analysis.")
+
+    summaries, verdicts, confidences = [], [], []
+
+    # --- 3. Process chunks ---
+    for chunk in chunks[:10]:
+        prompt = f"""
+Analyze this legal document chunk and return ONLY valid JSON:
 
 Document: {filename}
-Content: {context_sample[:1500]}
+Content: {chunk}
 
 Tasks:
-1. Classify as "proposal" or "non-proposal" with confidence 0.0-1.0
-2. Write 100-word summary
-3. List 2-3 improvements
-4. Suggest 2-3 tools/resources
+1. Classify as "proposal" or "non-proposal" with confidence (0.0-1.0)
+2. Write a concise summary (50-100 words)
+3. List 1-2 improvements
+4. Suggest 1-2 tools/resources
 
-Return JSON:
+JSON format:
 {{
   "verdict": "proposal|non-proposal",
   "confidence": 0.XX,
@@ -225,48 +245,46 @@ Return JSON:
   "toolkit": ["..."]
 }}
 """
+        try:
+            response = query_ollama(prompt)
+            if not response:
+                logger.warning("⚠️ Empty AI response for this chunk")
+                continue
 
-    try:
-        response = query_ollama(prompt)
-        
-        # Try to extract and validate JSON from response
-        if response and '{' in response:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            json_str = response[json_start:json_end]
-            
-            try:
-                result = json.loads(json_str)
-                # Validate required fields are present
-                if 'verdict' in result and 'summary' in result and 'improvements' in result and 'toolkit' in result:
-                    return result
-                else:
-                    logger.warning(f"Missing required fields in AI response: {result}")
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse JSON from AI response: {e}")
-        
-        # If JSON parsing failed, fallback to keyword detection
-            # Fallback analysis
-            is_proposal = any(keyword in text_content.lower() for keyword in 
-                            ['proposal', 'request for proposal', 'rfp', 'bid', 'tender'])
-            
-            return {
-                "verdict": "proposal" if is_proposal else "non-proposal",
-                "confidence": 0.70 if is_proposal else 0.60,
-                "summary": "Document analysis completed with keyword detection method. This appears to be a legal document that may require further review for comprehensive analysis.",
-                "improvements": ["Consider adding more structured sections", "Include clear objectives", "Add timeline details", "Enhance document formatting", "Include executive summary"],
-                "toolkit": ["Clio – comprehensive legal practice management", "DocuSign – electronic signature management", "Lexis+ – legal research and analysis"]
-            }
-            
-    except Exception as e:
-        logger.error(f"AI analysis error: {e}")
-        return {
-            "verdict": "non-proposal",
-            "confidence": 0.50,
-            "summary": "Unable to complete full AI analysis due to processing error. Document requires manual review.",
-            "improvements": ["Document requires manual review", "Check file format compatibility", "Ensure document is text-readable"],
-            "toolkit": ["Manual review tools recommended"]
-        }
+            # Extract JSON
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                verdicts.append(result.get("verdict", "non-proposal"))
+                confidences.append(float(result.get("confidence", 0.5)))
+                summaries.append(result.get("summary", ""))
+            else:
+                logger.warning("⚠️ AI response not in JSON format")
+
+        except Exception as e:
+            logger.error(f"❌ AI chunk analysis error: {e}")
+
+    # --- 4. Combine results ---
+    if verdicts:
+        final_verdict = "proposal" if verdicts.count("proposal") > verdicts.count("non-proposal") else "non-proposal"
+        final_confidence = sum(confidences) / len(confidences)
+        combined_summary = " ".join(summaries)[:2000]
+    else:
+        logger.warning("⚠️ No AI results, using keyword fallback.")
+        keywords = ['proposal', 'request for proposal', 'rfp', 'bid', 'tender']
+        is_proposal = any(k in text_content.lower() for k in keywords)
+        final_verdict = "proposal" if is_proposal else "non-proposal"
+        final_confidence = 0.7 if is_proposal else 0.6
+        combined_summary = "Document analyzed with fallback keyword detection. AI returned no summary."
+
+    return {
+        "verdict": final_verdict,
+        "confidence": round(final_confidence, 2),
+        "summary": combined_summary,
+        "improvements": ["Add more structured sections", "Include clear objectives", "Provide timeline details"],
+        "toolkit": ["Clio – legal practice management", "DocuSign – electronic signature management"]
+    }
+
 
 def extract_key_findings_from_content(content: str, filename: str) -> List[str]:
     """Extract key findings from actual document content"""

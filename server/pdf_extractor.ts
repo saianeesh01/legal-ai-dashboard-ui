@@ -1,6 +1,13 @@
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+ // import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist;
 
-GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
+ /** 
+  import * as pdfjsLib from 'pdfjs-dist';
+
+
+ //GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
+
+ pdfjsLib.GlobalWorkerOptions.workerSrc = require('pdfjs-dist/build/pdf.worker.js');
+
 
 interface PDFExtractionResult {
   text: string;
@@ -13,7 +20,7 @@ interface PDFExtractionResult {
 export class PDFExtractor {
   /**
    * Extract text using pdfjs-dist (primary method)
-   */
+   
   static async extractText(buffer: Buffer, fileName: string): Promise<PDFExtractionResult> {
     try {
       const pdf = await getDocument({ data: buffer }).promise;
@@ -40,7 +47,7 @@ export class PDFExtractor {
 
   /**
    * Fallback extraction with internal tag check
-   */
+   
   private static async fallbackTextExtraction(buffer: Buffer): Promise<PDFExtractionResult> {
     try {
       const text = buffer.toString('utf8');
@@ -78,4 +85,38 @@ export class PDFExtractor {
       };
     }
   }
+}
+**/
+
+
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Resolve __dirname in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Set workerSrc properly for Node.js ESM
+pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(
+  __dirname,
+  '../node_modules/pdfjs-dist/build/pdf.worker.js'
+);
+
+export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+    try {
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+        let extractedText = '';
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            extractedText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+        }
+
+        return extractedText.trim();
+    } catch (error) {
+        console.error("PDF extraction failed:", error);
+        return '';
+    }
 }

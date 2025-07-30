@@ -36,7 +36,7 @@ services:
     networks:
       - backendnet
 
-  backend:
+  frontend:
     build:
       context: .
       dockerfile: server/Dockerfile
