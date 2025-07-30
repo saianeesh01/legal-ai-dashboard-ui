@@ -24,12 +24,17 @@ export interface PDFExtractionResult {
   hasValidContent: boolean;
 }
 
-// Dynamic import with fallback
+// Import pdfjs-dist using createRequire for Node.js compatibility
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 async function loadPDFJS() {
   try {
-    return await import('pdfjs-dist/legacy/build/pdf.mjs');
-  } catch {
-    return await import('pdfjs-dist/build/pdf.mjs');
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+    return pdfjsLib;
+  } catch (error) {
+    console.error('Failed to load pdfjs-dist:', error);
+    throw new Error('Could not load PDF.js library');
   }
 }
 
@@ -61,38 +66,73 @@ export class PDFExtractor {
   }
 
   /**
-   * Extract text using pdfjs-dist
+   * Enhanced PDF text extraction with better error handling
    */
   static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise<PDFExtractionResult> {
     try {
+      console.log(`🔍 Attempting enhanced pdfjs-dist extraction for: ${fileName}`);
+      
       const lib = await loadPDFJS();
-      const pdf = await lib.getDocument({ data: buffer }).promise;
+      const uint8Array = new Uint8Array(buffer);
+      const pdf = await lib.getDocument({ 
+        data: uint8Array,
+        verbosity: 0, // Reduce console noise
+        disableFontFace: true,
+        useSystemFonts: false
+      }).promise;
 
       let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const text = content.items.map((item: any) => item.str).join(' ');
-        fullText += text + '\n\n';
+      const pageCount = pdf.numPages;
+      console.log(`📄 Processing ${pageCount} pages...`);
+
+      for (let i = 1; i <= pageCount; i++) {
+        try {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent({
+            normalizeWhitespace: false
+          });
+          
+          // Better text extraction with spacing
+          const pageText = content.items
+            .map((item: any) => {
+              if (item.str && item.str.trim()) {
+                return item.str;
+              }
+              return '';
+            })
+            .filter((text: string) => text.length > 0)
+            .join(' ');
+            
+          if (pageText.trim()) {
+            fullText += pageText + '\n\n';
+            console.log(`✓ Page ${i}: extracted ${pageText.length} characters`);
+          }
+        } catch (pageError) {
+          console.warn(`⚠️ Failed to extract page ${i}: ${pageError}`);
+          continue;
+        }
       }
 
       const cleanText = fullText.trim();
       const validation = this.validateTextQuality(cleanText);
 
+      console.log(`📊 Extraction complete: ${cleanText.length} chars, ${validation.wordCount} words, quality: ${validation.quality}`);
+
       return {
         text: cleanText,
-        pageCount: pdf.numPages,
-        extractionMethod: 'pdfjs-dist',
+        pageCount: pageCount,
+        extractionMethod: 'pdfjs-dist-enhanced',
         success: validation.hasValidContent,
         quality: validation.quality,
         wordCount: validation.wordCount,
         hasValidContent: validation.hasValidContent
       };
     } catch (error: any) {
+      console.error(`❌ Enhanced pdfjs-dist extraction failed: ${error.message}`);
       return {
         text: '',
         pageCount: 0,
-        extractionMethod: 'pdfjs-dist',
+        extractionMethod: 'pdfjs-dist-enhanced',
         success: false,
         error: error?.message || String(error),
         quality: 'failed',
@@ -146,18 +186,33 @@ export class PDFExtractor {
   }
 
   /**
-   * Main extraction
+   * Main extraction method - no fallbacks, real text or fail
    */
   static async extractText(buffer: Buffer, fileName: string): Promise<PDFExtractionResult> {
-    console.log(`Starting PDF extraction for: ${fileName}`);
-
-    const pdfjsResult = await this.extractWithPDFJS(buffer, fileName);
-    if (pdfjsResult.success) return pdfjsResult;
-
-    const fallbackResult = await this.fallbackTextExtraction(buffer, fileName);
-    if (fallbackResult.success) return fallbackResult;
-
-    return this.generateContextualContent(fileName);
+    console.log(`🚀 Starting robust PDF extraction for: ${fileName}`);
+    
+    // Enhanced pdfjs-dist extraction - no fallbacks
+    const result = await this.extractWithPDFJS(buffer, fileName);
+    
+    if (result.success && result.hasValidContent) {
+      console.log(`✅ Successfully extracted real text: ${result.wordCount} words`);
+      return result;
+    }
+    
+    console.log(`❌ Failed to extract valid text from ${fileName}`);
+    console.log(`Error: ${result.error || 'Unknown extraction error'}`);
+    
+    // Return failure instead of fallback - no fake content
+    return {
+      text: '',
+      pageCount: result.pageCount || 0,
+      extractionMethod: result.extractionMethod,
+      success: false,
+      error: result.error || 'Could not extract valid text from PDF',
+      quality: 'failed',
+      wordCount: 0,
+      hasValidContent: false
+    };
   }
 
   /**
