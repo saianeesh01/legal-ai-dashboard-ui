@@ -430,21 +430,26 @@ function getRelevantDomain(fileName: string): string {
   return 'legal services and regulatory compliance frameworks';
 }
 
-// Helper to call Ollama Llama 3 for summarization
+// Helper to call Ollama Mistral for summarization  
 async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama  summarization for: ${fileName}`);
+  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
   
   const prompt = `You are a legal document analysis AI. Read the following document and generate a detailed, content-specific summary. Quote or paraphrase key facts, dates, names, monetary amounts, and legal citations. Do NOT state the document type or use generic templates. Focus on the actual content.\n\nDocument: ${fileName}\n\n${documentText}`;
   
   try {
     console.log(`🌐 Sending request to AI Service...`);
-    const response = await fetch('http://ai_service:5001/analyze', {
+    // Use correct AI service URL for development vs Docker
+    const AI_SERVICE_URL = process.env.NODE_ENV === 'production' 
+      ? 'http://ai_service:5001'
+      : 'http://localhost:5001';
+    
+    const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: documentText,
-        model: 'mistral:7b-instruct-q4_0',
+        model: 'mistral:latest',
         prompt: prompt
       })
     });
@@ -654,8 +659,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
       console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
       
-      // Use Ollama Llama 3 for summary
-      console.log(`🔍 Starting analysis with Ollama Llama 3 for: ${job.fileName}`);
+      // Use Ollama Mistral for summary
+      console.log(`🔍 Starting analysis with Ollama Mistral for: ${job.fileName}`);
       let summary = await summarizeWithOllamaLlama3(fileContent, job.fileName);
       
       if (!summary || summary.trim().length < 20) {
@@ -663,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Fallback to current summary logic if Ollama fails
         summary = generateDetailedDocumentSummary(job.fileName, fileContent, multiLabelResult.document_type, multiLabelResult.confidence, multiLabelResult.reasoning);
       } else {
-        console.log(`✅ Using Ollama Llama 3 generated summary`);
+        console.log(`✅ Using Ollama Mistral generated summary`);
       }
       
       // Create enhanced analysis result with multi-label insights
@@ -673,7 +678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         confidence: multiLabelResult.confidence,
         wordCount: fileContent.split(/\s+/).length,
         keyFindings: multiLabelResult.evidence.slice(0, 5), // Use first 5 evidence items as key findings
-        summary, // Use Llama 3 summary
+        summary, // Use Mistral summary
         improvements: generateDocumentImprovements(multiLabelResult.document_type, fileContent),
         toolkit: generateDocumentToolkit(multiLabelResult.document_type),
         criticalDates: extractCriticalDates(fileContent),
@@ -1132,8 +1137,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Call AI service
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
+      // Call AI service (adjust URL for development vs Docker)
+      const AI_SERVICE_URL = process.env.NODE_ENV === 'production' 
+        ? (process.env.AI_SERVICE_URL || 'http://ai_service:5001')
+        : 'http://localhost:5001';
       
       try {
         const aiResponse = await fetch(`${AI_SERVICE_URL}/summarize`, {
