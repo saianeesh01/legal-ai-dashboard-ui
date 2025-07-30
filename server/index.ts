@@ -59,23 +59,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve React static files
-// ✅ Point to the actual Vite build output
-const buildPath = path.join(__dirname, '../dist/public');
-
-app.use(express.static(buildPath));
-
-// ✅ Catch-all route for React Router
-app.get('*', (req, res) => {
-    res.sendFile(path.join(buildPath, 'index.html'));
-});
-
 (async () => {
+  // Register API routes FIRST before any static file serving
   const server = await registerRoutes(app);
 
-  // SPA fallback - must come AFTER API routes
+  // Serve React static files AFTER API routes
+  const buildPath = path.join(__dirname, '../dist/public');
+  app.use(express.static(buildPath));
+
+  // SPA fallback - must come LAST, only for non-API routes
   app.get('*', (req, res) => {
-    res.sendFile(path.join(buildPath, 'public/index.html'));
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(buildPath, 'index.html'));
   });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
