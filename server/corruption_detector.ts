@@ -21,6 +21,17 @@ export class CorruptionDetector {
   static hasCorruption(text: string): boolean {
     if (!text || text.length < 10) return false;
     
+    // Immediate check for PDF binary content (clear sign of corruption)
+    if (text.includes('obj') && text.includes('endobj') && text.includes('stream')) {
+      console.log('🔍 Corruption detected: PDF binary content found in text');
+      return true;
+    }
+    
+    if (text.includes('<<') && text.includes('>>') && text.includes('/Filter')) {
+      console.log('🔍 Corruption detected: PDF object structure found in text');
+      return true;
+    }
+    
     // Check against all corruption patterns - extremely conservative
     for (const pattern of this.corruptionPatterns) {
       const matches = text.match(pattern);
