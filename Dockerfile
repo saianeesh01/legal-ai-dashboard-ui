@@ -1,5 +1,5 @@
-# Multi-stage Dockerfile for Legal AI Dashboard Frontend (React + Express)
-FROM node:22-bookworm-slim
+# ---------- 1️⃣ Build Stage ----------
+FROM node:22-bookworm-slim AS build
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -12,38 +12,48 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (better cache)
 COPY package*.json ./
 COPY pyproject.toml ./
 
-# Install Node.js dependencies
-RUN npm ci --only=production
+# ✅ Install ALL dependencies (prod + dev)
+RUN npm install --legacy-peer-deps
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r <(pip3 freeze) 2>/dev/null || true
-RUN pip3 install --no-cache-dir \
-    flask \
-    pdf-redactor \
-    pymupdf \
-    requests
+# Install Python dependencies if a requirements.txt exists
+COPY requirements.txt ./
+RUN if [ -f "requirements.txt" ]; then pip3 install --no-cache-dir --break-system-packages -r requirements.txt; fi
 
-# Copy application source
+# Copy full source code
 COPY . .
 
 # Build frontend
 RUN npm run build
 
-# Expose port
+# ---------- 2️⃣ Production Stage ----------
+FROM node:22-bookworm-slim AS prod
+
+WORKDIR /app
+
+# ✅ Install ALL dependencies again (dev tools included)
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy build artifacts and server code
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server ./server
+COPY --from=build /app/shared ./shared
+
+# Expose API port
 EXPOSE 5000
 
-# Health check
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Start application
-CMD ["npm", "run", "dev"]
+# Start production server
+CMD ["npm", "run", "start"]

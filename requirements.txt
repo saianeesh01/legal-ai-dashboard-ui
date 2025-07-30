@@ -1,0 +1,4 @@
+flask
+pdf-redactor
+pymupdf
+requests

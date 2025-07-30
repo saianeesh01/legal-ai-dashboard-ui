@@ -1,9 +1,7 @@
-declare module 'pdfjs-dist/legacy/build/pdf.js' {
-    import * as pdfjsLib from 'pdfjs-dist';
-    export = pdfjsLib;
+// src/types/pdfjs-dist.d.ts
+declare module 'pdfjs-dist/legacy/build/pdf.mjs' {
+  export function getDocument(params: any): any;
 }
-
-declare module 'pdfjs-dist' {
-    export const GlobalWorkerOptions: any;
-    export function getDocument(params: any): any;
+declare module 'pdfjs-dist/build/pdf.mjs' {
+  export function getDocument(params: any): any;
 }

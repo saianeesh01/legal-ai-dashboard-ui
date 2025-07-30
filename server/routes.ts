@@ -9,7 +9,7 @@ import { DocumentQueryEngine } from "./document_query_engine";
 import { PDFExtractor } from "./pdf_extractor.js";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
-import { PDFRedactor } from "./pdf_redactor.js";
+import  PDFRedactor  from "./pdf_redactor.js";
 import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 import fetch from 'node-fetch';
@@ -588,12 +588,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         redactedItemsCount: redactionResult.redactedItems.length
       });
 
-      res.json({ 
-        jobId: jobId, 
-        job_id: jobId, // Legacy compatibility
-        status: "PROCESSING",
-        message: "Upload successful, processing document..." 
-      });
+      res.json({
+  job_id: jobId,
+  _debug: { status: "PROCESSING", message: "Upload successful, processing document..." }
+});
+
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Upload failed" });
@@ -956,11 +955,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!result.success) {
           throw new Error(`Redaction failed: ${result.error}`);
         }
-        const existingRedactedPdf = result.redactedPDFBuffer;
+        const existingRedactedPdf = result.redactedPdfBuffer;
         
         redactedPdfBuffer = existingRedactedPdf || originalPdfBuffer;
-        redactionSummary = `Standard redaction completed. Patterns found: ${result.patternsFound.join(', ')}`;
-        redactedItemsCount = result.itemsRedacted;
+        redactionSummary = `Standard redaction completed. Patterns found: ${(result.patternsFound || []).join(', ')}`;
+        redactedItemsCount = result.itemsRedactedCount || 0;
       }
 
       // Build ETag for caching / integrity verification
@@ -1009,23 +1008,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Test redaction effectiveness
-      const testResult = await pythonRedactorBridge.testRedaction(originalPdfBuffer);
-      
-      res.json({
-        jobId,
-        fileName: job.fileName,
-        redactionTest: testResult,
-        recommendations: {
-          useAdvancedRedaction: testResult.totalSensitiveItems > 0,
-          sensitiveItemsFound: testResult.totalSensitiveItems,
-          patterns: {
-            aNumbers: testResult.hasANumbers,
-            ssns: testResult.hasSSNs,
-            phoneNumbers: testResult.hasPhoneNumbers,
-            emails: testResult.hasEmails
-          }
-        }
-      });
+      const testResult = await pythonRedactorBridge.redactPDF(originalPdfBuffer, { useAdvancedRedaction: true });
+
+res.json({
+  jobId,
+  fileName: job.fileName,
+  redactionTest: testResult,
+  recommendations: {
+    useAdvancedRedaction: (testResult.itemsRedacted ?? 0) > 0,
+    sensitiveItemsFound: testResult.itemsRedacted ?? 0,
+    patterns: testResult.patternsFound ?? []
+  }
+});
+
       
     } catch (error) {
       console.error("Error testing redaction:", error);

@@ -60,9 +60,15 @@ app.use((req, res, next) => {
 });
 
 // Serve React static files
-const buildPath = path.join(__dirname, '../client/build');
+// ✅ Point to the actual Vite build output
+const buildPath = path.join(__dirname, '../dist/public');
+
 app.use(express.static(buildPath));
-app.use(express.static(path.join(buildPath, 'public')));
+
+// ✅ Catch-all route for React Router
+app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+});
 
 (async () => {
   const server = await registerRoutes(app);
