@@ -521,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`File size: ${req.file.buffer.length} bytes`);
         console.log(`MIME type: ${req.file.mimetype}`);
         
-        // Use the working PDFExtractor for all PDFs
+        // Use the reliable PDFExtractor for PDF text extraction
         if (req.file.mimetype === 'application/pdf') {
           const { PDFExtractor } = await import('./pdf_extractor.js');
           const extractionResult = await PDFExtractor.extractText(
@@ -529,13 +529,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             req.file.originalname
           );
 
-          // Check if extraction succeeded and has valid content
           if (extractionResult.success && extractionResult.hasValidContent) {
             fileContent = extractionResult.text;
-            console.log(`✓ Document extraction successful using ${extractionResult.extractionMethod}`);
-            console.log(`✓ Final content length: ${fileContent.length} characters`);
+            console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}: ${fileContent.length} characters`);
           } else {
-            console.error(`✗ Text extraction failed for ${req.file.originalname}: ${extractionResult.error || 'Quality validation failed'}`);
+            console.error(`✗ PDF extraction failed for ${req.file.originalname}: ${extractionResult.error}`);
             return res.status(422).json({ 
               error: "Could not extract text from document" 
             });
