@@ -178,9 +178,15 @@ private static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise
     try {
         console.log(`Using PDF.js extraction for: ${fileName}`);
 
-        // ✅ Set workerSrc correctly for Node.js
-        const workerPath = join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.js');
-         (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerPath;
+        // ✅ Set workerSrc correctly for Node.js - check if GlobalWorkerOptions exists
+        try {
+          const workerPath = join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.js');
+          if ((pdfjsLib as any).GlobalWorkerOptions) {
+            (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerPath;
+          }
+        } catch (workerError) {
+          console.warn('Could not set PDF.js worker, proceeding without:', workerError.message);
+        }
 
         // Convert Buffer → Uint8Array
         const uint8ArrayData = new Uint8Array(buffer);

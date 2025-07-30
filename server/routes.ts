@@ -517,28 +517,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`File size: ${req.file.buffer.length} bytes`);
         console.log(`MIME type: ${req.file.mimetype}`);
         
-        // Use the new DocumentExtractor for all file types
-        const { DocumentExtractor } = await import('./document_extractor.js');
-        extractionResult = await DocumentExtractor.extractText(
+        // Use the new PDFExtractor for better compatibility
+        const { PDFExtractor } = await import('./pdf_extractor.js');
+        extractionResult = await PDFExtractor.extractText(
           req.file.buffer, 
-          req.file.originalname, 
-          req.file.mimetype
+          req.file.originalname
         );
 
         // ✅ Validate extracted text quality before proceeding
-if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
-    console.warn(`⚠️ Low-quality text detected for ${req.file.originalname}. Skipping AI analysis.`);
+        if (!extractionResult.hasValidContent) {
+            console.warn(`⚠️ Low-quality text detected for ${req.file.originalname}. Skipping AI analysis.`);
 
-    return res.status(200).json({
-        verdict: "non-proposal",
-        confidence: 0.3,
-        summary: "Document text could not be extracted properly. Manual review required.",
-        improvements: [],
-        toolkit: [],
-        extractionMethod: extractionResult.extractionMethod || "unknown",
-        textLength: extractionResult.text ? extractionResult.text.length : 0
-    });
-}
+            return res.status(200).json({
+                jobId: jobId, // Add missing jobId
+                verdict: "non-proposal",
+                confidence: 0.3,
+                summary: "Document text could not be extracted properly. Manual review required.",
+                improvements: [],
+                toolkit: [],
+                extractionMethod: extractionResult.extractionMethod || "unknown",
+                textLength: extractionResult.text ? extractionResult.text.length : 0
+            });
+        }
 
         
         console.log(`Extraction result: ${extractionResult.extractionMethod}`);
@@ -546,7 +546,7 @@ if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
         console.log(`Text length: ${extractionResult.text.length}`);
         console.log(`Page count: ${extractionResult.pageCount}`);
         
-        if (extractionResult.success && DocumentExtractor.validateTextQuality(extractionResult.text)) {
+        if (extractionResult.success && extractionResult.hasValidContent) {
           fileContent = extractionResult.text;
           console.log(`✓ Document extraction successful using ${extractionResult.extractionMethod}`);
           console.log(`✓ Final content length: ${fileContent.length} characters`);
@@ -583,7 +583,12 @@ if (!DocumentExtractor.validateTextQuality(extractionResult.text)) {
         redactedItemsCount: redactionResult.redactedItems.length
       });
 
-      res.json({ job_id: jobId });
+      res.json({ 
+        jobId: jobId, 
+        job_id: jobId, // Legacy compatibility
+        status: "PROCESSING",
+        message: "Upload successful, processing document..." 
+      });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Upload failed" });
