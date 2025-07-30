@@ -513,65 +513,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.storeEncryptedDocument(jobId, req.file.buffer, fileMetadata);
       console.log(`Document encrypted and stored securely: ${req.file.originalname}`);
 
-      // Extract text content using comprehensive document extractor
+      // Extract text content using hybrid PDF extractor with OCR fallback
       let fileContent = '';
-      let extractionResult: any = null;
       
       try {
         console.log(`=== DOCUMENT EXTRACTION START: ${req.file.originalname} ===`);
         console.log(`File size: ${req.file.buffer.length} bytes`);
         console.log(`MIME type: ${req.file.mimetype}`);
         
-        // Use the new PDFExtractor for better compatibility
-        const { PDFExtractor } = await import('./pdf_extractor.js');
-        extractionResult = await PDFExtractor.extractText(
-          req.file.buffer, 
-          req.file.originalname
-        );
+        // Use the working PDFExtractor for all PDFs
+        if (req.file.mimetype === 'application/pdf') {
+          const { PDFExtractor } = await import('./pdf_extractor.js');
+          const extractionResult = await PDFExtractor.extractText(
+            req.file.buffer, 
+            req.file.originalname
+          );
 
-        // ✅ Validate extracted text quality before proceeding
-        if (!extractionResult.hasValidContent) {
-            console.warn(`⚠️ Low-quality text detected for ${req.file.originalname}. Skipping AI analysis.`);
-
-            return res.status(200).json({
-                jobId: jobId, // Add missing jobId
-                verdict: "non-proposal",
-                confidence: 0.3,
-                summary: "Document text could not be extracted properly. Manual review required.",
-                improvements: [],
-                toolkit: [],
-                extractionMethod: extractionResult.extractionMethod || "unknown",
-                textLength: extractionResult.text ? extractionResult.text.length : 0
+          // Check if extraction succeeded and has valid content
+          if (extractionResult.success && extractionResult.hasValidContent) {
+            fileContent = extractionResult.text;
+            console.log(`✓ Document extraction successful using ${extractionResult.extractionMethod}`);
+            console.log(`✓ Final content length: ${fileContent.length} characters`);
+          } else {
+            console.error(`✗ Text extraction failed for ${req.file.originalname}: ${extractionResult.error || 'Quality validation failed'}`);
+            return res.status(422).json({ 
+              error: "Could not extract text from document" 
             });
-        }
-
-        
-        console.log(`Extraction result: ${extractionResult.extractionMethod}`);
-        console.log(`Success: ${extractionResult.success}`);
-        console.log(`Text length: ${extractionResult.text.length}`);
-        console.log(`Page count: ${extractionResult.pageCount}`);
-        
-        if (extractionResult.success && extractionResult.hasValidContent) {
-          fileContent = extractionResult.text;
-          console.log(`✓ Document extraction successful using ${extractionResult.extractionMethod}`);
-          console.log(`✓ Final content length: ${fileContent.length} characters`);
-          console.log(`✓ Quality validation passed`);
+          }
         } else {
-          console.log(`✗ Document extraction failed or poor quality text`);
-          console.log(`✗ Error: ${extractionResult.error || 'Quality validation failed'}`);
-          console.log(`✗ Falling back to enhanced filename analysis`);
-          fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
+          // For text files, extract directly
+          fileContent = req.file.buffer.toString('utf-8');
         }
         
         console.log(`=== DOCUMENT EXTRACTION END: Final content length: ${fileContent.length} ===`);
         
       } catch (error) {
         console.error(`✗ CRITICAL document extraction error for ${req.file.originalname}:`, error);
-        if (error instanceof Error) {
-          console.error(`✗ Error stack:`, error.stack);
-        }
-        console.log(`✗ Using enhanced filename-based analysis as fallback`);
-        fileContent = generateEnhancedDocumentContent(req.file.originalname, req.file.size);
+        return res.status(422).json({ 
+          error: "Could not extract text from document" 
+        });
       }
       
       // Apply personal information redaction

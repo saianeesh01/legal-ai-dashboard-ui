@@ -1,7 +1,7 @@
 # ---------- 1️⃣ Build Stage ----------
 FROM node:22-bookworm-slim AS build
 
-# Install system dependencies
+# Install system dependencies including OCR support
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y \
     libgif-dev \
     librsvg2-dev \
     curl \
+    tesseract-ocr \
+    libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
