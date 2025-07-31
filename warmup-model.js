@@ -7,7 +7,7 @@
 import fetch from 'node-fetch';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
-const OLLAMA_URL = 'http://localhost:11434';
+const OLLAMA_URL = process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}` : 'http://localhost:11434';
 
 async function checkOllamaStatus() {
   try {

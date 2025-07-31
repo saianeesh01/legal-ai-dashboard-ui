@@ -8,7 +8,9 @@ export function setupWarmupRoutes(app: Express) {
     try {
       console.log("🔥 Initiating model warmup...");
       
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
+      // Docker-aware AI service URL
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 
+        (process.env.NODE_ENV === 'production' ? "http://ai_service:5001" : "http://localhost:5001");
       
       // Call the AI service warmup endpoint
       const response = await fetch(`${AI_SERVICE_URL}/warmup/auto`, {
@@ -46,7 +48,9 @@ export function setupWarmupRoutes(app: Express) {
   // Check if model is ready
   app.get("/api/warmup/status", async (req, res) => {
     try {
-      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
+      // Docker-aware AI service URL
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 
+        (process.env.NODE_ENV === 'production' ? "http://ai_service:5001" : "http://localhost:5001");
       
       const response = await fetch(`${AI_SERVICE_URL}/health`, {
         method: 'GET'

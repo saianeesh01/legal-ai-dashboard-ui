@@ -29,6 +29,7 @@ services:
     environment:
       FLASK_ENV: production
       OLLAMA_HOST: host.docker.internal:11434
+      WARMUP_ON_START: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -3,7 +3,7 @@
 /**
  * Warm up the AI model before document uploads to improve performance
  */
-export async function warmupModel(): Promise<{
+export async function warmupModel(timeout: number = 30000): Promise<{
   success: boolean;
   message: string;
   error?: string;
@@ -11,12 +11,18 @@ export async function warmupModel(): Promise<{
   try {
     console.log("🔥 Starting AI model warmup...");
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
     const response = await fetch('/api/warmup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     const result = await response.json();
     
