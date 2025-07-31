@@ -325,16 +325,7 @@ Please analyze:
 
 Analysis:"""
         
-        # ✅ FIX: Removed "options", now using max_tokens argument
-        analysis = ollama.generate(
-    model=model,
-    prompt=prompt,
-    #stream=False,
-    options={
-        "temperature": 0.3,
-        "num_predict": 800
-    }
-)
+        analysis = ollama.generate(model, prompt, 800)
 
 
         
