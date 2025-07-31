@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Frontend (React + Express backend)
   frontend:
     build:
       context: .
@@ -10,52 +9,50 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - AI_SERVICE_URL=http://ai_service:5001
+      DATABASE_URL: postgresql://postgres:pass123@legal-ai-db:5432/legal_ai_db
+      AI_SERVICE_URL: http://ai_service:5001
     volumes:
       - ./Legal_docs:/app/Legal_docs:ro
     depends_on:
       - ai_service
+      - legal-ai-db
     restart: unless-stopped
     networks:
       - legal-ai-network
 
-  # AI Service (Flask + Ollama client)
   ai_service:
     build:
       context: ./ai_service
-      dockerfile: Dockerfile
     container_name: legal-ai-service
     ports:
       - "5001:5001"
     environment:
-      - FLASK_ENV=production
-      - OLLAMA_HOST=host.docker.internal:11434
+      FLASK_ENV: production
+      OLLAMA_HOST: host.docker.internal:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - legal-ai-network
 
-  # Optional: Local Ollama service (if not running on host)
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: ollama
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama_data:/root/.ollama
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_HOST=0.0.0.0
-  #   restart: unless-stopped
-  #   networks:
-  #     - legal-ai-network
+  legal-ai-db:
+    image: postgres:15
+    container_name: legal-ai-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass123
+      POSTGRES_DB: legal_ai_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - legal-ai-network
 
 networks:
   legal-ai-network:
     driver: bridge
 
-# volumes:
-#   ollama_data:
+volumes:
+  pg_data:
