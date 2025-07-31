@@ -5,6 +5,7 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -14,42 +15,38 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create a startup script that handles warmup
-RUN cat > start.sh << 'EOF'
-#!/bin/bash
-echo "Starting AI Service..."
+# Create supervisor configuration for process management
+RUN echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '[program:flask_app]' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'command=python app.py' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'directory=/app' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '[program:warmup_service]' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'command=python warmup_daemon.py' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'directory=/app' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'autorestart=false' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startretries=1' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf
 
-# Start Flask app in background
-python app.py &
-FLASK_PID=$!
-
-# Wait for Flask to be ready
-echo "Waiting for Flask to start..."
-sleep 5
-
-# Attempt warmup if WARMUP_ON_START is set
-if [ "$WARMUP_ON_START" = "true" ]; then
-    echo "Attempting model warmup..."
-    for i in {1..3}; do
-        echo "Warmup attempt $i/3..."
-        curl -X POST http://localhost:5001/warmup/auto \
-            -H "Content-Type: application/json" \
-            --max-time 30 \
-            --connect-timeout 10 && break
-        echo "Warmup attempt $i failed, retrying in 10 seconds..."
-        sleep 10
-    done
-fi
-
-# Wait for Flask process
-wait $FLASK_PID
-EOF
-
-RUN chmod +x start.sh
+# Create warmup daemon
+COPY warmup_daemon.py .
 
 EXPOSE 5001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:5001/health || exit 1
 
-CMD ["./start.sh"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

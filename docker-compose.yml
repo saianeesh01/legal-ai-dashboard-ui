@@ -12,6 +12,7 @@ services:
       DATABASE_URL: "postgresql://neondb_owner:npg_oNhiQsanu4p2@ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require"
       AI_SERVICE_URL: http://ai_service:5001
       NODE_ENV: production
+      WARMUP_ON_START: "true"
     volumes:
       - ./Legal_docs:/app/Legal_docs:ro
     depends_on:

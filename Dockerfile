@@ -57,5 +57,22 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Start production server
-CMD ["npm", "run", "start"]
+# Create startup script for warmup integration
+RUN echo '#!/bin/bash' > /app/docker-start.sh && \
+    echo 'echo "Starting Legal AI Platform..."' >> /app/docker-start.sh && \
+    echo 'if [ "$WARMUP_ON_START" = "true" ] && [ "$AI_SERVICE_URL" ]; then' >> /app/docker-start.sh && \
+    echo '  echo "Checking AI service availability..."' >> /app/docker-start.sh && \
+    echo '  for i in {1..30}; do' >> /app/docker-start.sh && \
+    echo '    if curl -s "$AI_SERVICE_URL/health" > /dev/null 2>&1; then' >> /app/docker-start.sh && \
+    echo '      echo "AI service is ready"' >> /app/docker-start.sh && \
+    echo '      break' >> /app/docker-start.sh && \
+    echo '    fi' >> /app/docker-start.sh && \
+    echo '    echo "Waiting for AI service... ($i/30)"' >> /app/docker-start.sh && \
+    echo '    sleep 2' >> /app/docker-start.sh && \
+    echo '  done' >> /app/docker-start.sh && \
+    echo 'fi' >> /app/docker-start.sh && \
+    echo 'exec npm run start' >> /app/docker-start.sh && \
+    chmod +x /app/docker-start.sh
+
+# Start services
+CMD ["/app/docker-start.sh"]
