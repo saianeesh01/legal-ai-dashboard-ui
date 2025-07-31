@@ -14,6 +14,7 @@ import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 import fetch from 'node-fetch';
 import { DocumentExtractor } from './document_extractor';
+import { setupWarmupRoutes } from './routes/warmup';
 
 
 // Configure multer for file uploads
@@ -2048,4 +2049,13 @@ function extractComplianceRequirements(content: string): string[] {
   });
 
   return requirements.slice(0, 5);
+}
+
+export function setupRoutes(app: Express): Server {
+  const server = createServer(app);
+  
+  // Setup warmup routes
+  setupWarmupRoutes(app);
+
+  return server;
 }
