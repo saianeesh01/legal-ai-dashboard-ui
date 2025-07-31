@@ -9,13 +9,13 @@ services:
     ports:
       - "5000:5000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:pass123@legal-ai-db:5432/legal_ai_db}
+      DATABASE_URL: ${DATABASE_URL}
       AI_SERVICE_URL: http://ai_service:5001
+      NODE_ENV: production
     volumes:
       - ./Legal_docs:/app/Legal_docs:ro
     depends_on:
       - ai_service
-      - legal-ai-db
     restart: unless-stopped
     networks:
       - legal-ai-network
@@ -35,24 +35,6 @@ services:
     networks:
       - legal-ai-network
 
-  legal-ai-db:
-    image: postgres:15
-    container_name: legal-ai-db
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: pass123
-      POSTGRES_DB: legal_ai_db
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - legal-ai-network
-
 networks:
   legal-ai-network:
     driver: bridge
-
-volumes:
-  pg_data:

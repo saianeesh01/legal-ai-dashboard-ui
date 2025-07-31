@@ -1,0 +1,75 @@
+legal-ai-service   | INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.                                                                                   
+legal-ai-service   |  * Running on all addresses (0.0.0.0)
+legal-ai-frontend  | 
+legal-ai-service   |  * Running on http://127.0.0.1:5001                                                              
+legal-ai-frontend  | > rest-express@1.0.0 start                                                                       
+legal-ai-service   |  * Running on http://172.18.0.2:5001                                                             
+legal-ai-frontend  | > NODE_ENV=production node dist/index.js
+legal-ai-service   | INFO:werkzeug:Press CTRL+C to quit
+legal-ai-frontend  |                                                                                                  
+legal-ai-db        | 2025-07-31 20:56:32.219 UTC [29] LOG:  database system was not properly shut down; automatic recovery in progress
+legal-ai-db        | 2025-07-31 20:56:32.227 UTC [29] LOG:  redo starts at 0/197A808
+legal-ai-db        | 2025-07-31 20:56:32.227 UTC [29] LOG:  invalid record length at 0/197A840: wanted 24, got 0      
+legal-ai-db        | 2025-07-31 20:56:32.227 UTC [29] LOG:  redo done at 0/197A808 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s                                                                                         
+legal-ai-db        | 2025-07-31 20:56:32.254 UTC [27] LOG:  checkpoint starting: end-of-recovery immediate wait
+legal-ai-db        | 2025-07-31 20:56:32.313 UTC [27] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.018 s, sync=0.004 s, total=0.066 s; sync files=2, longest=0.003 s, average=0.002 s; distance=0 kB, estimate=0 kB
+legal-ai-db        | 2025-07-31 20:56:32.336 UTC [1] LOG:  database system is ready to accept connections
+legal-ai-frontend  | 8:56:33 PM [express] serving on port 5000
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [31/Jul/2025 20:56:36] "GET /health HTTP/1.1" 200 -
+legal-ai-db        | 2025-07-31 20:57:06.476 UTC [33] FATAL:  password authentication failed for user "postgresql"
+legal-ai-db        | 2025-07-31 20:57:06.476 UTC [33] DETAIL:  Role "postgresql" does not exist.
+legal-ai-frontend  | Duplicate check error: error: password authentication failed for user "postgresql"               
+legal-ai-db        |    Connection matched pg_hba.conf line 100: "host all all all scram-sha-256"                     
+legal-ai-frontend  |     at /app/node_modules/pg-pool/index.js:45:11                                                  
+legal-ai-frontend  |     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+legal-ai-frontend  |     at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22                 
+legal-ai-frontend  |     at async DatabaseStorage.getJobByFileName (file:///app/dist/index.js:462:19)                 
+legal-ai-frontend  |     at async file:///app/dist/index.js:2716:27 {
+legal-ai-db        | 2025-07-31 20:57:06.527 UTC [34] FATAL:  password authentication failed for user "postgresql"    
+legal-ai-frontend  |   length: 106,                                                                                   
+legal-ai-db        | 2025-07-31 20:57:06.527 UTC [34] DETAIL:  Role "postgresql" does not exist.
+legal-ai-frontend  |   severity: 'FATAL',
+legal-ai-db        |    Connection matched pg_hba.conf line 100: "host all all all scram-sha-256"                     
+legal-ai-frontend  |   code: '28P01',                                                                                 
+legal-ai-frontend  |   detail: undefined,                                                                             
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [31/Jul/2025 20:57:06] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  |   hint: undefined,                                                                               
+legal-ai-frontend  |   position: undefined,
+legal-ai-frontend  |   internalPosition: undefined,                                                                   
+legal-ai-frontend  |   internalQuery: undefined,                                                                      
+legal-ai-frontend  |   where: undefined,                                                                              
+legal-ai-frontend  |   schema: undefined,
+legal-ai-frontend  |   table: undefined,                                                                              
+legal-ai-frontend  |   column: undefined,                                                                             
+legal-ai-frontend  |   dataType: undefined,                                                                           
+legal-ai-frontend  |   constraint: undefined,                                                                         
+legal-ai-frontend  |   file: 'auth.c',
+legal-ai-frontend  |   line: '326',                                                                                   
+legal-ai-frontend  |   routine: 'auth_failed'                                                                         
+legal-ai-frontend  | }                                                                                                
+legal-ai-frontend  | 8:57:06 PM [express] POST /api/check-duplicate 500 in 39ms :: {"error":"Duplicate check failed"} 
+legal-ai-frontend  | Upload error: error: password authentication failed for user "postgresql"                        
+legal-ai-frontend  |     at /app/node_modules/pg-pool/index.js:45:11
+legal-ai-frontend  |     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)               
+legal-ai-frontend  |     at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22                 
+legal-ai-frontend  |     at async DatabaseStorage.createJob (file:///app/dist/index.js:445:19)                        
+legal-ai-frontend  |     at async file:///app/dist/index.js:2514:7 {                                                  
+legal-ai-frontend  |   length: 106,                                                                                   
+legal-ai-frontend  |   severity: 'FATAL',
+legal-ai-frontend  |   code: '28P01',                                                                                 
+legal-ai-frontend  |   detail: undefined,                                                                             
+legal-ai-frontend  |   hint: undefined,                                                                               
+legal-ai-frontend  |   position: undefined,                                                                           
+legal-ai-frontend  |   internalPosition: undefined,
+legal-ai-frontend  |   internalQuery: undefined,                                                                      
+legal-ai-frontend  |   where: undefined,                                                                              
+legal-ai-frontend  |   schema: undefined,                                                                             
+legal-ai-frontend  |   table: undefined,                                                                              
+legal-ai-frontend  |   column: undefined,
+legal-ai-frontend  |   dataType: undefined,                                                                           
+legal-ai-frontend  |   constraint: undefined,                                                                         
+legal-ai-frontend  |   file: 'auth.c',                                                                                
+legal-ai-frontend  |   line: '326',                                                                                   
+legal-ai-frontend  |   routine: 'auth_failed'                                                                         
+legal-ai-frontend  | }
+legal-ai-frontend  | 8:57:06 PM [express] POST /api/upload 500 in 41ms :: {"error":"Upload failed"} 
