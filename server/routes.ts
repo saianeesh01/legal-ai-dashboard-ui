@@ -9,7 +9,7 @@ import { DocumentQueryEngine } from "./document_query_engine";
 import { PDFExtractor } from "./pdf_extractor.js";
 import { CorruptionDetector } from "./corruption_detector";
 import { PersonalInfoRedactor, type RedactionResult } from "./personal_info_redactor";
-import  PDFRedactor  from "./pdf_redactor.js";
+import PDFRedactor from "./pdf_redactor.js";
 import { pythonRedactorBridge } from "./python_redactor_bridge";
 import crypto from "crypto";
 import fetch from 'node-fetch';
@@ -17,7 +17,7 @@ import { DocumentExtractor } from './document_extractor';
 
 
 // Configure multer for file uploads
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
@@ -26,14 +26,14 @@ const upload = multer({
 function getDateContext(content: string, date: string): string | null {
   const lowerContent = content.toLowerCase();
   const datePattern = date.toLowerCase();
-  
+
   // Find the context around the date
   const dateIndex = lowerContent.indexOf(datePattern);
   if (dateIndex === -1) return null;
-  
+
   // Look for context words in a larger window around the date
   const contextWindow = lowerContent.substring(Math.max(0, dateIndex - 100), dateIndex + 100);
-  
+
   // More specific context detection
   if (contextWindow.includes('launch date') || contextWindow.includes('launch:')) {
     return `Launch Date: ${date}`;
@@ -44,13 +44,13 @@ function getDateContext(content: string, date: string): string | null {
   } else if (contextWindow.includes('payment') || contextWindow.includes('billing')) {
     return `Payment Date: ${date}`;
   }
-  
+
   return `Important Date: ${date}`;
 }
 
 function generateDetailedContentFromFilename(fileName: string, fileSize: number): string {
   const lowerFileName = fileName.toLowerCase();
-  
+
   // Generate specific content based on filename analysis
   if (lowerFileName.includes('immigration') && lowerFileName.includes('law') && lowerFileName.includes('clinic')) {
     return `IMMIGRATION LAW CLINIC PROPOSAL
@@ -127,7 +127,7 @@ EVALUATION METHODOLOGY
 - Partnership effectiveness evaluation
 
 This proposal demonstrates a comprehensive approach to addressing the critical need for immigration legal services in underserved communities through a sustainable, professionally managed clinic model with measurable outcomes and long-term viability.`;
-  
+
   } else if (lowerFileName.includes('veteran') && lowerFileName.includes('clinic')) {
     return `VETERANS LAW CLINIC PROPOSAL
 
@@ -183,7 +183,7 @@ EXPECTED OUTCOMES
 - Sustainable legal service delivery model
 
 This proposal addresses the unique legal needs of veterans and military families through specialized, culturally competent legal services delivered by trained professionals with measurable community impact.`;
-  
+
   } else {
     return `LEGAL DOCUMENT ANALYSIS
 
@@ -251,7 +251,7 @@ function getDocumentPurpose(fileName: string): string {
 function getExpectedContent(fileName: string): string[] {
   const lower = fileName.toLowerCase();
   const content = [];
-  
+
   if (lower.includes('proposal')) {
     content.push('Program objectives and measurable goals');
     content.push('Implementation timeline with specific milestones');
@@ -259,35 +259,35 @@ function getExpectedContent(fileName: string): string[] {
     content.push('Evaluation methodology and success metrics');
     content.push('Sustainability and long-term planning strategies');
   }
-  
+
   if (lower.includes('clinic')) {
     content.push('Service delivery model and client procedures');
     content.push('Client eligibility criteria and intake processes');
     content.push('Quality assurance and professional supervision protocols');
     content.push('Professional compliance and regulatory requirements');
   }
-  
+
   if (lower.includes('immigration')) {
     content.push('Immigration law compliance and regulatory requirements');
     content.push('Client service procedures and case management protocols');
     content.push('Federal regulation adherence and professional standards');
     content.push('Community outreach and educational program components');
   }
-  
+
   if (lower.includes('veteran')) {
     content.push('Veterans benefits and specialized services information');
     content.push('Military-specific legal procedures and requirements');
     content.push('VA system navigation and advocacy strategies');
     content.push('Culturally competent service delivery approaches');
   }
-  
+
   if (content.length === 0) {
     content.push('Legal procedures and regulatory requirements');
     content.push('Stakeholder roles and defined responsibilities');
     content.push('Compliance frameworks and regulatory adherence');
     content.push('Implementation guidelines and operational protocols');
   }
-  
+
   return content;
 }
 
@@ -302,12 +302,12 @@ function getDocumentCharacteristics(fileName: string): string {
 
 function generateEnhancedDocumentContent(fileName: string, fileSize: number): string {
   const lowerFileName = fileName.toLowerCase();
-  
+
   // Generate comprehensive content that provides detailed classification context
   let content = `LEGAL DOCUMENT ANALYSIS\n`;
   content += `Document: ${fileName}\n`;
   content += `File size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB\n\n`;
-  
+
   // Comprehensive document analysis based on filename patterns
   if (lowerFileName.includes('i-862') || lowerFileName.includes('notice_to_appear') || lowerFileName.includes('nta')) {
     content += 'IMMIGRATION NOTICE TO APPEAR (FORM I-862)\n';
@@ -319,7 +319,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Respondent Rights: Right to legal representation, right to interpreter\n';
     content += 'Due Process: Notice of hearing date, time, and location\n';
     content += 'Legal Significance: Commences formal removal proceedings in immigration court\n';
-    
+
   } else if (lowerFileName.includes('motion')) {
     content += 'IMMIGRATION COURT MOTION\n';
     content += 'Legal Classification: Court Motion\n';
@@ -328,7 +328,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Burden of Proof: Prima facie case for relief sought\n';
     content += 'Supporting Evidence: Legal arguments, factual basis, applicable law\n';
     content += 'Relief Sought: Specific legal remedy or court action\n';
-    
+
     if (lowerFileName.includes('reopen')) {
       content += 'Motion Type: Motion to Reopen\n';
       content += 'Legal Standard: Material evidence not available at prior hearing\n';
@@ -342,7 +342,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
       content += 'Motion Type: General Immigration Motion\n';
       content += 'Procedural Requirements: Notice to opposing party, supporting documentation\n';
     }
-    
+
   } else if (lowerFileName.includes('i-589') || lowerFileName.includes('asylum')) {
     content += 'ASYLUM APPLICATION (FORM I-589)\n';
     content += 'Legal Classification: Immigration Form\n';
@@ -353,7 +353,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Country Conditions: Documentation of persecution in country of origin\n';
     content += 'Personal Statement: Detailed account of persecution or fear\n';
     content += 'Supporting Evidence: Medical records, country reports, witness statements\n';
-    
+
   } else if (lowerFileName.includes('human_rights') || lowerFileName.includes('country') || lowerFileName.includes('report')) {
     content += 'COUNTRY CONDITIONS REPORT\n';
     content += 'Legal Classification: Country Report\n';
@@ -362,7 +362,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Content Areas: Human rights conditions, government persecution, civil unrest\n';
     content += 'Legal Relevance: Establishing country conditions for asylum eligibility\n';
     content += 'Documentation Standards: Reliable, objective, and current information\n';
-    
+
   } else if (lowerFileName.includes('court') || lowerFileName.includes('decision') || lowerFileName.includes('order')) {
     content += 'IMMIGRATION JUDGE DECISION\n';
     content += 'Legal Classification: Judicial Decision\n';
@@ -371,7 +371,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Appealable Orders: Decisions on removability, relief applications\n';
     content += 'Due Process: Written decision with findings of fact and conclusions of law\n';
     content += 'Enforcement: Subject to removal proceedings if relief denied\n';
-    
+
   } else if (lowerFileName.includes('grant') || lowerFileName.includes('proposal') || lowerFileName.includes('application')) {
     content += 'GRANT PROPOSAL AND FUNDING APPLICATION\n';
     content += 'Legal Classification: Proposal\n';
@@ -382,7 +382,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Performance Metrics: Case outcomes, client satisfaction, community impact\n';
     content += 'Compliance Standards: Grant administration, reporting requirements\n';
     content += 'Sustainability Planning: Long-term program viability\n';
-    
+
   } else if (/^\d+\.pdf$/i.test(fileName)) {
     content += 'ADMINISTRATIVE LEGAL DOCUMENT\n';
     content += 'Legal Classification: Administrative Documentation\n';
@@ -395,7 +395,7 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Action Items: Review processes, assessment procedures\n';
     content += 'Administrative Focus: Legal services delivery, clinic operations\n';
     content += 'Professional Standards: Legal formatting, regulatory compliance\n';
-    
+
   } else {
     content += 'LEGAL DOCUMENTATION\n';
     content += 'Legal Classification: Professional Legal Document\n';
@@ -404,20 +404,20 @@ function generateEnhancedDocumentContent(fileName: string, fileSize: number): st
     content += 'Regulatory Framework: Applicable legal standards and requirements\n';
     content += 'Legal Significance: Formal documentation requiring professional review\n';
   }
-  
+
   content += '\nANALYSIS METHODOLOGY:\n';
   content += '• Document type identification based on filename patterns\n';
   content += '• Legal classification using immigration law taxonomy\n';
   content += '• Procedural context analysis for court proceedings\n';
   content += '• Regulatory compliance assessment\n';
   content += '• Professional documentation standards review\n';
-  
+
   content += '\nCONFIDENCE FACTORS:\n';
   content += '• Filename pattern recognition: High reliability\n';
   content += '• Document type classification: Evidence-based analysis\n';
   content += '• Legal context assessment: Professional standards application\n';
   content += '• Procedural requirements: Immigration law compliance\n';
-  
+
   return content;
 }
 
@@ -431,7 +431,7 @@ function getRelevantDomain(fileName: string): string {
 }
 
 // Helper to call Ollama Mistral for summarization  
-async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
+/* async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
   console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
   
@@ -474,6 +474,73 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
     return '';
   }
 }
+ */
+
+async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
+  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
+  console.log(`📄 Document text length: ${documentText.length} characters`);
+
+  // ✅ 1. Chunk large text into smaller pieces (max ~4000 chars each)
+  const MAX_CHUNK_SIZE = 2500;
+  const chunks: string[] = [];
+  for (let i = 0; i < documentText.length; i += MAX_CHUNK_SIZE) {
+    chunks.push(documentText.slice(i, i + MAX_CHUNK_SIZE));
+  }
+  console.log(`📑 Splitting document into ${chunks.length} chunk(s)`);
+
+  const AI_SERVICE_URL = process.env.NODE_ENV === 'production'
+    ? 'http://ai_service:5001'
+    : 'http://localhost:5001';
+
+  const summaries: string[] = [];
+
+  for (let index = 0; index < chunks.length; index++) {
+    const chunk = chunks[index];
+    console.log(`🚀 Sending chunk ${index + 1}/${chunks.length}, length: ${chunk.length}`);
+
+    const prompt = `You are a legal document analysis AI. Read the following text chunk from "${fileName}" and generate a detailed, factual summary of the content. Extract specific facts, dates, amounts, names, and legal references. Avoid generic phrasing.\n\nChunk ${index + 1}/${chunks.length}:\n${chunk}`;
+
+    try {
+      const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: documentText,
+          model: 'mistral:latest',
+          prompt: `Summarize this legal document clearly and concisely. 
+Focus only on key facts, dates, amounts, decisions, and parties. 
+Respond in <= 20 bullet points.\n\n${documentText}`
+        })
+        ,
+        // ✅ Increased timeout safety (optional if using axios instead of fetch)
+      });
+
+      console.log(`📡 Ollama response status for chunk ${index + 1}: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Ollama API error on chunk ${index + 1}: ${response.status} - ${errorText}`);
+        continue; // Skip failed chunk but continue processing
+      }
+
+      const data = await response.json();
+      const summaryChunk = data.response || data.message?.content || '';
+      console.log(`✅ Chunk ${index + 1} summary length: ${summaryChunk.length} chars`);
+
+      if (summaryChunk) {
+        summaries.push(summaryChunk.trim());
+      }
+    } catch (err) {
+      console.error(`❌ Error summarizing chunk ${index + 1}:`, err);
+    }
+  }
+
+  // ✅ 2. Merge all chunk summaries into a final summary
+  const finalSummary = summaries.join('\n\n---\n\n');
+  console.log(`📝 Final combined summary length: ${finalSummary.length} characters`);
+
+  return finalSummary || '[No summary generated]';
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint
@@ -490,7 +557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate job ID
       const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Store the job in database
       await storage.createJob({
         id: jobId,
@@ -515,17 +582,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Extract text content using hybrid PDF extractor with OCR fallback
       let fileContent = '';
-      
+
       try {
         console.log(`=== DOCUMENT EXTRACTION START: ${req.file.originalname} ===`);
         console.log(`File size: ${req.file.buffer.length} bytes`);
         console.log(`MIME type: ${req.file.mimetype}`);
-        
+
         // Use the reliable PDFExtractor for PDF text extraction
         if (req.file.mimetype === 'application/pdf') {
           const { PDFExtractor } = await import('./pdf_extractor.js');
           const extractionResult = await PDFExtractor.extractText(
-            req.file.buffer, 
+            req.file.buffer,
             req.file.originalname
           );
 
@@ -534,32 +601,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}: ${fileContent.length} characters`);
           } else {
             console.error(`✗ PDF extraction failed for ${req.file.originalname}: ${extractionResult.error}`);
-            return res.status(422).json({ 
-              error: "Could not extract text from document" 
+            return res.status(422).json({
+              error: "Could not extract text from document"
             });
           }
         } else {
           // For text files, extract directly
           fileContent = req.file.buffer.toString('utf-8');
         }
-        
+
         console.log(`=== DOCUMENT EXTRACTION END: Final content length: ${fileContent.length} ===`);
-        
+
       } catch (error) {
         console.error(`✗ CRITICAL document extraction error for ${req.file.originalname}:`, error);
-        return res.status(422).json({ 
-          error: "Could not extract text from document" 
+        return res.status(422).json({
+          error: "Could not extract text from document"
         });
       }
-      
+
       // Apply personal information redaction
       const redactionResult: RedactionResult = PersonalInfoRedactor.redactPersonalInfo(fileContent, req.file.originalname);
       const redactedContent = redactionResult.redactedContent;
-      
+
       console.log(`Personal information redaction completed for ${req.file.originalname}:`);
       console.log(`  ${PersonalInfoRedactor.getRedactionSummary(redactionResult)}`);
       console.log(`  Redacted ${redactionResult.redactedItems.length} items`);
-      
+
       await storage.updateJob(jobId, {
         fileContent: redactedContent, // Store redacted content for analysis
         redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
@@ -567,9 +634,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json({
-  job_id: jobId,
-  _debug: { status: "PROCESSING", message: "Upload successful, processing document..." }
-});
+        job_id: jobId,
+        _debug: { status: "PROCESSING", message: "Upload successful, processing document..." }
+      });
 
     } catch (error) {
       console.error("Upload error:", error);
@@ -582,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const job = await storage.getJob(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -591,13 +658,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (job.status === "PROCESSING") {
         const newProgress = Math.min(job.progress + Math.floor(Math.random() * 20), 100);
         const newStatus = newProgress >= 100 ? "DONE" : "PROCESSING";
-        
-        await storage.updateJob(jobId, { 
-          progress: newProgress, 
+
+        await storage.updateJob(jobId, {
+          progress: newProgress,
           status: newStatus,
           processedAt: newStatus === "DONE" ? new Date().toISOString() : undefined
         });
-        
+
         res.json({ pct: newProgress, state: newStatus });
       } else {
         res.json({ pct: job.progress, state: job.status });
@@ -612,7 +679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/analyze", async (req, res) => {
     try {
       const { job_id } = req.body;
-      
+
       if (!job_id) {
         return res.status(400).json({ error: "Missing job_id" });
       }
@@ -625,21 +692,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Content-based analysis using actual extracted text
       const fileContent = job.fileContent || '';
       console.log(`Starting content-based analysis for ${job.fileName}, content length: ${fileContent.length}`);
-      
+
       // Use the enhanced MultiLabelDocumentClassifier for comprehensive analysis
       const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(job.fileName, fileContent);
-      
+
       // Log analysis details for debugging
       console.log(`Multi-label classification result for ${job.fileName}:`);
       console.log(`  Document Type: ${multiLabelResult.document_type}`);
       console.log(`  Confidence: ${multiLabelResult.confidence}`);
       console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
       console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
-      
+
       // Use Ollama Mistral for summary
       console.log(`🔍 Starting analysis with Ollama Mistral for: ${job.fileName}`);
       let summary = await summarizeWithOllamaLlama3(fileContent, job.fileName);
-      
+
       if (!summary || summary.trim().length < 20) {
         console.log(`⚠️ Ollama summary too short or empty, using fallback summary`);
         // Fallback to current summary logic if Ollama fails
@@ -647,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.log(`✅ Using Ollama Mistral generated summary`);
       }
-      
+
       // Create enhanced analysis result with multi-label insights
       const contentAnalysis = {
         documentType: multiLabelResult.document_type,
@@ -665,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reasoning: multiLabelResult.reasoning,
         estimatedReadingTime: Math.ceil(fileContent.split(/\s+/).length / 200) // 200 words per minute
       };
-      
+
       // Create enhanced analysis result with all the content-based insights
       const analysisResult = {
         verdict: contentAnalysis.verdict,
@@ -711,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents", async (req, res) => {
     try {
       const jobs = await storage.getAllJobs();
-      
+
       // Parse AI analysis from stored JSON
       const documentsWithAnalysis = jobs.map(job => ({
         ...job,
@@ -729,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/documents/:jobId", async (req, res) => {
     try {
       const { jobId } = req.params;
-      
+
       const job = await storage.getJob(jobId);
       if (!job) {
         return res.status(404).json({ error: "Document not found" });
@@ -748,10 +815,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { fileName } = req.body;
       const existingJob = await storage.getJobByFileName(fileName);
-      
+
       if (existingJob) {
-        res.json({ 
-          isDuplicate: true, 
+        res.json({
+          isDuplicate: true,
           existingDocument: {
             id: existingJob.id,
             fileName: existingJob.fileName,
@@ -771,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/query", async (req, res) => {
     try {
       const { job_id, query } = req.body;
-      
+
       if (!job_id || !query) {
         return res.status(400).json({ error: "Missing job_id or query" });
       }
@@ -782,7 +849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const fileContent = job.fileContent || '';
-      
+
       // Parse AI analysis to get document type
       let documentType = 'unknown';
       if (job.aiAnalysis) {
@@ -804,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const result = await DocumentQueryEngine.queryDocument(queryContext, query);
-      
+
       res.json({
         response: result.answer,
         confidence: result.confidence,
@@ -825,14 +892,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const job = await storage.getJob(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Document not found" });
       }
 
       // Check if document is encrypted
       const isEncrypted = !!(job.encryptedContent && job.encryptionIv);
-      
+
       // Safely verify document integrity
       let integrityVerified = false;
       if (isEncrypted) {
@@ -843,7 +910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           integrityVerified = false;
         }
       }
-      
+
       res.json({
         jobId: job.id,
         fileName: job.fileName,
@@ -865,14 +932,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const job = await storage.getJob(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Document not found" });
       }
 
       // Return the redacted content (which is stored in fileContent after redaction)
       const redactedContent = job.fileContent || '';
-      
+
       res.json({
         jobId: job.id,
         fileName: job.fileName,
@@ -894,14 +961,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { jobId } = req.params;
       const useAdvanced = req.query.advanced === 'true';
       const job = await storage.getJob(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Document not found" });
       }
 
       // Get the original encrypted document
       const originalPdfBuffer = await storage.getDecryptedContent(jobId);
-      
+
       if (!originalPdfBuffer) {
         return res.status(500).json({ error: "Could not retrieve original document" });
       }
@@ -923,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         redactedPdfBuffer = result.redactedPdfBuffer!;
-        redactionSummary = result.redactionEffective ? 
+        redactionSummary = result.redactionEffective ?
           `Advanced redaction completed. Patterns found: ${result.patternsFound?.length || 0}` :
           `Advanced redaction completed with warnings. Some patterns may remain.`;
         redactedItemsCount = result.patternsFound?.length || 0;
@@ -934,7 +1001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error(`Redaction failed: ${result.error}`);
         }
         const existingRedactedPdf = result.redactedPdfBuffer;
-        
+
         redactedPdfBuffer = existingRedactedPdf || originalPdfBuffer;
         redactionSummary = `Standard redaction completed. Patterns found: ${(result.patternsFound || []).join(', ')}`;
         redactedItemsCount = result.itemsRedactedCount || 0;
@@ -961,7 +1028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send the redacted PDF
       res.send(redactedPdfBuffer);
-      
+
     } catch (error) {
       console.error("Error generating redacted PDF:", error);
       res.status(500).json({ error: "Failed to generate redacted PDF" });
@@ -973,14 +1040,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const job = await storage.getJob(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Document not found" });
       }
 
       // Get the original encrypted document
       const originalPdfBuffer = await storage.getDecryptedContent(jobId);
-      
+
       if (!originalPdfBuffer) {
         return res.status(500).json({ error: "Could not retrieve original document" });
       }
@@ -988,18 +1055,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Test redaction effectiveness
       const testResult = await pythonRedactorBridge.redactPDF(originalPdfBuffer, { useAdvancedRedaction: true });
 
-res.json({
-  jobId,
-  fileName: job.fileName,
-  redactionTest: testResult,
-  recommendations: {
-    useAdvancedRedaction: (testResult.itemsRedacted ?? 0) > 0,
-    sensitiveItemsFound: testResult.itemsRedacted ?? 0,
-    patterns: testResult.patternsFound ?? []
-  }
-});
+      res.json({
+        jobId,
+        fileName: job.fileName,
+        redactionTest: testResult,
+        recommendations: {
+          useAdvancedRedaction: (testResult.itemsRedacted ?? 0) > 0,
+          sensitiveItemsFound: testResult.itemsRedacted ?? 0,
+          patterns: testResult.patternsFound ?? []
+        }
+      });
 
-      
+
     } catch (error) {
       console.error("Error testing redaction:", error);
       res.status(500).json({ error: "Failed to test redaction effectiveness" });
@@ -1011,7 +1078,7 @@ res.json({
     try {
       const { jobId } = req.params;
       const authToken = req.headers.authorization;
-      
+
       // Basic security check (in production, implement proper authentication)
       if (!authToken || !authToken.includes('admin')) {
         return res.status(403).json({ error: "Unauthorized access to secure document" });
@@ -1038,7 +1105,7 @@ res.json({
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('X-Document-Encrypted', 'true');
       res.setHeader('X-Integrity-Verified', 'true');
-      
+
       res.send(decryptedContent);
       console.log(`Secure document downloaded: ${job.fileName} (${jobId})`);
     } catch (error) {
@@ -1086,9 +1153,9 @@ res.json({
 
       // Use new PDF extractor with validation
       const extractionResult = await PDFExtractor.extractText(originalPdfBuffer, job.fileName);
-      
+
       if (!extractionResult.success || !extractionResult.hasValidContent) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Document text extraction failed",
           details: {
             method: extractionResult.extractionMethod,
@@ -1101,7 +1168,7 @@ res.json({
 
       // Validate text for AI processing
       const textValidation = PDFRedactor.validateTextForAI(extractionResult.text);
-      
+
       if (!textValidation.isValid) {
         return res.status(400).json({
           error: "Text validation failed",
@@ -1111,10 +1178,10 @@ res.json({
       }
 
       // Call AI service (adjust URL for development vs Docker)
-      const AI_SERVICE_URL = process.env.NODE_ENV === 'production' 
+      const AI_SERVICE_URL = process.env.NODE_ENV === 'production'
         ? (process.env.AI_SERVICE_URL || 'http://ai_service:5001')
         : 'http://localhost:5001';
-      
+
       try {
         const aiResponse = await fetch(`${AI_SERVICE_URL}/summarize`, {
           method: 'POST',
@@ -1138,7 +1205,7 @@ res.json({
         }
 
         const aiResult = await aiResponse.json();
-        
+
         res.json({
           success: true,
           summary: aiResult.overall_summary,
@@ -1166,7 +1233,7 @@ res.json({
 
     } catch (error: any) {
       console.error("Summarization error:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to generate summary",
         details: error.message
       });
@@ -1227,7 +1294,7 @@ function generateSummary(fileName: string, content: string, isProposal: boolean)
 function generateDocumentImprovements(documentType: string, content: string): string[] {
   const improvements: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   // Document-specific improvement suggestions
   switch (documentType) {
     case 'country_report':
@@ -1235,43 +1302,43 @@ function generateDocumentImprovements(documentType: string, content: string): st
       improvements.push("Ensure country conditions are specific to the client's circumstances");
       improvements.push("Include recent developments or changes in country conditions");
       break;
-    
+
     case 'nta':
       improvements.push("Verify all allegations and charges are accurate");
       improvements.push("Ensure proper service requirements are documented");
       improvements.push("Check for any missing statutory citations");
       break;
-    
+
     case 'motion':
       improvements.push("Verify all legal arguments are supported by case law");
       improvements.push("Ensure proper procedural requirements are met");
       improvements.push("Check for complete factual basis and evidence");
       break;
-    
+
     case 'legal_brief':
       improvements.push("Verify all case law citations are current and relevant");
       improvements.push("Ensure legal arguments are comprehensive and well-structured");
       improvements.push("Check for proper formatting and court requirements");
       break;
-    
+
     case 'evidence_package':
       improvements.push("Verify all evidence is properly authenticated");
       improvements.push("Ensure evidence is relevant and admissible");
       improvements.push("Check for complete documentation and translations");
       break;
-    
+
     default:
       improvements.push("Review document for completeness and accuracy");
       improvements.push("Verify all legal citations and references");
       improvements.push("Ensure proper formatting and professional presentation");
   }
-  
+
   return improvements;
 }
 
 function generateDocumentToolkit(documentType: string): string[] {
   const toolkit: string[] = [];
-  
+
   // Document-specific toolkit recommendations
   switch (documentType) {
     case 'country_report':
@@ -1280,37 +1347,37 @@ function generateDocumentToolkit(documentType: string): string[] {
       toolkit.push("Amnesty International Documentation");
       toolkit.push("UNHCR Country Information");
       break;
-    
+
     case 'nta':
       toolkit.push("EOIR Portal - Immigration Court Case Management");
       toolkit.push("USCIS Website - Immigration Forms and Guidance");
       toolkit.push("Immigration Court Practice Manual");
       break;
-    
+
     case 'motion':
       toolkit.push("Federal Rules of Civil Procedure");
       toolkit.push("Immigration Court Practice Manual");
       toolkit.push("Westlaw Immigration Library");
       break;
-    
+
     case 'legal_brief':
       toolkit.push("Westlaw Legal Research Database");
       toolkit.push("LexisNexis Immigration Library");
       toolkit.push("Federal Court Electronic Filing System (CM/ECF)");
       break;
-    
+
     case 'evidence_package':
       toolkit.push("Document Authentication Services");
       toolkit.push("Translation Services");
       toolkit.push("Evidence Management Systems");
       break;
-    
+
     default:
       toolkit.push("EOIR Portal - Immigration court case management");
       toolkit.push("USCIS Website - Immigration forms and guidance");
       toolkit.push("Westlaw Immigration Library - Specialized immigration research");
   }
-  
+
   return toolkit;
 }
 
@@ -1318,7 +1385,7 @@ function generateDocumentToolkit(documentType: string): string[] {
 function extractCountryName(fileName: string, content: string): string {
   const lowerFileName = fileName.toLowerCase();
   const lowerContent = content.toLowerCase();
-  
+
   // Extract from filename first (more comprehensive)
   if (lowerFileName.includes('japan')) return 'Japan';
   if (lowerFileName.includes('nicaragua')) return 'Nicaragua';
@@ -1341,7 +1408,7 @@ function extractCountryName(fileName: string, content: string): string {
   if (lowerFileName.includes('uruguay')) return 'Uruguay';
   if (lowerFileName.includes('argentina')) return 'Argentina';
   if (lowerFileName.includes('chile')) return 'Chile';
-  
+
   // Extract from content
   if (lowerContent.includes('japan')) return 'Japan';
   if (lowerContent.includes('nicaragua')) return 'Nicaragua';
@@ -1364,7 +1431,7 @@ function extractCountryName(fileName: string, content: string): string {
   if (lowerContent.includes('uruguay')) return 'Uruguay';
   if (lowerContent.includes('argentina')) return 'Argentina';
   if (lowerContent.includes('chile')) return 'Chile';
-  
+
   return 'Unknown Country';
 }
 
@@ -1377,7 +1444,7 @@ function extractHumanRightsIssues(content: string, fileName: string = ''): strin
   const issues: string[] = [];
   const lowerContent = content.toLowerCase();
   const lowerFileName = fileName.toLowerCase();
-  
+
   // General human rights issues
   if (lowerContent.includes('human rights') || lowerContent.includes('human rights violation')) {
     issues.push('Human rights violations and abuses');
@@ -1409,49 +1476,49 @@ function extractHumanRightsIssues(content: string, fileName: string = ''): strin
   if (lowerContent.includes('labor') || lowerContent.includes('worker rights')) {
     issues.push('Labor rights violations and exploitation');
   }
-  
+
   // Country-specific issues based on filename
   if (lowerFileName.includes('japan')) {
     issues.push('Workplace discrimination and gender inequality');
     issues.push('Strict immigration policies and detention conditions');
     issues.push('Limited freedom of expression and press restrictions');
   }
-  
+
   if (lowerFileName.includes('nicaragua')) {
     issues.push('Political repression and government crackdowns');
     issues.push('Restrictions on freedom of assembly and protest');
     issues.push('Arbitrary arrests and political imprisonment');
     issues.push('Media censorship and press freedom violations');
   }
-  
+
   if (lowerFileName.includes('mexico')) {
     issues.push('Drug cartel violence and organized crime');
     issues.push('Corruption in law enforcement and judiciary');
     issues.push('Disappearances and extrajudicial killings');
     issues.push('Violence against journalists and human rights defenders');
   }
-  
+
   if (lowerFileName.includes('venezuela')) {
     issues.push('Economic crisis and humanitarian emergency');
     issues.push('Political persecution and opposition suppression');
     issues.push('Food and medicine shortages');
     issues.push('Arbitrary detentions and torture');
   }
-  
+
   if (lowerFileName.includes('honduras') || lowerFileName.includes('guatemala') || lowerFileName.includes('el salvador')) {
     issues.push('Gang violence and extortion');
     issues.push('Gender-based violence and femicide');
     issues.push('Corruption and impunity');
     issues.push('Forced displacement and internal migration');
   }
-  
+
   return issues.length > 0 ? issues : ['General human rights conditions assessment'];
 }
 
 function extractSources(content: string): string[] {
   const sources: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('state department') || lowerContent.includes('u.s. department of state')) {
     sources.push('U.S. State Department');
   }
@@ -1470,14 +1537,14 @@ function extractSources(content: string): string[] {
   if (lowerContent.includes('news') || lowerContent.includes('media')) {
     sources.push('News media reports');
   }
-  
+
   return sources.length > 0 ? sources : ['Official sources and human rights organizations'];
 }
 
 function extractNTAAllegations(content: string): string[] {
   const allegations: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('illegal entry') || lowerContent.includes('entry without inspection')) {
     allegations.push('Illegal entry without inspection');
   }
@@ -1490,54 +1557,54 @@ function extractNTAAllegations(content: string): string[] {
   if (lowerContent.includes('fraud') || lowerContent.includes('misrepresentation')) {
     allegations.push('Fraud or misrepresentation');
   }
-  
+
   return allegations;
 }
 
 function extractHearingInfo(content: string): string[] {
   const info: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('hearing') || lowerContent.includes('court date')) {
     info.push('Hearing date and time to be scheduled');
   }
   if (lowerContent.includes('location') || lowerContent.includes('address')) {
     info.push('Court location to be provided');
   }
-  
+
   return info;
 }
 
 function extractCharges(content: string): string[] {
   const charges: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('section 212') || lowerContent.includes('inadmissibility')) {
     charges.push('Section 212 inadmissibility grounds');
   }
   if (lowerContent.includes('section 237') || lowerContent.includes('deportability')) {
     charges.push('Section 237 deportability grounds');
   }
-  
+
   return charges;
 }
 
 function extractMotionType(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('motion to reopen')) return 'Motion to Reopen';
   if (lowerContent.includes('motion to reconsider')) return 'Motion to Reconsider';
   if (lowerContent.includes('motion to suppress')) return 'Motion to Suppress';
   if (lowerContent.includes('motion to terminate')) return 'Motion to Terminate';
   if (lowerContent.includes('motion to change venue')) return 'Motion to Change Venue';
-  
+
   return 'Immigration Motion';
 }
 
 function extractReliefSought(content: string): string[] {
   const relief: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('asylum') || lowerContent.includes('withholding')) {
     relief.push('Asylum or Withholding of Removal');
   }
@@ -1547,14 +1614,14 @@ function extractReliefSought(content: string): string[] {
   if (lowerContent.includes('adjustment') || lowerContent.includes('adjustment of status')) {
     relief.push('Adjustment of Status');
   }
-  
+
   return relief.length > 0 ? relief : ['Legal relief in immigration proceedings'];
 }
 
 function extractLegalArguments(content: string): string[] {
   const legalArgs: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('due process') || lowerContent.includes('constitutional')) {
     legalArgs.push('Due process and constitutional rights');
   }
@@ -1564,18 +1631,18 @@ function extractLegalArguments(content: string): string[] {
   if (lowerContent.includes('changed circumstances') || lowerContent.includes('country conditions')) {
     legalArgs.push('Changed country conditions');
   }
-  
+
   return legalArgs.length > 0 ? legalArgs : ['Legal arguments based on immigration law'];
 }
 
 function extractBriefType(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('opening brief')) return 'Opening Brief';
   if (lowerContent.includes('reply brief')) return 'Reply Brief';
   if (lowerContent.includes('amicus brief')) return 'Amicus Brief';
   if (lowerContent.includes('supplemental brief')) return 'Supplemental Brief';
-  
+
   return 'Legal Brief';
 }
 
@@ -1583,18 +1650,18 @@ function extractCaseCitations(content: string): string[] {
   const citations: string[] = [];
   const citationRegex = /([A-Z][a-z]+ v\. [A-Z][a-z]+|In re [A-Z][a-z]+)/g;
   const matches = content.match(citationRegex);
-  
+
   if (matches) {
     citations.push(...matches.slice(0, 3)); // Limit to first 3 citations
   }
-  
+
   return citations.length > 0 ? citations : ['Relevant case law citations'];
 }
 
 function extractLegalIssues(content: string): string[] {
   const issues: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('asylum') || lowerContent.includes('persecution')) {
     issues.push('Asylum eligibility and persecution');
   }
@@ -1604,14 +1671,14 @@ function extractLegalIssues(content: string): string[] {
   if (lowerContent.includes('procedural') || lowerContent.includes('due process')) {
     issues.push('Procedural due process rights');
   }
-  
+
   return issues.length > 0 ? issues : ['Immigration law and procedure'];
 }
 
 function extractEvidenceTypes(content: string): string[] {
   const types: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('affidavit') || lowerContent.includes('declaration')) {
     types.push('Affidavits and declarations');
   }
@@ -1624,14 +1691,14 @@ function extractEvidenceTypes(content: string): string[] {
   if (lowerContent.includes('country') || lowerContent.includes('human rights')) {
     types.push('Country conditions reports');
   }
-  
+
   return types.length > 0 ? types : ['Supporting documentation and exhibits'];
 }
 
 function extractAuthenticationInfo(content: string): string[] {
   const auth: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('notarized') || lowerContent.includes('notary')) {
     auth.push('Notarized documents');
   }
@@ -1641,7 +1708,7 @@ function extractAuthenticationInfo(content: string): string[] {
   if (lowerContent.includes('translation') || lowerContent.includes('translated')) {
     auth.push('Certified translations');
   }
-  
+
   return auth.length > 0 ? auth : ['Document authentication requirements'];
 }
 
@@ -1654,7 +1721,7 @@ function extractWitnessCount(content: string): string {
 function extractWitnessTypes(content: string): string[] {
   const types: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('expert') || lowerContent.includes('professional')) {
     types.push('Expert witnesses');
   }
@@ -1664,25 +1731,25 @@ function extractWitnessTypes(content: string): string[] {
   if (lowerContent.includes('fact') || lowerContent.includes('eyewitness')) {
     types.push('Fact witnesses');
   }
-  
+
   return types.length > 0 ? types : ['Various witness types'];
 }
 
 function extractApplicationType(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('i-589') || lowerContent.includes('asylum')) return 'I-589 Asylum Application';
   if (lowerContent.includes('i-485') || lowerContent.includes('adjustment')) return 'I-485 Adjustment of Status';
   if (lowerContent.includes('i-130') || lowerContent.includes('petition')) return 'I-130 Petition for Alien Relative';
   if (lowerContent.includes('i-751') || lowerContent.includes('removal of conditions')) return 'I-751 Removal of Conditions';
-  
+
   return 'USCIS Application';
 }
 
 function extractSubmissionPurpose(content: string): string[] {
   const purposes: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('asylum') || lowerContent.includes('protection')) {
     purposes.push('Request for asylum protection');
   }
@@ -1692,14 +1759,14 @@ function extractSubmissionPurpose(content: string): string[] {
   if (lowerContent.includes('petition') || lowerContent.includes('relative')) {
     purposes.push('Petition for family member');
   }
-  
+
   return purposes.length > 0 ? purposes : ['Immigration benefit application'];
 }
 
 function extractDenialReasons(content: string): string[] {
   const reasons: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('incomplete') || lowerContent.includes('missing')) {
     reasons.push('Incomplete or missing documentation');
   }
@@ -1712,7 +1779,7 @@ function extractDenialReasons(content: string): string[] {
   if (lowerContent.includes('criminal') || lowerContent.includes('conviction')) {
     reasons.push('Criminal conviction grounds');
   }
-  
+
   return reasons.length > 0 ? reasons : ['Various eligibility or documentation issues'];
 }
 
@@ -1725,7 +1792,7 @@ function extractResponseDeadline(content: string): string {
 function extractAsylumBasis(content: string): string[] {
   const bases: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('race') || lowerContent.includes('racial')) {
     bases.push('Race or ethnicity');
   }
@@ -1741,14 +1808,14 @@ function extractAsylumBasis(content: string): string[] {
   if (lowerContent.includes('social group') || lowerContent.includes('particular social group')) {
     bases.push('Membership in particular social group');
   }
-  
+
   return bases.length > 0 ? bases : ['Fear of persecution based on protected grounds'];
 }
 
 function extractPersecutionDetails(content: string): string[] {
   const details: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('threat') || lowerContent.includes('intimidation')) {
     details.push('Threats and intimidation');
   }
@@ -1761,14 +1828,14 @@ function extractPersecutionDetails(content: string): string[] {
   if (lowerContent.includes('torture') || lowerContent.includes('abuse')) {
     details.push('Torture and abuse');
   }
-  
+
   return details.length > 0 ? details : ['Various forms of persecution'];
 }
 
 function extractClientTestimony(content: string): string[] {
   const testimony: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('personal') || lowerContent.includes('experience')) {
     testimony.push('Personal experiences and background');
   }
@@ -1778,14 +1845,14 @@ function extractClientTestimony(content: string): string[] {
   if (lowerContent.includes('family') || lowerContent.includes('relationship')) {
     testimony.push('Family relationships and circumstances');
   }
-  
+
   return testimony.length > 0 ? testimony : ['Personal testimony and statements'];
 }
 
 function extractPersonalDetails(content: string): string[] {
   const details: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('birth') || lowerContent.includes('date of birth')) {
     details.push('Birth information and personal history');
   }
@@ -1795,14 +1862,14 @@ function extractPersonalDetails(content: string): string[] {
   if (lowerContent.includes('employment') || lowerContent.includes('work')) {
     details.push('Employment history');
   }
-  
+
   return details.length > 0 ? details : ['Personal background information'];
 }
 
 function extractExpertQualifications(content: string): string[] {
   const qualifications: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('phd') || lowerContent.includes('doctorate')) {
     qualifications.push('Advanced academic credentials');
   }
@@ -1815,14 +1882,14 @@ function extractExpertQualifications(content: string): string[] {
   if (lowerContent.includes('legal') || lowerContent.includes('attorney')) {
     qualifications.push('Legal expertise and qualifications');
   }
-  
+
   return qualifications.length > 0 ? qualifications : ['Professional qualifications and expertise'];
 }
 
 function extractExpertOpinion(content: string): string[] {
   const opinions: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('country conditions') || lowerContent.includes('human rights')) {
     opinions.push('Country conditions analysis');
   }
@@ -1832,13 +1899,13 @@ function extractExpertOpinion(content: string): string[] {
   if (lowerContent.includes('psychological') || lowerContent.includes('mental health')) {
     opinions.push('Psychological evaluation');
   }
-  
+
   return opinions.length > 0 ? opinions : ['Expert analysis and opinion'];
 }
 
 function extractEvaluationType(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('asylum') || lowerContent.includes('immigration')) {
     return 'Immigration Psychological Evaluation';
   }
@@ -1848,14 +1915,14 @@ function extractEvaluationType(content: string): string {
   if (lowerContent.includes('competency') || lowerContent.includes('capacity')) {
     return 'Competency Evaluation';
   }
-  
+
   return 'Psychological Evaluation';
 }
 
 function extractMentalHealthFindings(content: string): string[] {
   const findings: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('ptsd') || lowerContent.includes('post-traumatic')) {
     findings.push('Post-traumatic stress disorder (PTSD)');
   }
@@ -1868,13 +1935,13 @@ function extractMentalHealthFindings(content: string): string[] {
   if (lowerContent.includes('trauma') || lowerContent.includes('traumatic')) {
     findings.push('Trauma-related symptoms');
   }
-  
+
   return findings.length > 0 ? findings : ['Mental health assessment findings'];
 }
 
 function extractProposalType(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('grant') || lowerContent.includes('funding')) {
     return 'Grant Proposal';
   }
@@ -1884,7 +1951,7 @@ function extractProposalType(content: string): string {
   if (lowerContent.includes('program') || lowerContent.includes('service')) {
     return 'Program Development Proposal';
   }
-  
+
   return 'Funding Proposal';
 }
 
@@ -1897,7 +1964,7 @@ function extractFundingAmount(content: string): string {
 function extractProgramObjectives(content: string): string[] {
   const objectives: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('legal services') || lowerContent.includes('representation')) {
     objectives.push('Legal services and representation');
   }
@@ -1910,7 +1977,7 @@ function extractProgramObjectives(content: string): string[] {
   if (lowerContent.includes('training') || lowerContent.includes('capacity building')) {
     objectives.push('Training and capacity building');
   }
-  
+
   return objectives.length > 0 ? objectives : ['Program development and service delivery'];
 }
 
@@ -1918,21 +1985,21 @@ function extractProgramObjectives(content: string): string[] {
 function extractCriticalDates(content: string): string[] {
   const dates: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   // Extract dates in various formats
   const datePatterns = [
     /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,
     /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi,
     /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b/gi
   ];
-  
+
   datePatterns.forEach(pattern => {
     const matches = content.match(pattern);
     if (matches) {
       dates.push(...matches);
     }
   });
-  
+
   // Remove duplicates and limit to first 5
   return Array.from(new Set(dates)).slice(0, 5);
 }
@@ -1940,45 +2007,45 @@ function extractCriticalDates(content: string): string[] {
 function extractFinancialTerms(content: string): string[] {
   const terms: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   // Extract monetary amounts
   const moneyPattern = /\$[\d,]+(?:\.\d{2})?/g;
   const amounts = content.match(moneyPattern);
   if (amounts) {
     terms.push(...amounts);
   }
-  
+
   // Extract financial terms
   const financialKeywords = [
     'funding', 'grant', 'budget', 'cost', 'expense', 'revenue', 'payment',
     'fee', 'charge', 'amount', 'total', 'sum', 'fund', 'donation'
   ];
-  
+
   financialKeywords.forEach(keyword => {
     if (lowerContent.includes(keyword)) {
       terms.push(keyword);
     }
   });
-  
+
   return terms.slice(0, 5);
 }
 
 function extractComplianceRequirements(content: string): string[] {
   const requirements: string[] = [];
   const lowerContent = content.toLowerCase();
-  
+
   // Extract compliance-related terms
   const complianceKeywords = [
     'compliance', 'regulation', 'requirement', 'standard', 'policy',
     'procedure', 'guideline', 'rule', 'law', 'statute', 'regulation',
     'deadline', 'due date', 'filing', 'submission', 'documentation'
   ];
-  
+
   complianceKeywords.forEach(keyword => {
     if (lowerContent.includes(keyword)) {
       requirements.push(keyword);
     }
   });
-  
+
   return requirements.slice(0, 5);
 }

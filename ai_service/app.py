@@ -54,7 +54,7 @@ class OllamaClient:
             payload = {
                 "model": model,
                 "prompt": prompt,
-                "stream": False,
+               # "stream": False,
                 "options": {
                     "num_predict": max_tokens,
                     "temperature": 0.7,
@@ -257,7 +257,6 @@ Overall Summary:"""
             "error": "Internal server error",
             "message": str(e)
         }), 500
-
 @app.route('/analyze', methods=['POST'])
 def analyze_document():
     """Perform detailed document analysis"""
@@ -271,6 +270,7 @@ def analyze_document():
         filename = data.get('filename', 'document.pdf')
         analysis_type = data.get('analysis_type', 'comprehensive')
         model = data.get('model', DEFAULT_MODEL)
+        custom_prompt = data.get('prompt')  # ✅ Accept frontend prompt if provided
         
         # Validate text content
         validation = validate_text_content(text)
@@ -288,8 +288,10 @@ def analyze_document():
                 "reason": "Ollama is not responding"
             }), 503
         
-        # Prepare analysis prompt based on type
-        if analysis_type == 'proposal':
+        # ✅ Use frontend-provided prompt if available
+        if custom_prompt:
+            prompt = custom_prompt
+        elif analysis_type == 'proposal':
             prompt = f"""Analyze this document to determine if it's a proposal and provide detailed analysis:
 
 Document filename: {filename}
@@ -323,7 +325,18 @@ Please analyze:
 
 Analysis:"""
         
-        analysis = ollama.generate(model, prompt, 2000)
+        # ✅ FIX: Removed "options", now using max_tokens argument
+        analysis = ollama.generate(
+    model=model,
+    prompt=prompt,
+    #stream=False,
+    options={
+        "temperature": 0.3,
+        "num_predict": 800
+    }
+)
+
+
         
         if not analysis:
             return jsonify({
@@ -346,6 +359,7 @@ Analysis:"""
             "error": "Internal server error",
             "message": str(e)
         }), 500
+
 
 @app.route('/models', methods=['GET'])
 def list_available_models():
