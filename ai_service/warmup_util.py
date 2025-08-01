@@ -28,7 +28,7 @@ def warm_up_model(ollama_host=None, retries=3):
         ollama_host = f'http://{ollama_host}'
     
     warmup_payload = {
-        "model": "mistral:latest",
+        "model": "gemma2:2b",
         "prompt": "Analyze this legal document sample: 'NOTICE TO APPEAR - Immigration Court proceedings scheduled for case review.' Provide document classification. This is a model warmup request.",
         "stream": False,
         "options": {
