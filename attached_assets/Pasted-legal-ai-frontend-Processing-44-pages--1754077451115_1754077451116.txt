@@ -1,0 +1,99 @@
+legal-ai-frontend  | 📄 Processing 44 pages...                                                                                                     
+legal-ai-frontend  | ✓ Page 1: extracted 1090 characters
+legal-ai-frontend  | ✓ Page 2: extracted 1219 characters
+legal-ai-frontend  | ✓ Page 3: extracted 1620 characters
+legal-ai-frontend  | ✓ Page 4: extracted 1483 characters
+legal-ai-frontend  | ✓ Page 5: extracted 1571 characters                                                                                           
+legal-ai-frontend  | ✓ Page 6: extracted 1681 characters                                                                                           
+legal-ai-frontend  | ✓ Page 7: extracted 1464 characters                                                                                           
+legal-ai-frontend  | ✓ Page 8: extracted 1233 characters
+legal-ai-frontend  | ✓ Page 9: extracted 1300 characters                                                                                           
+legal-ai-frontend  | ✓ Page 10: extracted 1387 characters                                                                                          
+legal-ai-frontend  | ✓ Page 11: extracted 1198 characters
+legal-ai-frontend  | ✓ Page 12: extracted 1743 characters
+legal-ai-frontend  | ✓ Page 13: extracted 1637 characters                                                                                          
+legal-ai-frontend  | ✓ Page 14: extracted 1505 characters                                                                                          
+legal-ai-frontend  | ✓ Page 15: extracted 1433 characters
+legal-ai-frontend  | ✓ Page 16: extracted 1371 characters                                                                                          
+legal-ai-frontend  | ✓ Page 17: extracted 1540 characters
+legal-ai-frontend  | ✓ Page 18: extracted 1444 characters                                                                                          
+legal-ai-frontend  | ✓ Page 19: extracted 1511 characters
+legal-ai-frontend  | ✓ Page 20: extracted 1674 characters                                                                                          
+legal-ai-frontend  | ✓ Page 21: extracted 1673 characters                                                                                          
+legal-ai-frontend  | ✓ Page 22: extracted 1630 characters
+legal-ai-frontend  | ✓ Page 23: extracted 1630 characters                                                                                          
+legal-ai-frontend  | ✓ Page 24: extracted 1669 characters                                                                                          
+legal-ai-frontend  | ✓ Page 25: extracted 1440 characters                                                                                          
+legal-ai-frontend  | ✓ Page 26: extracted 1655 characters                                                                                          
+legal-ai-frontend  | ✓ Page 27: extracted 1538 characters
+legal-ai-frontend  | ✓ Page 28: extracted 1446 characters                                                                                          
+legal-ai-frontend  | ✓ Page 29: extracted 1646 characters                                                                                          
+legal-ai-frontend  | ✓ Page 30: extracted 1512 characters
+legal-ai-frontend  | ✓ Page 31: extracted 1389 characters                                                                                          
+legal-ai-frontend  | ✓ Page 32: extracted 1352 characters                                                                                          
+legal-ai-frontend  | ✓ Page 33: extracted 1636 characters                                                                                          
+legal-ai-frontend  | ✓ Page 34: extracted 1682 characters                                                                                          
+legal-ai-frontend  | ✓ Page 35: extracted 1593 characters
+legal-ai-frontend  | ✓ Page 36: extracted 1516 characters                                                                                          
+legal-ai-frontend  | ✓ Page 37: extracted 1425 characters
+legal-ai-frontend  | ✓ Page 38: extracted 1427 characters                                                                                          
+legal-ai-frontend  | ✓ Page 39: extracted 1384 characters                                                                                          
+legal-ai-frontend  | ✓ Page 40: extracted 1289 characters
+legal-ai-frontend  | ✓ Page 41: extracted 1534 characters                                                                                          
+legal-ai-frontend  | ✓ Page 42: extracted 1629 characters                                                                                          
+legal-ai-frontend  | ✓ Page 43: extracted 1571 characters
+legal-ai-frontend  | ✓ Page 44: extracted 393 characters                                                                                           
+legal-ai-frontend  | 📊 Extraction complete: 64849 chars, 9668 words, quality: high
+legal-ai-frontend  | ✅ Successfully extracted real text: 9668 words                                                                               
+legal-ai-frontend  | ✓ PDF extraction successful using pdfjs-dist-enhanced: 64849 characters                                                       
+legal-ai-frontend  | === DOCUMENT EXTRACTION END: Final content length: 64849 ===
+legal-ai-frontend  | Personal info redaction completed for 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf:                                              
+legal-ai-frontend  |   Original length: 64849 characters                                                                                           
+legal-ai-frontend  |   Redacted length: 64849 characters
+legal-ai-frontend  |   Items redacted: 0                                                                                                           
+legal-ai-frontend  |   Redaction types:                                                                                                            
+legal-ai-frontend  | Personal information redaction completed for 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf:                                       
+legal-ai-frontend  |   No personal information detected                                                                                            
+legal-ai-frontend  |   Redacted 0 items
+legal-ai-frontend  | 7:42:25 PM [express] POST /api/upload 200 in 965ms :: {"job_id":"job_1754077344453_7axdm2mm9","_debu…                         
+legal-ai-frontend  | 7:42:25 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 286ms :: {"pct":7,"state":"P…
+legal-ai-frontend  | 7:42:27 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 428ms :: {"pct":15,"state":"…
+legal-ai-frontend  | 7:42:29 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 492ms :: {"pct":21,"state":"…
+legal-ai-frontend  | 7:42:31 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 477ms :: {"pct":38,"state":"…
+legal-ai-frontend  | 7:42:33 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 526ms :: {"pct":51,"state":"…
+legal-ai-frontend  | 7:42:35 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 483ms :: {"pct":66,"state":"…
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 19:42:35] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | 7:42:37 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 491ms :: {"pct":67,"state":"…
+legal-ai-frontend  | 7:42:39 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 493ms :: {"pct":82,"state":"…
+legal-ai-frontend  | 7:42:41 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 485ms :: {"pct":92,"state":"…
+legal-ai-frontend  | 7:42:43 PM [express] GET /api/status/job_1754077344453_7axdm2mm9 200 in 519ms :: {"pct":100,"state":…
+legal-ai-frontend  | 7:42:53 PM [express] GET /api/documents 200 in 9370ms :: [{"id":"job_1754077344453_7axdm2mm9","fileN…
+legal-ai-frontend  | 7:43:00 PM [express] GET /api/documents 304 in 6705ms :: [{"id":"job_1754077344453_7axdm2mm9","fileN…
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 19:43:05] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | 7:43:06 PM [express] GET /api/documents 200 in 6202ms :: [{"id":"job_1754077344453_7axdm2mm9","fileN…
+legal-ai-frontend  | Starting content-based analysis for 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf, content length: 64849
+legal-ai-frontend  | Multi-label classifier analyzing: 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf
+legal-ai-frontend  | Content length: 64849 characters                                                                                              
+legal-ai-frontend  | Extracted 10 chunks for analysis
+legal-ai-frontend  | Sample chunk: Country Reports on Human Rights Practices for 2023 United States Department of State • Bureau of Dem...         
+legal-ai-frontend  | Multi-label classification result for 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf:                                              
+legal-ai-frontend  |   Type: country_report                                                                                                        
+legal-ai-frontend  |   Confidence: 0.95
+legal-ai-frontend  |   Evidence count: 6                                                                                                           
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                       
+legal-ai-frontend  | Multi-label classification result for 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf:                                              
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=65002
+legal-ai-frontend  |   Document Type: country_report                                                                                               
+legal-ai-frontend  |   Confidence: 0.95                                                                                                            
+legal-ai-frontend  |   Evidence Count: 6                                                                                                           
+legal-ai-frontend  |   Reasoning: Document classified as country conditions report based on 6 pieces of evidence. Confidence: 95%                  
+legal-ai-frontend  | 🔍 Starting analysis with Ollama Mistral for: 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf
+legal-ai-frontend  | 🤖 Attempting Ollama Mistral summarization for: 528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf                                     
+legal-ai-frontend  | 📄 Document text length: 64849 characters                                                                                     
+legal-ai-frontend  | 📑 Splitting document into 26 chunk(s)                                                                                        
+legal-ai-frontend  | 🚀 Sending chunk 1/26, length: 2500                                                                                           
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 19:43:36] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 19:44:06] "GET /health HTTP/1.1" 200 -
+
+
+v View in Docker Desktop   o View Config   w Enable Watch

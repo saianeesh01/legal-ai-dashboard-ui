@@ -481,13 +481,22 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
   console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
 
-  // ✅ 1. Chunk large text into smaller pieces (max ~4000 chars each)
-  const MAX_CHUNK_SIZE = 2500;
+  // ✅ 1. Smart chunking for large documents - optimize for speed
+  let MAX_CHUNK_SIZE = 2500;
+  let MAX_CHUNKS = 20; // Limit chunks for faster processing
+  
+  // For very large documents (>50k chars), use larger chunks and limit total
+  if (documentText.length > 50000) {
+    MAX_CHUNK_SIZE = Math.max(3500, Math.ceil(documentText.length / MAX_CHUNKS));
+    console.log(`📊 Large document detected (${documentText.length} chars), using optimized chunking`);
+  }
+  
   const chunks: string[] = [];
   for (let i = 0; i < documentText.length; i += MAX_CHUNK_SIZE) {
     chunks.push(documentText.slice(i, i + MAX_CHUNK_SIZE));
+    if (chunks.length >= MAX_CHUNKS) break; // Hard limit for performance
   }
-  console.log(`📑 Splitting document into ${chunks.length} chunk(s)`);
+  console.log(`📑 Splitting document into ${chunks.length} chunk(s), size: ${MAX_CHUNK_SIZE} chars each`);
 
   const AI_SERVICE_URL = process.env.NODE_ENV === 'production'
     ? 'http://ai_service:5001'
@@ -495,47 +504,56 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
 
   const summaries: string[] = [];
 
-  for (let index = 0; index < chunks.length; index++) {
-    const chunk = chunks[index];
-    console.log(`🚀 Sending chunk ${index + 1}/${chunks.length}, length: ${chunk.length}`);
+  // ✅ Process chunks in parallel for faster performance (batch size 5)
+  const BATCH_SIZE = 5; // Process 5 chunks simultaneously
+  const startTime = Date.now();
+  
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
+    console.log(`🚀 Processing batch ${Math.floor(i/BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
+    
+    const batchPromises = batch.map(async (chunk, batchIndex) => {
+      const index = i + batchIndex;
+      try {
+        const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: chunk,
+            filename: `${fileName}_chunk_${index + 1}`,
+            model: 'gemma:2b',
+            analysis_type: 'summary'
+          }),
+          signal: AbortSignal.timeout(90000) // 90 second timeout per chunk
+        });
 
-    const prompt = `You are a legal document analysis AI. Read the following text chunk from "${fileName}" and generate a detailed, factual summary of the content. Extract specific facts, dates, amounts, names, and legal references. Avoid generic phrasing.\n\nChunk ${index + 1}/${chunks.length}:\n${chunk}`;
+        if (!response.ok) {
+          console.error(`❌ Chunk ${index + 1} failed: ${response.status}`);
+          return null;
+        }
 
-    try {
-      const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: documentText,
-          model: 'gemma:2b',
-          prompt: `Summarize this legal document clearly and concisely. 
-Focus only on key facts, dates, amounts, decisions, and parties. 
-Respond in <= 20 bullet points.\n\n${documentText}`
-        })
-        ,
-        // ✅ Increased timeout safety (optional if using axios instead of fetch)
-      });
-
-      console.log(`📡 Ollama response status for chunk ${index + 1}: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Ollama API error on chunk ${index + 1}: ${response.status} - ${errorText}`);
-        continue; // Skip failed chunk but continue processing
+        const data = await response.json();
+        const summaryChunk = data.analysis || data.response || data.message?.content || '';
+        console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars`);
+        
+        return summaryChunk.trim();
+      } catch (err) {
+        console.error(`❌ Error chunk ${index + 1}:`, err);
+        return null;
       }
+    });
 
-      const data = await response.json();
-      // Fix: Extract analysis content from AI service response format
-      const summaryChunk = data.analysis || data.response || data.message?.content || '';
-      console.log(`✅ Chunk ${index + 1} summary length: ${summaryChunk.length} chars`);
-      console.log(`📊 AI service response keys: ${Object.keys(data).join(', ')}`);
-
-      if (summaryChunk) {
-        summaries.push(summaryChunk.trim());
-      }
-    } catch (err) {
-      console.error(`❌ Error summarizing chunk ${index + 1}:`, err);
-    }
+    // Wait for batch completion
+    const batchResults = await Promise.all(batchPromises);
+    
+    // Add successful summaries
+    batchResults.forEach(summary => {
+      if (summary) summaries.push(summary);
+    });
+    
+    // Progress update
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    console.log(`⏱️  Processed ${i + batch.length}/${chunks.length} chunks in ${elapsed}s`);
   }
 
   // ✅ 2. Merge all chunk summaries into a final summary

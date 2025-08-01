@@ -324,9 +324,24 @@ def analyze_document():
                 "reason": "Ollama is not responding"
             }), 503
 
-        # ✅ Use frontend-provided prompt if available
+        # ✅ Smart prompt selection for performance optimization
         if custom_prompt:
             prompt = custom_prompt
+        elif analysis_type == 'summary' or len(text) > 10000:
+            # Concise analysis for large documents or chunk processing  
+            prompt = f"""Summarize this legal document section efficiently, avoiding repetition:
+
+Document: {filename}
+Content: {text[:600]}{"..." if len(text) > 600 else ""}
+
+Provide focused analysis:
+• Document type and key findings
+• Critical dates, amounts, decisions  
+• Main parties and stakeholders
+• Important requirements or conclusions
+
+Keep under 120 words. Be specific, avoid generic phrases.
+"""
         elif analysis_type == 'proposal':
             prompt = f"""
 You are a legal document analysis assistant. Analyze the following document and provide a **detailed response of at least 200 words**.
@@ -350,6 +365,7 @@ Please analyze and answer all points clearly:
 - Always produce at least 200 words in your analysis.
 """
         else:
+            # Comprehensive analysis for smaller documents
             prompt = f"""
 You are a legal document analysis assistant. Provide a **comprehensive response of at least 200 words** for the following document:
 
