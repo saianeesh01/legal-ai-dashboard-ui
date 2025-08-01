@@ -65,7 +65,7 @@ class OllamaClient:
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=300
+                timeout=600
             )
             
             if response.status_code == 200:
@@ -81,6 +81,15 @@ class OllamaClient:
 
 # Initialize Ollama client
 ollama = OllamaClient()
+
+def warmup_model(model_name: str):
+    """Send a dummy request to warm up the specified model."""
+    logger.info(f"Warming up model: {model_name}...")
+    try:
+        ollama.generate(model_name, "Hello!")
+        logger.info(f"✓ Model {model_name} is warmed up.")
+    except Exception as e:
+        logger.warning(f"⚠ Failed to warm up model {model_name}: {e}")
 
 def validate_text_content(text: str) -> Dict[str, Any]:
     """Validate text content for AI processing"""
@@ -197,16 +206,7 @@ def summarize_document():
         summaries = []
         
         for i, chunk in enumerate(chunks):
-            prompt = f"""Please provide a comprehensive summary of this legal document excerpt. Focus on:
-
-1. Main purpose and type of document
-2. Key parties involved
-3. Important dates and deadlines
-4. Critical requirements or obligations
-5. Financial aspects (if any)
-6. Legal significance
-
-Document excerpt {i+1} of {len(chunks)}:
+            prompt = f"""Summarize this legal document excerpt concisely:
 
 {chunk}
 
@@ -232,7 +232,7 @@ Summary:"""
         if len(chunks) > 1:
             combined_summaries = "\n\n".join([s["summary"] for s in summaries if not s.get("error")])
             
-            overall_prompt = f"""Based on these individual summaries of a legal document, provide a comprehensive overall summary:
+            overall_prompt = f"""Combine these summaries into a single, coherent summary:
 
 {combined_summaries}
 
@@ -379,6 +379,10 @@ if __name__ == '__main__':
     if ollama.is_available():
         models = ollama.list_models()
         logger.info(f"✓ Ollama connected successfully. Available models: {models}")
+        if DEFAULT_MODEL in models:
+            warmup_model(DEFAULT_MODEL)
+        else:
+            logger.warning(f"Default model {DEFAULT_MODEL} not found in Ollama.")
     else:
         logger.warning("⚠ Ollama not available at startup. Check connection.")
     
