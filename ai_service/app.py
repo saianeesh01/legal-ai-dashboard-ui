@@ -369,6 +369,82 @@ def list_available_models():
             "message": str(e)
         }), 500
 
+@app.route('/warmup', methods=['POST'])
+def warmup_model():
+    """Warm up the Ollama model to improve performance"""
+    try:
+        model = request.json.get('model', DEFAULT_MODEL) if request.json else DEFAULT_MODEL
+        
+        logger.info(f"🔥 Warming up model: {model}")
+        
+        # Simple warm-up prompt to load the model into memory
+        warmup_prompt = "Hello, I'm testing the model. Please respond with 'Ready'."
+        
+        # Use the OllamaClient to warm up
+        response = ollama.generate(model, warmup_prompt, 50)
+        
+        if response:
+            logger.info(f"✅ Model {model} warmed up successfully")
+            return jsonify({
+                "success": True,
+                "message": f"Model {model} is now warmed up and ready",
+                "model": model,
+                "response": response[:100] + "..." if len(response) > 100 else response
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Model warmup failed - no response",
+                "model": model
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Model warmup error: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "model": model if 'model' in locals() else DEFAULT_MODEL
+        }), 500
+
+@app.route('/warmup/auto', methods=['POST'])
+def auto_warmup():
+    """Automatically warm up the default model with legal document context"""
+    try:
+        logger.info("🔥 Starting automatic legal document model warmup")
+        
+        # Legal-specific warmup prompt to pre-load relevant context
+        legal_warmup_prompt = """You are a legal document analysis AI. Analyze this sample legal text:
+
+SAMPLE LEGAL DOCUMENT EXCERPT:
+"NOTICE TO APPEAR - Immigration Court proceedings for removal under section 240 of the Immigration and Nationality Act. The respondent is required to appear before an Immigration Judge."
+
+Provide a brief analysis focusing on document type and key legal elements. This is a warmup request."""
+
+        # Warm up with legal context
+        response = ollama.generate(DEFAULT_MODEL, legal_warmup_prompt, 200)
+        
+        if response:
+            logger.info(f"✅ Legal document model warmup completed")
+            return jsonify({
+                "success": True,
+                "message": f"Legal document analysis model ({DEFAULT_MODEL}) is warmed up and ready",
+                "model": DEFAULT_MODEL,
+                "warmup_type": "legal_context",
+                "ready_for": ["document_classification", "legal_analysis", "proposal_detection"]
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Auto warmup failed - no response"
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Auto warmup error: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
     # Log startup information
     logger.info(f"Starting AI Service on port 5001")
