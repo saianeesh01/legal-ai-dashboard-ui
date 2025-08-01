@@ -83,14 +83,7 @@ class OllamaClient:
 # Initialize Ollama client
 ollama = OllamaClient()
 
-def warmup_model(model_name: str):
-    """Send a dummy request to warm up the specified model."""
-    logger.info(f"Warming up model: {model_name}...")
-    try:
-        ollama.generate(model_name, "Hello!")
-        logger.info(f"✓ Model {model_name} is warmed up.")
-    except Exception as e:
-        logger.warning(f"⚠ Failed to warm up model {model_name}: {e}")
+# Warmup function removed - handled by warmup endpoints
 
 def validate_text_content(text: str) -> Dict[str, Any]:
     """Validate text content for AI processing"""
@@ -327,8 +320,6 @@ Please analyze:
 Analysis:"""
         
         analysis = ollama.generate(model, prompt, 800)
-
-
         
         if not analysis:
             return jsonify({
@@ -339,19 +330,19 @@ Analysis:"""
         return jsonify({
             "success": True,
             "analysis": analysis,
+            "document_filename": filename,
             "analysis_type": analysis_type,
             "model_used": model,
-            "filename": filename,
-            "word_count": validation['word_count']
+            "word_count": validation['word_count'],
+            "text_sample": text[:200] + "..." if len(text) > 200 else text
         })
         
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
+        logger.error(f"Document analysis error: {e}")
         return jsonify({
-            "error": "Internal server error",
-            "message": str(e)
+            "error": "Analysis generation failed",
+            "reason": str(e)
         }), 500
-
 
 @app.route('/models', methods=['GET'])
 def list_available_models():
@@ -404,7 +395,7 @@ def warmup_model():
         return jsonify({
             "success": False,
             "error": str(e),
-            "model": model if 'model' in locals() else DEFAULT_MODEL
+            "model": DEFAULT_MODEL
         }), 500
 
 @app.route('/warmup/auto', methods=['POST'])
