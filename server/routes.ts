@@ -709,9 +709,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let summary = await summarizeWithOllamaLlama3(fileContent, job.fileName);
 
       if (!summary || summary.trim().length < 20) {
-        console.log(`⚠️ Ollama summary too short or empty, using fallback summary`);
-        // Fallback to current summary logic if Ollama fails
-        summary = generateDetailedDocumentSummary(job.fileName, fileContent, multiLabelResult.document_type, multiLabelResult.confidence, multiLabelResult.reasoning);
+        console.log(`⚠️ Ollama summary too short or empty.`);
+        summary = ""; // Set to empty string as per user request
       } else {
         console.log(`✅ Using Ollama Mistral generated summary`);
       }

@@ -3,7 +3,7 @@
  */
 
 import { PDFExtractor } from './server/pdf_extractor.js';
-import { PDFRedactor } from './server/pdf_redactor.js';
+import { PersonalInfoRedactor } from './server/personal_info_redactor.js';
 import * as fs from 'fs';
 
 async function testPDFExtraction() {
@@ -12,6 +12,7 @@ async function testPDFExtraction() {
   try {
     // Test with a small PDF if available
     const testFiles = [
+      './Legal_docs/19-897_c07d.pdf',
       './528267_JAPAN-2023-HUMAN-RIGHTS-REPORT.pdf',
       './test_document.txt'
     ];
@@ -32,19 +33,6 @@ async function testPDFExtraction() {
         
         if (result.text && result.text.length > 0) {
           console.log(`✓ Sample Text: ${result.text.substring(0, 200)}...`);
-          
-          // Test text validation
-          const validation = PDFRedactor.validateTextForAI(result.text);
-          console.log(`✓ AI Validation: ${validation.isValid ? 'PASSED' : 'FAILED'}`);
-          if (!validation.isValid) {
-            console.log(`  Reason: ${validation.reason}`);
-          }
-          
-          // Test text preparation
-          const prep = PDFRedactor.prepareTextForAI(result.text, 1000);
-          console.log(`✓ AI Preparation: ${prep.isValid ? 'PASSED' : 'FAILED'}`);
-          console.log(`✓ Chunks: ${prep.chunks.length}`);
-          
         } else {
           console.log('✗ No text extracted');
         }
@@ -72,15 +60,12 @@ async function testRedactionSystem() {
       Credit card: 4532-1234-5678-9012
     `;
     
-    const redactionResult = PDFRedactor.redactText(sampleText);
+    const redactionResult = PersonalInfoRedactor.redactPersonalInfo(sampleText, 'sample.txt');
     
-    console.log(`✓ Redaction Success: ${redactionResult.success}`);
-    console.log(`✓ Patterns Found: ${redactionResult.patternsFound.join(', ')}`);
-    console.log(`✓ Items Redacted: ${redactionResult.itemsRedacted}`);
-    console.log(`✓ Method: ${redactionResult.method}`);
+    console.log(`✓ Items Redacted: ${redactionResult.redactedItems.length}`);
     
-    if (redactionResult.redactedText) {
-      console.log(`✓ Redacted Text: ${redactionResult.redactedText.substring(0, 200)}...`);
+    if (redactionResult.redactedContent) {
+      console.log(`✓ Redacted Text: ${redactionResult.redactedContent.substring(0, 200)}...`);
     }
     
     console.log('\n✓ Redaction System Test Complete');
