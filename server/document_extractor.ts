@@ -185,11 +185,19 @@ private static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise
             (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerPath;
           }
         } catch (workerError) {
+
           if (workerError instanceof Error) {
             console.warn('Could not set PDF.js worker, proceeding without:', workerError.message);
           } else {
             console.warn('Could not set PDF.js worker, proceeding without:', workerError);
           }
+
+
+
+          console.warn('Could not set PDF.js worker, proceeding without:', 
+            workerError instanceof Error ? workerError.message : String(workerError));
+
+
         }
 
         // Convert Buffer → Uint8Array
