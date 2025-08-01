@@ -1,0 +1,36 @@
+legal-ai-frontend  | Multi-label classification result for Cambridge-Legal-Defense-Fund-for-Immigrants-RFP.pdf:                                                      
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma2:2b                                                                                                        
+legal-ai-frontend  |   Document Type: motion
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma2:2b, prompt_length=10035                                                                
+legal-ai-frontend  |   Confidence: 0.7                                                                                                                               
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 404                                                                                                    
+legal-ai-frontend  |   Evidence Count: 2
+legal-ai-service   | ERROR:__main__:❌ Ollama API error: 404 - {"error":"model 'gemma2:2b' not found"}                                                               
+legal-ai-frontend  |   Reasoning: Document classified as legal motion based on 2 pieces of evidence. Confidence: 70%                                                 
+legal-ai-service   | ERROR:__main__:❌ Model gemma2:2b failed: 'NoneType' object is not subscriptable
+legal-ai-frontend  | 🔍 Starting analysis with Ollama Mistral for: Cambridge-Legal-Defense-Fund-for-Immigrants-RFP.pdf                                               
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-frontend  | 🤖 Attempting Ollama Mistral summarization for: Cambridge-Legal-Defense-Fund-for-Immigrants-RFP.pdf                                             
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=10035
+legal-ai-frontend  | 📄 Document text length: 9882 characters                                                                                                        
+legal-ai-frontend  | 📑 Splitting document into 4 chunk(s)                                                                                                           
+legal-ai-frontend  | 🚀 Sending chunk 1/4, length: 2500                                                                                                              
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 17:56:11] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 17:56:42] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 17:57:13] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 17:57:43] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1833 characters
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1833                                                                            
+legal-ai-frontend  | 📡 Ollama response status for chunk 1: 200
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 17:58:06] "POST /analyze HTTP/1.1" 200 -                                                              
+legal-ai-frontend  | ✅ Chunk 1 summary length: 0 chars
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma2:2b                                                                                                        
+legal-ai-frontend  | 🚀 Sending chunk 2/4, length: 2500
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma2:2b, prompt_length=10035                                                                
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 404
+legal-ai-service   | ERROR:__main__:❌ Ollama API error: 404 - {"error":"model 'gemma2:2b' not found"}                                                               
+legal-ai-service   | ERROR:__main__:❌ Model gemma2:2b failed: 'NoneType' object is not subscriptable
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=10035
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 17:58:14] "GET /health HTTP/1.1" 200 - 
