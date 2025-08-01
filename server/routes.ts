@@ -525,8 +525,10 @@ Respond in <= 20 bullet points.\n\n${documentText}`
       }
 
       const data = await response.json();
-      const summaryChunk = data.response || data.message?.content || '';
+      // Fix: Extract analysis content from AI service response format
+      const summaryChunk = data.analysis || data.response || data.message?.content || '';
       console.log(`✅ Chunk ${index + 1} summary length: ${summaryChunk.length} chars`);
+      console.log(`📊 AI service response keys: ${Object.keys(data).join(', ')}`);
 
       if (summaryChunk) {
         summaries.push(summaryChunk.trim());

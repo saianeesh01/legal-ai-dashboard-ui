@@ -1,0 +1,196 @@
+
+ ✔ Network legal-ai-dashboard-ui_legal-ai-network  Created                                                                                                      0.1s 
+ ✔ Container legal-ai-service                      Created                                                                                                      0.2s 
+ ✔ Container legal-ai-frontend                     Created                                                                                                      0.2s 
+Attaching to legal-ai-frontend, legal-ai-service
+legal-ai-service   | 2025-08-01 18:06:54,335 INFO Set uid to user 0 succeeded
+legal-ai-service   | 2025-08-01 18:06:54,341 INFO supervisord started with pid 1
+legal-ai-frontend  | Starting Legal AI Platform...                                                                                                                   
+legal-ai-frontend  | Checking AI service availability...
+legal-ai-frontend  | Waiting for AI service... (1/30)
+legal-ai-service   | 2025-08-01 18:06:55,346 INFO spawned: 'flask_app' with pid 6
+legal-ai-service   | 2025-08-01 18:06:55,349 INFO spawned: 'warmup_service' with pid 7
+legal-ai-service   | 2025-08-01 18:06:55,537 - INFO - Warmup daemon starting...                                                                                      
+legal-ai-service   | INFO:__main__:Starting AI Service on port 5001
+legal-ai-service   | INFO:__main__:Ollama host: host.docker.internal:11434
+legal-ai-service   | INFO:__main__:Default model: gemma:2b                                                                                                           
+legal-ai-service   | INFO:__main__:✓ Ollama connected successfully. Available models: ['mistral:7b-instruct-q4_0', 'llama3:latest', 'llama3:8b', 'mistral:7b-instruct', 'mistral:7b', 'mistral:instruct', 'tinyllama:latest', 'gemma:2b', 'mistral:latest']
+legal-ai-service   |  * Serving Flask app 'app'
+legal-ai-service   |  * Debug mode: off
+legal-ai-service   | INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.            
+legal-ai-service   |  * Running on all addresses (0.0.0.0)
+legal-ai-service   |  * Running on http://127.0.0.1:5001                                                                                                             
+legal-ai-service   |  * Running on http://172.18.0.2:5001
+legal-ai-service   | INFO:werkzeug:Press CTRL+C to quit                                                                                                              
+legal-ai-frontend  | Waiting for AI service... (2/30)
+legal-ai-service   | 2025-08-01 18:06:57,008 INFO success: flask_app entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+legal-ai-service   | 2025-08-01 18:06:57,008 INFO success: warmup_service entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:06:57] "GET /health HTTP/1.1" 200 -                                                                 
+legal-ai-service   | 2025-08-01 18:06:57,573 - INFO - Flask application is ready
+legal-ai-service   | 2025-08-01 18:06:57,573 - INFO - Starting AI model warmup process...                                                                            
+legal-ai-frontend  | Waiting for AI service... (3/30)                                                                                                                
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:06:58] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | Waiting for AI service... (4/30)
+legal-ai-frontend  | Waiting for AI service... (5/30)
+legal-ai-frontend  | Waiting for AI service... (6/30)
+legal-ai-frontend  | Waiting for AI service... (7/30)
+legal-ai-frontend  | Waiting for AI service... (8/30)
+legal-ai-frontend  | Waiting for AI service... (9/30)
+legal-ai-frontend  | Waiting for AI service... (10/30)
+legal-ai-frontend  | Waiting for AI service... (11/30)
+legal-ai-frontend  | Waiting for AI service... (12/30)
+legal-ai-service   | 2025-08-01 18:07:17,616 - WARNING - All warmup attempts failed, but service will continue running
+legal-ai-service   | 2025-08-01 18:07:17,616 - INFO - Warmup daemon completed
+legal-ai-service   | 🔥 Warmup attempt 1/3 to http://host.docker.internal:11434                                                                                      
+legal-ai-service   | ⏳ Waiting 10 seconds before retry...                                                                                                           
+legal-ai-service   | 🔥 Warmup attempt 2/3 to http://host.docker.internal:11434
+legal-ai-service   | ⏳ Waiting 10 seconds before retry...                                                                                                           
+legal-ai-service   | 🔥 Warmup attempt 3/3 to http://host.docker.internal:11434                                                                                      
+legal-ai-service   | ❌ All warmup attempts failed                                                                                                                   
+legal-ai-service   | 2025-08-01 18:07:17,634 INFO exited: warmup_service (exit status 0; expected)
+legal-ai-frontend  | Waiting for AI service... (13/30)                                                                                                               
+legal-ai-frontend  | Waiting for AI service... (14/30)
+legal-ai-frontend  | Waiting for AI service... (15/30)
+legal-ai-frontend  | Waiting for AI service... (16/30)
+legal-ai-frontend  | Waiting for AI service... (17/30)
+legal-ai-frontend  | Waiting for AI service... (18/30)
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:07:29] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | Waiting for AI service... (19/30)
+legal-ai-frontend  | Waiting for AI service... (20/30)
+legal-ai-frontend  | Waiting for AI service... (21/30)
+legal-ai-frontend  | Waiting for AI service... (22/30)
+legal-ai-frontend  | Waiting for AI service... (23/30)
+legal-ai-frontend  | Waiting for AI service... (24/30)
+legal-ai-frontend  | Waiting for AI service... (25/30)
+legal-ai-frontend  | Waiting for AI service... (26/30)
+legal-ai-frontend  | Waiting for AI service... (27/30)
+legal-ai-frontend  | Waiting for AI service... (28/30)
+legal-ai-frontend  | Waiting for AI service... (29/30)
+legal-ai-frontend  | Waiting for AI service... (30/30)
+legal-ai-frontend  | 
+legal-ai-frontend  | > rest-express@1.0.0 start
+legal-ai-frontend  | > NODE_ENV=production node dist/index.js                                                                                                        
+legal-ai-frontend  |                                                                                                                                                 
+legal-ai-frontend  | 6:07:55 PM [express] serving on port 5000                                                                                                       
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:07:59] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:08:29] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | 6:08:51 PM [express] POST /api/check-duplicate 200 in 1930ms :: {"isDuplicate":true,"existingDocumen…
+legal-ai-frontend  | 6:08:53 PM [express] DELETE /api/documents/job_1754062584904_wbi6zzqyk 200 in 775ms :: {"success":tr…
+legal-ai-frontend  | Generated session encryption key for document security
+legal-ai-frontend  | Document encrypted and stored for job: job_1754071733904_qev82h28x
+legal-ai-frontend  | Document encrypted and stored securely: form_i-862_notice_to_appear.pdf
+legal-ai-frontend  | === DOCUMENT EXTRACTION START: form_i-862_notice_to_appear.pdf ===
+legal-ai-frontend  | File size: 1466226 bytes                                                                                                                        
+legal-ai-frontend  | MIME type: application/pdf
+legal-ai-frontend  | 🚀 Starting robust PDF extraction for: form_i-862_notice_to_appear.pdf                                                                          
+legal-ai-frontend  | 🔍 Attempting enhanced pdfjs-dist extraction for: form_i-862_notice_to_appear.pdf                                                               
+legal-ai-frontend  | 📄 Processing 3 pages...                                                                                                                        
+legal-ai-frontend  | ✓ Page 1: extracted 2246 characters
+legal-ai-frontend  | ✓ Page 2: extracted 6184 characters
+legal-ai-frontend  | ✓ Page 3: extracted 3630 characters
+legal-ai-frontend  | 📊 Extraction complete: 12064 chars, 1974 words, quality: high
+legal-ai-frontend  | ✅ Successfully extracted real text: 1974 words
+legal-ai-frontend  | ✓ PDF extraction successful using pdfjs-dist-enhanced: 12064 characters                                                                         
+legal-ai-frontend  | === DOCUMENT EXTRACTION END: Final content length: 12064 ===                                                                                    
+legal-ai-frontend  | Personal info redaction completed for form_i-862_notice_to_appear.pdf:                                                                          
+legal-ai-frontend  |   Original length: 12064 characters
+legal-ai-frontend  |   Redacted length: 12080 characters                                                                                                             
+legal-ai-frontend  |   Items redacted: 4                                                                                                                             
+legal-ai-frontend  |   Redaction types: dob
+legal-ai-frontend  | Personal information redaction completed for form_i-862_notice_to_appear.pdf:                                                                   
+legal-ai-frontend  |   4 Dates of Birth
+legal-ai-frontend  |   Redacted 4 items                                                                                                                              
+legal-ai-frontend  | 6:08:55 PM [express] POST /api/upload 200 in 1389ms :: {"job_id":"job_1754071733904_qev82h28x","_deb…                                           
+legal-ai-frontend  | 6:08:56 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 805ms :: {"pct":5,"state":"P…
+legal-ai-frontend  | 6:08:58 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 940ms :: {"pct":16,"state":"…
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:08:59] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | 6:09:00 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 875ms :: {"pct":20,"state":"…
+legal-ai-frontend  | 6:09:03 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 881ms :: {"pct":33,"state":"…
+legal-ai-frontend  | 6:09:05 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 878ms :: {"pct":50,"state":"…
+legal-ai-frontend  | 6:09:08 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 880ms :: {"pct":53,"state":"…
+legal-ai-frontend  | 6:09:10 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 884ms :: {"pct":64,"state":"…
+legal-ai-frontend  | 6:09:12 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 881ms :: {"pct":72,"state":"…
+legal-ai-frontend  | 6:09:15 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 880ms :: {"pct":88,"state":"…
+legal-ai-frontend  | 6:09:17 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 887ms :: {"pct":95,"state":"…
+legal-ai-frontend  | 6:09:20 PM [express] GET /api/status/job_1754071733904_qev82h28x 200 in 874ms :: {"pct":100,"state":…
+legal-ai-frontend  | 6:09:28 PM [express] GET /api/documents 200 in 8263ms :: [{"id":"job_1754071733904_qev82h28x","fileN…
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:09:29] "GET /health HTTP/1.1" 200 -
+legal-ai-frontend  | 6:09:34 PM [express] GET /api/documents 304 in 6053ms :: [{"id":"job_1754071733904_qev82h28x","fileN…
+legal-ai-frontend  | 6:09:42 PM [express] GET /api/documents 200 in 7387ms :: [{"id":"job_1754071733904_qev82h28x","fileN…
+legal-ai-frontend  | Starting content-based analysis for form_i-862_notice_to_appear.pdf, content length: 12080
+legal-ai-frontend  | Multi-label classifier analyzing: form_i-862_notice_to_appear.pdf
+legal-ai-frontend  | Content length: 12080 characters                                                                                                                
+legal-ai-frontend  | Extracted 12 chunks for analysis
+legal-ai-frontend  | Sample chunk: DEPARTMENT OF HOMELAND SECURITY NOTICE TO APPEAR In removal proceedings under section 240 of the Imm...
+legal-ai-frontend  | Multi-label classification result for form_i-862_notice_to_appear.pdf:                                                                          
+legal-ai-frontend  |   Type: nta                                                                                                                                     
+legal-ai-frontend  |   Confidence: 0.95                                                                                                                              
+legal-ai-frontend  |   Evidence count: 6
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-frontend  | Multi-label classification result for form_i-862_notice_to_appear.pdf:                                                                          
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=12233                                                                 
+legal-ai-frontend  |   Document Type: nta                                                                                                                            
+legal-ai-frontend  |   Confidence: 0.95                                                                                                                              
+legal-ai-frontend  |   Evidence Count: 6                                                                                                                             
+legal-ai-frontend  |   Reasoning: Document classified as Notice to Appear (NTA) based on 6 pieces of evidence. Confidence: 95%                                       
+legal-ai-frontend  | 🔍 Starting analysis with Ollama Mistral for: form_i-862_notice_to_appear.pdf                                                                   
+legal-ai-frontend  | 🤖 Attempting Ollama Mistral summarization for: form_i-862_notice_to_appear.pdf                                                                 
+legal-ai-frontend  | 📄 Document text length: 12080 characters                                                                                                       
+legal-ai-frontend  | 📑 Splitting document into 5 chunk(s)                                                                                                           
+legal-ai-frontend  | 🚀 Sending chunk 1/5, length: 2500
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:09:59] "GET /health HTTP/1.1" 200 -                                                                 
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:10:29] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:10:59] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:11:30] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:12:00] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1936 characters
+legal-ai-frontend  | 📡 Ollama response status for chunk 1: 200                                                                                                      
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1936
+legal-ai-frontend  | ✅ Chunk 1 summary length: 0 chars                                                                                                              
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 18:12:24] "POST /analyze HTTP/1.1" 200 -
+legal-ai-frontend  | 🚀 Sending chunk 2/5, length: 2500
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=12233
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:12:30] "GET /health HTTP/1.1" 200 -                                                                 
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1287 characters
+legal-ai-frontend  | 📡 Ollama response status for chunk 2: 200
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1287
+legal-ai-frontend  | ✅ Chunk 2 summary length: 0 chars                                                                                                              
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 18:12:54] "POST /analyze HTTP/1.1" 200 -                                                              
+legal-ai-frontend  | 🚀 Sending chunk 3/5, length: 2500
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=12233
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:13:00] "GET /health HTTP/1.1" 200 -
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1059 characters
+legal-ai-frontend  | 📡 Ollama response status for chunk 3: 200                                                                                                      
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1059
+legal-ai-frontend  | ✅ Chunk 3 summary length: 0 chars                                                                                                              
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 18:13:22] "POST /analyze HTTP/1.1" 200 -
+legal-ai-frontend  | 🚀 Sending chunk 4/5, length: 2500
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=12233
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:13:30] "GET /health HTTP/1.1" 200 -                                                                 
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1053 characters
+legal-ai-frontend  | 📡 Ollama response status for chunk 4: 200                                                                                                      
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1053
+legal-ai-frontend  | ✅ Chunk 4 summary length: 0 chars                                                                                                              
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 18:13:50] "POST /analyze HTTP/1.1" 200 -
+legal-ai-frontend  | 🚀 Sending chunk 5/5, length: 2080
+legal-ai-service   | INFO:__main__:🔄 Trying model: gemma:2b                                                                                                         
+legal-ai-service   | INFO:__main__:🤖 Sending request to Ollama: model=gemma:2b, prompt_length=12233
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:14:00] "GET /health HTTP/1.1" 200 -                                                                 
+legal-ai-service   | INFO:__main__:📡 Ollama response status: 200
+legal-ai-service   | INFO:__main__:✅ Generated response length: 1503 characters
+legal-ai-frontend  | 📡 Ollama response status for chunk 5: 200
+legal-ai-service   | INFO:__main__:✅ Success with model: gemma:2b, response length: 1503                                                                            
+legal-ai-frontend  | ✅ Chunk 5 summary length: 0 chars
+legal-ai-service   | INFO:werkzeug:172.18.0.3 - - [01/Aug/2025 18:14:24] "POST /analyze HTTP/1.1" 200 -                                                              
+legal-ai-frontend  | 📝 Final combined summary length: 0 characters                                                                                                  
+legal-ai-frontend  | ✅ Using Ollama Mistral generated summary                                                                                                       
+legal-ai-frontend  | 6:14:25 PM [express] POST /api/analyze 200 in 283131ms :: {"verdict":"non-proposal","confidence":0.9…
+legal-ai-frontend  | 6:14:29 PM [express] GET /api/documents/job_1754071733904_qev82h28x/security-status 200 in 3454ms ::…
+legal-ai-service   | INFO:werkzeug:127.0.0.1 - - [01/Aug/2025 18:14:31] "GET /health HTTP/1.1" 200 -
