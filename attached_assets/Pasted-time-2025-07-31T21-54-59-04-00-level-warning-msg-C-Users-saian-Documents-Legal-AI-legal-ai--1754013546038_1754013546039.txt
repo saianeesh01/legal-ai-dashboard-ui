@@ -1,0 +1,53 @@
+time="2025-07-31T21:54:59-04:00" level=warning msg="C:\\Users\\saian\\Documents\\Legal_AI\\legal-ai-dashboard-ui\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 3/3
+ ✔ Network legal-ai-dashboard-ui_legal-ai-network  Created                                                       0.1s 
+ ✔ Container legal-ai-service                      Created                                                       0.1s 
+ ✔ Container legal-ai-frontend                     Created                                                       0.1s 
+Attaching to legal-ai-frontend, legal-ai-service
+legal-ai-service   | 2025-08-01 01:55:00,247 INFO Set uid to user 0 succeeded
+legal-ai-service   | 2025-08-01 01:55:00,251 INFO supervisord started with pid 1
+legal-ai-frontend  | Starting Legal AI Platform...
+legal-ai-frontend  | Checking AI service availability...
+legal-ai-frontend  | Waiting for AI service... (1/30)                                                                 
+legal-ai-service   | 2025-08-01 01:55:01,254 INFO spawned: 'flask_app' with pid 8
+legal-ai-service   | 2025-08-01 01:55:01,257 INFO spawned: 'warmup_service' with pid 9
+legal-ai-service   |   File "/app/app.py", line 464                                                                   
+legal-ai-service   |     =======
+legal-ai-service   |     ^^                                                                                           
+legal-ai-service   | SyntaxError: invalid syntax                                                                      
+legal-ai-service   | 2025-08-01 01:55:01,278 WARN exited: flask_app (exit status 1; not expected)                     
+legal-ai-service   | 2025-08-01 01:55:01,378 - INFO - Warmup daemon starting...                                       
+legal-ai-frontend  | Waiting for AI service... (2/30)
+legal-ai-service   | 2025-08-01 01:55:02,381 INFO spawned: 'flask_app' with pid 10
+legal-ai-service   | 2025-08-01 01:55:02,382 INFO success: warmup_service entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)                                                                                     
+legal-ai-service   |   File "/app/app.py", line 464
+legal-ai-service   |     =======
+legal-ai-service   |     ^^                                                                                           
+legal-ai-service   | SyntaxError: invalid syntax
+legal-ai-service   | 2025-08-01 01:55:02,404 WARN exited: flask_app (exit status 1; not expected)                     
+legal-ai-frontend  | Waiting for AI service... (3/30)                                                                 
+legal-ai-service   | 2025-08-01 01:55:04,410 INFO spawned: 'flask_app' with pid 11
+legal-ai-service   |   File "/app/app.py", line 464
+legal-ai-service   |     =======
+legal-ai-service   |     ^^                                                                                           
+legal-ai-service   | SyntaxError: invalid syntax                                                                      
+legal-ai-service   | 2025-08-01 01:55:04,440 WARN exited: flask_app (exit status 1; not expected)                     
+legal-ai-frontend  | Waiting for AI service... (4/30)
+legal-ai-service   | 2025-08-01 01:55:07,448 INFO spawned: 'flask_app' with pid 19
+legal-ai-service   |   File "/app/app.py", line 464
+legal-ai-service   |     =======
+legal-ai-service   |     ^^                                                                                           
+legal-ai-service   | SyntaxError: invalid syntax
+legal-ai-service   | 2025-08-01 01:55:07,472 WARN exited: flask_app (exit status 1; not expected)                     
+legal-ai-frontend  | Waiting for AI service... (5/30)                                                                 
+legal-ai-service   | 2025-08-01 01:55:08,473 INFO gave up: flask_app entered FATAL state, too many start retries too quickly
+legal-ai-frontend  | Waiting for AI service... (6/30)
+legal-ai-frontend  | Waiting for AI service... (7/30)
+legal-ai-frontend  | Waiting for AI service... (8/30)
+legal-ai-frontend  | Waiting for AI service... (9/30)
+legal-ai-frontend  | Waiting for AI service... (10/30)
+legal-ai-frontend  | Waiting for AI service... (11/30)
+Gracefully stopping... (press Ctrl+C again to force)
+[+] Stopping 2/2
+ ✔ Container legal-ai-frontend  Stopped                                                                          0.4s 
+ ✔ Container legal-ai-service   Stopped       

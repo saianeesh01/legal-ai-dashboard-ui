@@ -452,20 +452,10 @@ if __name__ == '__main__':
     logger.info(f"Ollama host: {OLLAMA_HOST}")
     logger.info(f"Default model: {DEFAULT_MODEL}")
     
-    # Check initial Ollama connection and warm up model in background
+    # Check initial Ollama connection
     if ollama.is_available():
         models = ollama.list_models()
         logger.info(f"✓ Ollama connected successfully. Available models: {models}")
-        if DEFAULT_MODEL in models:
-
-            warmup_thread = threading.Thread(target=warmup_model, args=(DEFAULT_MODEL,))
-            warmup_thread.daemon = True
-            warmup_thread.start()
-=======
-            warmup_model(DEFAULT_MODEL)
-
-        else:
-            logger.warning(f"Default model {DEFAULT_MODEL} not found in Ollama.")
     else:
         logger.warning("⚠ Ollama not available at startup. Check connection.")
     
