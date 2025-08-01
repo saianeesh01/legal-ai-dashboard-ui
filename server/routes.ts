@@ -507,7 +507,7 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: documentText,
-          model: 'mistral:latest',
+          model: 'gemma:2b',
           prompt: `Summarize this legal document clearly and concisely. 
 Focus only on key facts, dates, amounts, decisions, and parties. 
 Respond in <= 20 bullet points.\n\n${documentText}`
@@ -1136,7 +1136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/:jobId/summarize", async (req, res) => {
     try {
       const { jobId } = req.params;
-      const { model = 'mistral:latest', max_tokens = 1000 } = req.body;
+      const { model = 'gemma:2b', max_tokens = 1000 } = req.body;
 
       console.log(`Starting AI summarization for job: ${jobId}`);
 
@@ -2052,7 +2052,7 @@ function extractComplianceRequirements(content: string): string[] {
 
 export function setupRoutes(app: Express): Server {
   const server = createServer(app);
-  
+
   // Setup warmup routes
   setupWarmupRoutes(app);
 

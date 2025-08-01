@@ -20,7 +20,7 @@ app = Flask(__name__)
 # Configuration
 OLLAMA_HOST = os.environ.get('OLLAMA_HOST', '127.0.0.1:11434')
 OLLAMA_BASE_URL = f"http://{OLLAMA_HOST}"
-DEFAULT_MODEL = "mistral:latest"
+DEFAULT_MODEL = "gemma:2b"  # Default model for summarization
 
 class OllamaClient:
     """Client for interacting with Ollama API"""
@@ -55,10 +55,10 @@ class OllamaClient:
             payload = {
                 "model": model,
                 "prompt": prompt,
-               # "stream": False,
+                "stream": False,
                 "options": {
                     "num_predict": max_tokens,
-                    "temperature": 0.7,
+                    "temperature": 0.3,
                     "top_p": 0.9
                 }
             }
@@ -122,7 +122,7 @@ def validate_text_content(text: str) -> Dict[str, Any]:
         "alphabetic_ratio": alphabetic_ratio
     }
 
-def chunk_text(text: str, max_chunk_size: int = 4000) -> List[str]:
+def chunk_text(text: str, max_chunk_size: int = 1500) -> List[str]:
     """Split text into manageable chunks for AI processing"""
     if len(text) <= max_chunk_size:
         return [text]
@@ -196,7 +196,7 @@ def summarize_document():
             model = DEFAULT_MODEL
         
         # Chunk text if necessary
-        chunks = chunk_text(text, 4000)
+        chunks = chunk_text(text, 1500)
         summaries = []
         
         for i, chunk in enumerate(chunks):
@@ -206,21 +206,10 @@ def summarize_document():
 
 Summary:"""
             
-            summary = ollama.generate(model, prompt, max_tokens)
+            summary = ollama.generate(model, prompt, max_tokens or 1000)
             
-            if summary:
-                summaries.append({
-                    "chunk": i + 1,
-                    "summary": summary,
-                    "word_count": len(chunk.split())
-                })
-            else:
-                summaries.append({
-                    "chunk": i + 1,
-                    "summary": f"Failed to generate summary for chunk {i+1}",
-                    "word_count": len(chunk.split()),
-                    "error": True
-                })
+            if not summary or len(summary.strip()) < 30:
+                summary = ollama.generate(model,prompt[:1200],1000)
         
         # Generate overall summary if multiple chunks
         if len(chunks) > 1:
@@ -256,7 +245,6 @@ def analyze_document():
     """Perform detailed document analysis"""
     try:
         data = request.get_json()
-        
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
         
@@ -264,8 +252,8 @@ def analyze_document():
         filename = data.get('filename', 'document.pdf')
         analysis_type = data.get('analysis_type', 'comprehensive')
         model = data.get('model', DEFAULT_MODEL)
-        custom_prompt = data.get('prompt')  # ✅ Accept frontend prompt if provided
-        
+        custom_prompt = data.get('prompt')
+
         # Validate text content
         validation = validate_text_content(text)
         if not validation['valid']:
@@ -274,52 +262,65 @@ def analyze_document():
                 "reason": validation['reason'],
                 "word_count": validation['word_count']
             }), 400
-        
+
         # Check Ollama availability
         if not ollama.is_available():
             return jsonify({
                 "error": "AI service unavailable",
                 "reason": "Ollama is not responding"
             }), 503
-        
+
         # ✅ Use frontend-provided prompt if available
         if custom_prompt:
             prompt = custom_prompt
         elif analysis_type == 'proposal':
-            prompt = f"""Analyze this document to determine if it's a proposal and provide detailed analysis:
+            prompt = f"""
+You are a legal document analysis assistant. Analyze the following document and provide a **detailed response of at least 200 words**.
 
 Document filename: {filename}
 
-{text[:4000]}
+{text[:1500]}
 
-Please analyze:
-1. Is this a proposal? (Yes/No with confidence %)
-2. If yes, what type of proposal?
-3. Key elements that indicate it's a proposal
-4. Main objectives and goals
-5. Target audience
-6. Strengths and areas for improvement
+Please analyze and answer all points clearly:
+1. Is this a proposal? (Answer Yes or No and provide a confidence percentage)
+2. If yes, specify the type of proposal.
+3. List key elements that indicate it is a proposal.
+4. Summarize its main objectives and goals.
+5. Identify the target audience.
+6. Highlight strengths and areas for improvement.
 
-Analysis:"""
+**Important:** 
+- Do NOT say "I cannot analyze".
+- Do NOT skip any section.
+- Return plain text only, no JSON or code formatting.
+- Always produce at least 200 words in your analysis.
+"""
         else:
-            prompt = f"""Provide a comprehensive legal document analysis:
+            prompt = f"""
+You are a legal document analysis assistant. Provide a **comprehensive response of at least 200 words** for the following document:
 
 Document filename: {filename}
 
 {text[:4000]}
 
-Please analyze:
-1. Document type and category
-2. Legal significance
-3. Key parties and stakeholders
-4. Important dates and deadlines
-5. Critical requirements
-6. Potential risks or concerns
-7. Recommendations
+Analyze and include:
+1. Document type and category.
+2. Legal significance and context.
+3. Key parties and stakeholders.
+4. Important dates, amounts, or deadlines.
+5. Critical requirements or obligations.
+6. Potential risks or concerns.
+7. Practical recommendations.
 
-Analysis:"""
-        
-        analysis = ollama.generate(model, prompt, 800)
+**Important:** 
+- Do NOT say "I cannot analyze".
+- Do NOT skip any section.
+- Return plain text only, no JSON or code formatting.
+- Always produce at least 200 words in your analysis.
+"""
+
+        # Call Ollama for analysis
+        analysis = ollama.generate(model, prompt, 1000)
         
         if not analysis:
             return jsonify({
@@ -343,6 +344,7 @@ Analysis:"""
             "error": "Analysis generation failed",
             "reason": str(e)
         }), 500
+
 
 @app.route('/models', methods=['GET'])
 def list_available_models():
@@ -373,7 +375,7 @@ def warmup_model():
         warmup_prompt = "Hello, I'm testing the model. Please respond with 'Ready'."
         
         # Use the OllamaClient to warm up
-        response = ollama.generate(model, warmup_prompt, 50)
+        response = ollama.generate(model, warmup_prompt, 200)
         
         if response:
             logger.info(f"✅ Model {model} warmed up successfully")
@@ -413,6 +415,7 @@ SAMPLE LEGAL DOCUMENT EXCERPT:
 Provide a brief analysis focusing on document type and key legal elements. This is a warmup request."""
 
         # Warm up with legal context
+        
         response = ollama.generate(DEFAULT_MODEL, legal_warmup_prompt, 200)
         
         if response:
