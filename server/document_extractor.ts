@@ -192,8 +192,11 @@ private static async extractWithPDFJS(buffer: Buffer, fileName: string): Promise
             console.warn('Could not set PDF.js worker, proceeding without:', workerError);
           }
 
+
+
           console.warn('Could not set PDF.js worker, proceeding without:', 
             workerError instanceof Error ? workerError.message : String(workerError));
+
 
         }
 

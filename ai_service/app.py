@@ -6,6 +6,7 @@ Connects to Ollama running on host for AI-powered document analysis
 import os
 import json
 import logging
+import threading
 from flask import Flask, request, jsonify
 import requests
 from typing import Dict, List, Any, Optional
@@ -451,12 +452,18 @@ if __name__ == '__main__':
     logger.info(f"Ollama host: {OLLAMA_HOST}")
     logger.info(f"Default model: {DEFAULT_MODEL}")
     
-    # Check initial Ollama connection
+    # Check initial Ollama connection and warm up model in background
     if ollama.is_available():
         models = ollama.list_models()
         logger.info(f"✓ Ollama connected successfully. Available models: {models}")
         if DEFAULT_MODEL in models:
+
+            warmup_thread = threading.Thread(target=warmup_model, args=(DEFAULT_MODEL,))
+            warmup_thread.daemon = True
+            warmup_thread.start()
+=======
             warmup_model(DEFAULT_MODEL)
+
         else:
             logger.warning(f"Default model {DEFAULT_MODEL} not found in Ollama.")
     else:
