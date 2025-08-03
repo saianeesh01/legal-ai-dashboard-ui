@@ -324,72 +324,35 @@ def analyze_document():
                 "reason": "Ollama is not responding"
             }), 503
 
-        # ✅ Smart prompt selection for performance optimization
+        # ✅ Prompt selection
         if custom_prompt:
             prompt = custom_prompt
-        elif analysis_type == 'summary' or len(text) > 10000:
-            # Concise analysis for large documents or chunk processing  
-            prompt = f"""Summarize this legal document section efficiently, avoiding repetition:
-
-Document: {filename}
-Content: {text[:600]}{"..." if len(text) > 600 else ""}
-
-Provide focused analysis:
-• Document type and key findings
-• Critical dates, amounts, decisions  
-• Main parties and stakeholders
-• Important requirements or conclusions
-
-Keep under 120 words. Be specific, avoid generic phrases.
-"""
-        elif analysis_type == 'proposal':
-            prompt = f"""
-You are a legal document analysis assistant. Analyze the following document and provide a **detailed response of at least 200 words**.
-
-Document filename: {filename}
-
-{text[:1500]}
-
-Please analyze and answer all points clearly:
-1. Is this a proposal? (Answer Yes or No and provide a confidence percentage)
-2. If yes, specify the type of proposal.
-3. List key elements that indicate it is a proposal.
-4. Summarize its main objectives and goals.
-5. Identify the target audience.
-6. Highlight strengths and areas for improvement.
-
-**Important:** 
-- Do NOT say "I cannot analyze".
-- Do NOT skip any section.
-- Return plain text only, no JSON or code formatting.
-- Always produce at least 200 words in your analysis.
-"""
         else:
-            # Comprehensive analysis for smaller documents
             prompt = f"""
-You are a legal document analysis assistant. Provide a **comprehensive response of at least 200 words** for the following document:
+You are an expert legal assistant. Analyze the following document and produce a **detailed, task-oriented review of at least 200 words**.
 
 Document filename: {filename}
 
 {text[:4000]}
 
-Analyze and include:
-1. Document type and category.
-2. Legal significance and context.
-3. Key parties and stakeholders.
-4. Important dates, amounts, or deadlines.
-5. Critical requirements or obligations.
-6. Potential risks or concerns.
-7. Practical recommendations.
+Please include:
 
-**Important:** 
-- Do NOT say "I cannot analyze".
-- Do NOT skip any section.
-- Return plain text only, no JSON or code formatting.
-- Always produce at least 200 words in your analysis.
+1️⃣ Document type and purpose  
+2️⃣ Key facts: names, case numbers, amounts, agencies involved  
+3️⃣ Critical deadlines or dates (list with urgency level)  
+4️⃣ Required actions for the legal assistant or attorney (clear next steps)  
+5️⃣ Potential issues, missing info, or risks that may delay case progress  
+6️⃣ Questions to clarify with client or attorney  
+7️⃣ Practical recommendations for follow-up  
+
+**Rules:**  
+- Return plain text only, no JSON or code formatting.  
+- Do NOT say "I cannot analyze".  
+- Be specific, avoid vague phrases.  
+- Highlight actionable tasks clearly.  
 """
 
-        # Call Ollama for analysis with fallback models and improved error handling
+        # Call Ollama for analysis with fallback models
         analysis = None
         models_to_try = [model] if model not in GEMMA_MODELS else GEMMA_MODELS
         
@@ -428,7 +391,7 @@ Recommendations:
 Note: This analysis was generated using document metadata due to AI service limitations."""
             model = "fallback_analysis"
         
-        # This should never happen now due to fallback, but keep as safety check
+        # Final safety check
         if not analysis or len(analysis.strip()) == 0:
             logger.error("❌ Critical: Both AI models and fallback failed")
             return jsonify({
@@ -453,7 +416,6 @@ Note: This analysis was generated using document metadata due to AI service limi
             "error": "Analysis generation failed",
             "reason": str(e)
         }), 500
-
 
 @app.route('/models', methods=['GET'])
 def list_available_models():

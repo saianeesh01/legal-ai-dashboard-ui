@@ -484,13 +484,13 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
   // ✅ 1. Smart chunking for large documents - optimize for speed
   let MAX_CHUNK_SIZE = 2500;
   let MAX_CHUNKS = 20; // Limit chunks for faster processing
-  
+
   // For very large documents (>50k chars), use larger chunks and limit total
   if (documentText.length > 50000) {
     MAX_CHUNK_SIZE = Math.max(3500, Math.ceil(documentText.length / MAX_CHUNKS));
     console.log(`📊 Large document detected (${documentText.length} chars), using optimized chunking`);
   }
-  
+
   const chunks: string[] = [];
   for (let i = 0; i < documentText.length; i += MAX_CHUNK_SIZE) {
     chunks.push(documentText.slice(i, i + MAX_CHUNK_SIZE));
@@ -507,11 +507,11 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
   // ✅ Process chunks in parallel for faster performance (batch size 5)
   const BATCH_SIZE = 5; // Process 5 chunks simultaneously
   const startTime = Date.now();
-  
+
   for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
     const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
-    console.log(`🚀 Processing batch ${Math.floor(i/BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
-    
+    console.log(`🚀 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
+
     const batchPromises = batch.map(async (chunk, batchIndex) => {
       const index = i + batchIndex;
       try {
@@ -524,7 +524,7 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
             model: 'gemma:2b',
             analysis_type: 'summary'
           }),
-          signal: AbortSignal.timeout(90000) // 90 second timeout per chunk
+          signal: AbortSignal.timeout(300000) // 90 second timeout per chunk
         });
 
         if (!response.ok) {
@@ -535,7 +535,7 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
         const data = await response.json();
         const summaryChunk = data.analysis || data.response || data.message?.content || '';
         console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars`);
-        
+
         return summaryChunk.trim();
       } catch (err) {
         console.error(`❌ Error chunk ${index + 1}:`, err);
@@ -545,12 +545,12 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
 
     // Wait for batch completion
     const batchResults = await Promise.all(batchPromises);
-    
+
     // Add successful summaries
     batchResults.forEach(summary => {
       if (summary) summaries.push(summary);
     });
-    
+
     // Progress update
     const elapsed = Math.round((Date.now() - startTime) / 1000);
     console.log(`⏱️  Processed ${i + batch.length}/${chunks.length} chunks in ${elapsed}s`);
