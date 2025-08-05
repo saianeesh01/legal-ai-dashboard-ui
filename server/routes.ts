@@ -437,63 +437,17 @@ function getRelevantDomain(fileName: string): string {
   return 'legal services and regulatory compliance frameworks';
 }
 
-// Helper to call Ollama Mistral for summarization  
-/* async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
-  console.log(`📄 Document text length: ${documentText.length} characters`);
-  
-  const prompt = `You are a legal document analysis AI. Read the following document and generate a detailed, content-specific summary. Quote or paraphrase key facts, dates, names, monetary amounts, and legal citations. Do NOT state the document type or use generic templates. Focus on the actual content.\n\nDocument: ${fileName}\n\n${documentText}`;
-  
-  try {
-    console.log(`🌐 Sending request to AI Service...`);
-    // Use correct AI service URL for development vs Docker
-    const AI_SERVICE_URL = process.env.NODE_ENV === 'production' 
-      ? 'http://ai_service:5001'
-      : 'http://localhost:5001';
-    
-    const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: documentText,
-        model: 'mistral:latest',
-        prompt: prompt
-      })
-    });
-    
-    console.log(`📡 Ollama response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Ollama API error: ${response.status} - ${errorText}`);
-      throw new Error(`Ollama error: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    console.log(`✅ Ollama response received, length: ${data.response?.length || 0} characters`);
-    
-    const summary = data.response || data.message?.content || '[Ollama returned no summary]';
-    console.log(`📝 Generated summary length: ${summary.length} characters`);
-    
-    return summary;
-  } catch (err) {
-    console.error('❌ Ollama Llama 3 summarization failed:', err);
-    return '';
-  }
-}
- */
-
 async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
+  console.log(`🤖 Attempting incremental summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
 
-  // ✅ 1. Smart chunking for large documents - optimize for speed
-  let MAX_CHUNK_SIZE = 3500; // Increased from 2500
-  let MAX_CHUNKS = 15; // Reduced from 20 for faster processing
+  // ✅ 1. Smart chunking for incremental summarization
+  let MAX_CHUNK_SIZE = 800; // Smaller chunks for focused local summaries
+  let MAX_CHUNKS = 20; // More chunks for better coverage
 
-  // For very large documents (>50k chars), use larger chunks and limit total
+  // For very large documents, adjust chunking strategy
   if (documentText.length > 50000) {
-    MAX_CHUNK_SIZE = Math.max(1500, Math.ceil(documentText.length / MAX_CHUNKS)); // ✅ Reduced from 3500 to 1500 for faster processing
+    MAX_CHUNK_SIZE = Math.max(600, Math.ceil(documentText.length / MAX_CHUNKS));
     console.log(`📊 Large document detected (${documentText.length} chars), using optimized chunking`);
   }
 
@@ -508,77 +462,124 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
     ? 'http://ai_service:5001'
     : 'http://localhost:5001';
 
-  const summaries: string[] = [];
+  const localSummaries: string[] = [];
 
-  // Helper function to process a single chunk with retry
-  async function processChunkWithRetry(chunk: string, index: number, retries = 2): Promise<string | null> {
+  // ✅ Step 1: Generate local summaries for each chunk
+  async function generateLocalSummary(chunk: string, index: number, retries = 2): Promise<string | null> {
+    const localSummaryPrompt = `Summarize the following text in 2-3 sentences, focusing on key facts and findings:
+
+${chunk}
+
+Provide a concise summary that captures the most important information:`;
+
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const timeout = 45000 + (attempt * 15000); // Increase timeout on retry: 45s, 60s, 75s
+        const timeout = 30000 + (attempt * 10000); // 30s, 40s, 50s timeouts
         const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: chunk,
+            text: localSummaryPrompt,
             filename: `${fileName}_chunk_${index + 1}`,
-            model: 'mistral:7b-instruct-q4_0', // ✅ Using optimized model from roadmap
-            analysis_type: 'summary'
+            model: 'mistral:7b-instruct-q4_0', // ✅ Using optimized model
+            analysis_type: 'local_summary',
+            max_tokens: 150 // Limit tokens for concise summaries
           }),
-          signal: AbortSignal.timeout(1800000) // 30 minute timeout per chunk for large documents
+          signal: AbortSignal.timeout(timeout)
         });
 
         if (!response.ok) {
-          console.error(`❌ Chunk ${index + 1} failed (attempt ${attempt + 1}): ${response.status}`);
+          console.error(`❌ Local summary chunk ${index + 1} failed (attempt ${attempt + 1}): ${response.status}`);
           if (attempt === retries) return null;
-          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
           continue;
         }
 
         const data = await response.json();
-        const summaryChunk = data.analysis || data.response || data.message?.content || '';
-        console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars (attempt ${attempt + 1})`);
+        const localSummary = data.analysis || data.response || data.message?.content || '';
+        console.log(`✅ Local summary ${index + 1}: ${localSummary.length} chars (attempt ${attempt + 1})`);
 
-        return summaryChunk.trim();
+        return localSummary.trim();
       } catch (err) {
-        console.error(`❌ Error chunk ${index + 1} (attempt ${attempt + 1}):`, err);
+        console.error(`❌ Error local summary chunk ${index + 1} (attempt ${attempt + 1}):`, err);
         if (attempt === retries) return null;
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
       }
     }
     return null;
   }
 
-  // ✅ Process chunks in parallel for faster performance (batch size 15)
-  const BATCH_SIZE = 15; // Process 15 chunks simultaneously - increased from 5
+  // ✅ Step 2: Process chunks in parallel for local summaries
+  const BATCH_SIZE = 10; // Process 10 chunks simultaneously for local summaries
   const startTime = Date.now();
 
   for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
     const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
-    console.log(`🚀 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
+    console.log(`🚀 Processing local summaries batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
 
     const batchPromises = batch.map(async (chunk, batchIndex) => {
       const index = i + batchIndex;
-      return processChunkWithRetry(chunk, index);
+      return generateLocalSummary(chunk, index);
     });
 
     // Wait for batch completion
     const batchResults = await Promise.all(batchPromises);
 
-    // Add successful summaries
+    // Add successful local summaries
     batchResults.forEach(summary => {
-      if (summary) summaries.push(summary);
+      if (summary) localSummaries.push(summary);
     });
 
     // Progress update
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(`⏱️  Processed ${i + batch.length}/${chunks.length} chunks in ${elapsed}s`);
+    console.log(`⏱️  Processed ${i + batch.length}/${chunks.length} local summaries in ${elapsed}s`);
   }
 
-  // ✅ 2. Merge all chunk summaries into a final summary
-  const finalSummary = summaries.join('\n\n---\n\n');
-  console.log(`📝 Final combined summary length: ${finalSummary.length} characters`);
+  // ✅ Step 3: Final synthesis - combine local summaries into single paragraph
+  if (localSummaries.length === 0) {
+    console.log(`⚠️ No local summaries generated, returning fallback`);
+    return '[No summary generated]';
+  }
 
-  return finalSummary || '[No summary generated]';
+  console.log(`📝 Synthesizing ${localSummaries.length} local summaries into final paragraph`);
+  
+  const synthesisPrompt = `Combine the following chunk summaries into a single, cohesive paragraph (5-7 sentences max) that accurately represents the overall content of the document without repeating details unnecessarily:
+
+${localSummaries.join('\n\n')}
+
+Provide a unified summary paragraph:`;
+
+  try {
+    const synthesisResponse = await fetch(`${AI_SERVICE_URL}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: synthesisPrompt,
+        filename: `${fileName}_synthesis`,
+        model: 'mistral:7b-instruct-q4_0',
+        analysis_type: 'final_synthesis',
+        max_tokens: 300 // Limit for single paragraph
+      }),
+      signal: AbortSignal.timeout(60000) // 60s timeout for synthesis
+    });
+
+    if (!synthesisResponse.ok) {
+      console.error(`❌ Final synthesis failed: ${synthesisResponse.status}`);
+      // Fallback: join local summaries with separators
+      return localSummaries.join('. ') + '.';
+    }
+
+    const synthesisData = await synthesisResponse.json();
+    const finalSummary = synthesisData.analysis || synthesisData.response || synthesisData.message?.content || '';
+    
+    console.log(`✅ Final synthesis completed: ${finalSummary.length} characters`);
+    return finalSummary.trim() || localSummaries.join('. ') + '.';
+
+  } catch (err) {
+    console.error(`❌ Error in final synthesis:`, err);
+    // Fallback: join local summaries with separators
+    return localSummaries.join('. ') + '.';
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {

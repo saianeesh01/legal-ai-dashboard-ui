@@ -604,7 +604,7 @@ Overall Summary:"""
 
 @app.route('/analyze', methods=['POST'])
 def analyze_document():
-    """Analyze document with simplified, fast prompt"""
+    """Analyze document with support for incremental summarization"""
     try:
         data = request.get_json()
         
@@ -614,14 +614,25 @@ def analyze_document():
         text = data.get('text', '')
         model = data.get('model', DEFAULT_MODEL)
         max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
+        analysis_type = data.get('analysis_type', 'analyze')
         
         if not text.strip():
             return jsonify({"error": "No text provided for analysis"}), 400
         
-        # Use optimized prompt for faster processing
-        prompt = create_optimized_prompt(text, "analyze")
+        # Handle different analysis types for incremental summarization
+        if analysis_type == 'local_summary':
+            # For local chunk summaries - use the text directly as it's already a prompt
+            prompt = text
+            logger.info(f"📝 Generating local summary with {model}")
+        elif analysis_type == 'final_synthesis':
+            # For final synthesis - use the text directly as it's already a prompt
+            prompt = text
+            logger.info(f"🔗 Synthesizing final summary with {model}")
+        else:
+            # Default analysis - use optimized prompt
+            prompt = create_optimized_prompt(text, "analyze")
+            logger.info(f"🔍 Analyzing document with {model}")
         
-        logger.info(f"🔍 Analyzing document with {model}")
         result = ollama.generate(model, prompt, max_tokens)
         
         if not result:
@@ -631,7 +642,8 @@ def analyze_document():
             "success": True,
             "analysis": result,
             "model_used": model,
-            "prompt_type": "optimized"
+            "analysis_type": analysis_type,
+            "prompt_type": "optimized" if analysis_type == 'analyze' else analysis_type
         })
         
     except Exception as e:
