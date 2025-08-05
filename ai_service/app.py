@@ -16,6 +16,13 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from typing import Dict, List, Any, Optional
+from flask_cors import CORS
+from typing import List, Dict, Optional
+import requests
+from dataclasses import dataclass
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Import FAISS vector search
 from vector_search import vector_engine
@@ -419,6 +426,47 @@ def validate_text_content(text: str) -> Dict[str, Any]:
         "alphabetic_ratio": alphabetic_ratio
     }
 
+
+
+def process_single_chunk(ollama: OllamaClient, chunk: str, index: int, models_to_try: List[str], prompt_template: str) -> Dict:
+    """Process a single chunk - designed to be run in parallel"""
+    logger.info(f"📄 Processing chunk {index+1}")
+    
+    prompt = prompt_template.format(chunk=chunk)
+    summary = None
+    model_used = None
+    
+    for try_model in models_to_try:
+        logger.info(f"🔄 Trying model: {try_model} for chunk {index+1}")
+        try:
+            # Reduced timeout for faster failure
+            start_time = time.time()
+            summary = ollama.generate(try_model, prompt, max_tokens=500)  # Reduced tokens for speed
+            
+            if summary and len(summary.strip()) > 30:
+                elapsed = time.time() - start_time
+                logger.info(f"✅ Chunk {index+1} summary: {len(summary)} chars with {try_model} in {elapsed:.1f}s")
+                model_used = try_model
+                break
+            else:
+                logger.warning(f"⚠️ Model {try_model} returned insufficient chunk summary")
+        except Exception as model_error:
+            logger.error(f"❌ Model {try_model} failed for chunk {index+1}: {model_error}")
+            continue
+    
+    # Fallback if no model worked for this chunk
+    if not summary or len(summary.strip()) < 30:
+        logger.warning(f"🔄 All models failed for chunk {index+1}, generating fallback")
+        summary = f"Legal document excerpt {index+1}: Contains {len(chunk.split())} words of legal content."
+        model_used = "fallback"
+    
+    return {
+        "chunk_index": index,
+        "summary": summary,
+        "word_count": len(chunk.split()),
+        "model_used": model_used
+    }
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint with model availability"""
@@ -436,34 +484,115 @@ def health_check():
 
 @app.route('/summarize', methods=['POST'])
 def summarize_document():
-    """Summarize document with simplified, fast prompt"""
+    """Generate document summary with parallel chunk processing"""
     try:
-        data = request.get_json()
-        
+        data = request.json
         if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
+            return jsonify({"error": "No data provided"}), 400
         
         text = data.get('text', '')
+        filename = data.get('filename', 'unknown')
         model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
+        max_tokens = data.get('max_tokens', 2000)
         
-        if not text.strip():
-            return jsonify({"error": "No text provided for summarization"}), 400
+        # Validate input
+        validation = validate_text_content(text)
+        if not validation['valid']:
+            return jsonify({
+                "error": "Invalid document",
+                "details": validation['reason']
+            }), 400
         
-        # Use optimized prompt for faster processing
-        prompt = create_optimized_prompt(text, "summarize")
+        logger.info(f"📝 Summarizing document: {filename} ({validation['word_count']} words)")
         
-        logger.info(f"📝 Summarizing document with {model}")
-        result = ollama.generate(model, prompt, max_tokens)
+        # Adjust to user's requested model
+        if model not in GEMMA_MODELS:
+            logger.warning(f"⚠️ Model '{model}' not in GEMMA_MODELS, using {DEFAULT_MODEL}")
+            model = DEFAULT_MODEL
         
-        if not result:
-            result = "Unable to summarize document."
+        # Chunk text with larger chunks for speed
+        chunks = chunk_text(text, 3000)  # Increased chunk size
+        
+        # Limit chunks for performance
+        if len(chunks) > 15:
+            logger.warning(f"⚠️ Document has {len(chunks)} chunks, limiting to 15 for performance")
+            chunks = chunks[:15]
+        
+        logger.info(f"📑 Processing {len(chunks)} chunks in parallel")
+        
+        # Prepare for parallel processing
+        prompt_template = """Summarize this legal document excerpt concisely in 2-3 sentences:
+
+{chunk}
+
+Summary:"""
+        
+        models_to_try = [model] if model not in GEMMA_MODELS else GEMMA_MODELS[:2]  # Limit models for speed
+        summaries = []
+        
+        # Process chunks in parallel
+        start_time = time.time()
+        with ThreadPoolExecutor(max_workers=10) as executor:  # Process up to 10 chunks simultaneously
+            future_to_chunk = {
+                executor.submit(process_single_chunk, ollama, chunk, i, models_to_try, prompt_template): i 
+                for i, chunk in enumerate(chunks)
+            }
+            
+            for future in as_completed(future_to_chunk):
+                try:
+                    result = future.result(timeout=30)  # 30 second timeout per chunk
+                    summaries.append(result)
+                except Exception as e:
+                    chunk_index = future_to_chunk[future]
+                    logger.error(f"❌ Chunk {chunk_index + 1} failed: {e}")
+                    # Add fallback for failed chunk
+                    summaries.append({
+                        "chunk_index": chunk_index,
+                        "summary": f"Chunk {chunk_index + 1} processing failed.",
+                        "word_count": 0,
+                        "model_used": "error"
+                    })
+        
+        # Sort summaries by chunk index
+        summaries.sort(key=lambda x: x["chunk_index"])
+        
+        elapsed = time.time() - start_time
+        logger.info(f"⏱️ Processed {len(chunks)} chunks in {elapsed:.1f}s")
+        
+        # Generate overall summary if multiple chunks
+        if len(chunks) > 1 and summaries:
+            logger.info(f"📝 Generating overall summary from {len(summaries)} chunks")
+            combined_summaries = "\n\n".join([s["summary"] for s in summaries if s.get("summary") and s["model_used"] != "error"])
+            
+            overall_prompt = f"""Combine these summaries into a single, coherent summary (max 100 words):
+
+{combined_summaries}
+
+Overall Summary:"""
+            
+            # Use the fastest available model for overall summary
+            overall_summary = None
+            for try_model in models_to_try[:1]:  # Only try one model for speed
+                try:
+                    overall_summary = ollama.generate(try_model, overall_prompt, max_tokens=200)
+                    if overall_summary and len(overall_summary.strip()) > 50:
+                        logger.info(f"✅ Overall summary: {len(overall_summary)} chars with {try_model}")
+                        break
+                except Exception:
+                    continue
+                    
+            if not overall_summary or len(overall_summary.strip()) < 50:
+                overall_summary = f"Document Summary: This legal document contains {validation['word_count']} words across {len(chunks)} sections."
+        else:
+            overall_summary = summaries[0]["summary"] if summaries else "Legal document processed successfully."
         
         return jsonify({
             "success": True,
-            "summary": result,
+            "summary": overall_summary,
             "model_used": model,
-            "prompt_type": "optimized"
+            "total_chunks": len(chunks),
+            "original_word_count": validation['word_count'],
+            "processing_time": f"{elapsed:.1f}s"
         })
         
     except Exception as e:

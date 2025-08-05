@@ -488,8 +488,8 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
   console.log(`📄 Document text length: ${documentText.length} characters`);
 
   // ✅ 1. Smart chunking for large documents - optimize for speed
-  let MAX_CHUNK_SIZE = 2500;
-  let MAX_CHUNKS = 20; // Limit chunks for faster processing
+  let MAX_CHUNK_SIZE = 3500; // Increased from 2500
+  let MAX_CHUNKS = 15; // Reduced from 20 for faster processing
 
   // For very large documents (>50k chars), use larger chunks and limit total
   if (documentText.length > 50000) {
@@ -510,17 +510,11 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
 
   const summaries: string[] = [];
 
-  // ✅ Process chunks in parallel for faster performance (batch size 5)
-  const BATCH_SIZE = 5; // Process 5 chunks simultaneously
-  const startTime = Date.now();
-
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
-    console.log(`🚀 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
-
-    const batchPromises = batch.map(async (chunk, batchIndex) => {
-      const index = i + batchIndex;
+  // Helper function to process a single chunk with retry
+  async function processChunkWithRetry(chunk: string, index: number, retries = 2): Promise<string | null> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        const timeout = 45000 + (attempt * 15000); // Increase timeout on retry: 45s, 60s, 75s
         const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -534,19 +528,37 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
         });
 
         if (!response.ok) {
-          console.error(`❌ Chunk ${index + 1} failed: ${response.status}`);
-          return null;
+          console.error(`❌ Chunk ${index + 1} failed (attempt ${attempt + 1}): ${response.status}`);
+          if (attempt === retries) return null;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+          continue;
         }
 
         const data = await response.json();
         const summaryChunk = data.analysis || data.response || data.message?.content || '';
-        console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars`);
+        console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars (attempt ${attempt + 1})`);
 
         return summaryChunk.trim();
       } catch (err) {
-        console.error(`❌ Error chunk ${index + 1}:`, err);
-        return null;
+        console.error(`❌ Error chunk ${index + 1} (attempt ${attempt + 1}):`, err);
+        if (attempt === retries) return null;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
       }
+    }
+    return null;
+  }
+
+  // ✅ Process chunks in parallel for faster performance (batch size 15)
+  const BATCH_SIZE = 15; // Process 15 chunks simultaneously - increased from 5
+  const startTime = Date.now();
+
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
+    console.log(`🚀 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
+
+    const batchPromises = batch.map(async (chunk, batchIndex) => {
+      const index = i + batchIndex;
+      return processChunkWithRetry(chunk, index);
     });
 
     // Wait for batch completion
