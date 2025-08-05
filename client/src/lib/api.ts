@@ -1,10 +1,29 @@
 // A thin, typed wrapper around the two back-end endpoints.
 
 export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
+  constructor(public status: number, message: string) {
     super(message);
-    this.status = status;
+  }
+}
+
+// Add timeout utility function
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 120000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if ((error as Error).name === 'AbortError') {
+      throw new ApiError(408, 'Request timeout - document processing is taking longer than expected. Please try with a smaller document.');
+    }
+    throw error;
   }
 }
 
@@ -91,11 +110,12 @@ export async function analyzeDocument(jobId: string): Promise<{
   summary: string;
   suggestions: string[];
 }> {
-  const res = await fetch("/api/analyze", {
+  // Use 2-minute timeout for document analysis
+  const res = await fetchWithTimeout("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_id: jobId }),
-  });
+  }, 120000); // 2 minutes
 
   if (!res.ok) throw new ApiError(res.status, await res.text());
   return res.json();
