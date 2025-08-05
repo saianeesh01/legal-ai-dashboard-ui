@@ -7,9 +7,18 @@ import os
 import json
 import logging
 import threading
+import re
+import asyncio
+import aiohttp
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, jsonify
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from typing import Dict, List, Any, Optional
+
+# Import FAISS vector search
+from vector_search import vector_engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,23 +26,53 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration
+# Configuration with CPU optimizations
 OLLAMA_HOST = os.environ.get('OLLAMA_HOST', '127.0.0.1:11434')
 OLLAMA_BASE_URL = f"http://{OLLAMA_HOST}"
+OLLAMA_NUM_PARALLEL = int(os.environ.get('OLLAMA_NUM_PARALLEL', '2'))  # ✅ CPU optimization
+OLLAMA_CONTEXT_LENGTH = int(os.environ.get('OLLAMA_CONTEXT_LENGTH', '1024'))  # ✅ Reduced context
+MAX_TOKENS_PER_REQUEST = int(os.environ.get('MAX_TOKENS_PER_REQUEST', '300'))  # ✅ Token limit
+DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'mistral:7b-instruct-q4_0')  # ✅ Optimized model
+
 # Use the correct Gemma model name (user specified)
 GEMMA_MODELS = ["gemma:2b", "gemma2:2b", "gemma:7b", "gemma2:9b", "gemma2:latest", "gemma:latest"]
-DEFAULT_MODEL = "gemma:2b"  # User specified this exact model name
 
 class OllamaClient:
-    """Client for interacting with Ollama API"""
+    """Client for interacting with Ollama API with connection pooling"""
     
     def __init__(self, base_url: str = OLLAMA_BASE_URL):
         self.base_url = base_url.rstrip('/')
         
+        # 🚀 Create session with connection pooling for faster communication
+        self.session = requests.Session()
+        
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504]
+        )
+        
+        # Configure adapter with connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=10,  # Number of connection pools
+            pool_maxsize=20,      # Maximum number of connections in pool
+            max_retries=retry_strategy
+        )
+        
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # Set keep-alive headers
+        self.session.headers.update({
+            'Connection': 'keep-alive',
+            'Keep-Alive': 'timeout=300, max=1000'
+        })
+        
     def is_available(self) -> bool:
         """Check if Ollama is available"""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            response = self.session.get(f"{self.base_url}/api/tags", timeout=5)
             return response.status_code == 200
         except requests.RequestException as e:
             logger.error(f"Ollama not available: {e}")
@@ -42,7 +81,7 @@ class OllamaClient:
     def list_models(self) -> List[str]:
         """List available models"""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=10)
+            response = self.session.get(f"{self.base_url}/api/tags", timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 return [model['name'] for model in data.get('models', [])]
@@ -51,8 +90,11 @@ class OllamaClient:
             logger.error(f"Failed to list models: {e}")
             return []
     
-    def generate(self, model: str, prompt: str, max_tokens: int = 2000) -> Optional[str]:
-        """Generate text using Ollama"""
+    def generate(self, model: str, prompt: str, max_tokens: int = None) -> Optional[str]:
+        """Generate text using Ollama with CPU optimizations and connection pooling"""
+        if max_tokens is None:
+            max_tokens = MAX_TOKENS_PER_REQUEST
+            
         try:
             payload = {
                 "model": model,
@@ -61,16 +103,18 @@ class OllamaClient:
                 "options": {
                     "num_predict": max_tokens,
                     "temperature": 0.3,
-                    "top_p": 0.9
+                    "top_p": 0.9,
+                    "num_parallel": OLLAMA_NUM_PARALLEL,  # ✅ CPU optimization
+                    "keep_alive": "5m"  # 🚀 Keep model in memory
                 }
             }
             
             logger.info(f"🤖 Sending request to Ollama: model={model}, prompt_length={len(prompt)}")
             
-            response = requests.post(
+            response = self.session.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=600
+                timeout=1800  # ✅ Increased timeout to 30 minutes for large documents
             )
             
             logger.info(f"📡 Ollama response status: {response.status_code}")
@@ -92,11 +136,251 @@ class OllamaClient:
         except requests.RequestException as e:
             logger.error(f"❌ Request to Ollama failed: {e}")
             return None
+    
+    async def generate_async(self, model: str, prompt: str, max_tokens: int = None) -> Optional[str]:
+        """Async version of generate for parallel processing"""
+        if max_tokens is None:
+            max_tokens = MAX_TOKENS_PER_REQUEST
+            
+        try:
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "num_parallel": OLLAMA_NUM_PARALLEL,
+                    "keep_alive": "5m"
+                }
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=1800)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get('response', '').strip()
+                    else:
+                        logger.error(f"❌ Async Ollama API error: {response.status}")
+                        return None
+                        
+        except Exception as e:
+            logger.error(f"❌ Async request to Ollama failed: {e}")
+            return None
+    
+    def generate_batch(self, model: str, prompts: List[str], max_tokens: int = None) -> List[Optional[str]]:
+        """Generate responses for multiple prompts in parallel using ThreadPoolExecutor"""
+        if max_tokens is None:
+            max_tokens = MAX_TOKENS_PER_REQUEST
+            
+        results = [None] * len(prompts)
+        
+        def process_chunk(chunk_data):
+            index, prompt = chunk_data
+            try:
+                return index, self.generate(model, prompt, max_tokens)
+            except Exception as e:
+                logger.error(f"❌ Error processing chunk {index}: {e}")
+                return index, None
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=OLLAMA_NUM_PARALLEL) as executor:
+            # Submit all tasks
+            future_to_index = {
+                executor.submit(process_chunk, (i, prompt)): i 
+                for i, prompt in enumerate(prompts)
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_index):
+                try:
+                    index, result = future.result()
+                    results[index] = result
+                    logger.info(f"✅ Completed chunk {index + 1}/{len(prompts)}")
+                except Exception as e:
+                    logger.error(f"❌ Exception in chunk processing: {e}")
+        
+        return results
 
 # Initialize Ollama client
 ollama = OllamaClient()
 
-# Warmup function removed - handled by warmup endpoints
+# ✅ NLP Extractors for roadmap item 3
+def extract_dates(text: str) -> List[str]:
+    """Extract dates from text using regex patterns"""
+    date_patterns = [
+        r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # dd/mm/yyyy
+        r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # dd-mm-yyyy
+        r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b',  # Month DD, YYYY
+        r'\b\d{4}-\d{1,2}-\d{1,2}\b',  # yyyy-mm-dd
+    ]
+    
+    dates = []
+    for pattern in date_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        dates.extend(matches)
+    
+    return list(set(dates))  # Remove duplicates
+
+def extract_money(text: str) -> List[str]:
+    """Extract monetary amounts from text"""
+    money_patterns = [
+        r'\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # $1,234.56
+        r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:USD|dollars?|cents?)',  # 1,234.56 USD
+        r'\d+(?:\.\d{2})?\s*%',  # 15.5%
+    ]
+    
+    amounts = []
+    for pattern in money_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        amounts.extend(matches)
+    
+    return list(set(amounts))
+
+def extract_compliance_terms(text: str) -> List[str]:
+    """Extract compliance-related terms"""
+    compliance_keywords = [
+        'compliance', 'requirement', 'timeline', 'due by', 'deadline',
+        'must', 'shall', 'required', 'mandatory', 'obligation'
+    ]
+    
+    found_terms = []
+    lower_text = text.lower()
+    for keyword in compliance_keywords:
+        if keyword in lower_text:
+            found_terms.append(keyword)
+    
+    return found_terms
+
+def extract_nlp_data(text: str) -> Dict[str, List[str]]:
+    """Extract all NLP data for structured prompts"""
+    return {
+        'dates': extract_dates(text),
+        'amounts': extract_money(text),
+        'compliance_terms': extract_compliance_terms(text)
+    }
+
+# ✅ Enhanced chunking for roadmap item 1
+def chunk_text(text: str, max_chunk_size: int = 1500) -> List[str]:
+    """Enhanced chunking with better boundaries"""
+    if len(text) <= max_chunk_size:
+        return [text]
+    
+    chunks = []
+    current_chunk = ""
+    
+    # Split by sentences first, then by paragraphs
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) <= max_chunk_size:
+            current_chunk += sentence + " "
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence + " "
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
+# ✅ Enhanced prompt engineering for roadmap item 1
+def create_structured_prompt(text: str, task: str, nlp_data: Dict[str, List[str]] = None) -> str:
+    """Create structured prompts with context limits and anti-speculation rule"""
+    # Limit context to prevent timeouts
+    limited_text = text[:3000] if len(text) > 3000 else text
+    
+    # Build structured prompt
+    prompt = f"""You are a legal document analysis AI. {task}
+
+Document text:
+{limited_text}
+
+"""
+    
+    # Add extracted NLP data if available
+    if nlp_data:
+        prompt += f"""Extracted data:
+- Dates: {', '.join(nlp_data['dates']) if nlp_data['dates'] else 'None found'}
+- Amounts: {', '.join(nlp_data['amounts']) if nlp_data['amounts'] else 'None found'}
+- Compliance terms: {', '.join(nlp_data['compliance_terms']) if nlp_data['compliance_terms'] else 'None found'}
+
+"""
+    
+    # Add anti-speculation rule
+    prompt += """IMPORTANT: You must answer based only on the document text. Do not speculate or add information not present in the document.
+
+"""
+    
+    return prompt
+
+def create_optimized_prompt(text: str, task: str = "analyze") -> str:
+    """Create a simplified, fast prompt for document analysis"""
+    
+    # Limit text to prevent token overflow
+    max_chars = 2000
+    limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
+    
+    if task == "analyze":
+        return f"""You are a legal AI assistant. Analyze this legal document in one paragraph:
+
+{limited_text}
+
+Provide:
+1. **Document Type**: [Classify as Motion/Brief/Proposal/Report/Form/Other]
+2. **Summary**: [2-3 sentence summary]
+3. **Missing Items**: [List key missing elements]
+4. **Action Items**: [What user needs to do]
+5. **Inconsistencies**: [Any contradictions found]
+
+Format with **bold** for important info. Be concise."""
+    
+    elif task == "summarize":
+        return f"""You are a legal AI assistant. Summarize this document in 2-3 sentences:
+
+{limited_text}
+
+Focus on key points and main purpose."""
+    
+    else:
+        return f"""You are a legal AI assistant. Answer this question about the document:
+
+Question: {task}
+Document: {limited_text}
+
+Answer based only on the document content."""
+
+def create_report_analysis_prompt(text: str) -> str:
+    """Create a specialized prompt for report analysis with bullet points"""
+    
+    max_chars = 2000
+    limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
+    
+    return f"""You are a legal AI assistant. Analyze this report and provide improvements in bullet points:
+
+{limited_text}
+
+**Report Analysis:**
+• **Document Type**: [Classify report type]
+• **Summary**: [2-3 sentence summary]
+
+**Areas for Improvement:**
+• [List specific improvements needed]
+• [Format and structure issues]
+• [Content gaps or missing information]
+• [Clarity and readability issues]
+
+**Action Items:**
+• [What needs to be fixed]
+• [Priority items to address]
+
+Be concise and use bullet points."""
 
 def validate_text_content(text: str) -> Dict[str, Any]:
     """Validate text content for AI processing"""
@@ -135,30 +419,6 @@ def validate_text_content(text: str) -> Dict[str, Any]:
         "alphabetic_ratio": alphabetic_ratio
     }
 
-def chunk_text(text: str, max_chunk_size: int = 1500) -> List[str]:
-    """Split text into manageable chunks for AI processing"""
-    if len(text) <= max_chunk_size:
-        return [text]
-    
-    chunks = []
-    sentences = text.split('. ')
-    current_chunk = ""
-    
-    for sentence in sentences:
-        potential_chunk = current_chunk + ". " + sentence if current_chunk else sentence
-        
-        if len(potential_chunk) <= max_chunk_size:
-            current_chunk = potential_chunk
-        else:
-            if current_chunk:
-                chunks.append(current_chunk + ".")
-            current_chunk = sentence
-    
-    if current_chunk:
-        chunks.append(current_chunk + ".")
-    
-    return [chunk.strip() for chunk in chunks if chunk.strip()]
-
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint with model availability"""
@@ -176,7 +436,7 @@ def health_check():
 
 @app.route('/summarize', methods=['POST'])
 def summarize_document():
-    """Summarize document text using AI"""
+    """Summarize document with simplified, fast prompt"""
     try:
         data = request.get_json()
         
@@ -185,236 +445,110 @@ def summarize_document():
         
         text = data.get('text', '')
         model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', 1000)
+        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
         
-        # Validate text content
-        validation = validate_text_content(text)
-        if not validation['valid']:
-            return jsonify({
-                "error": "Invalid text content",
-                "reason": validation['reason'],
-                "word_count": validation['word_count']
-            }), 400
+        if not text.strip():
+            return jsonify({"error": "No text provided for summarization"}), 400
         
-        # Check Ollama availability
-        if not ollama.is_available():
-            return jsonify({
-                "error": "AI service unavailable",
-                "reason": "Ollama is not responding"
-            }), 503
+        # Use optimized prompt for faster processing
+        prompt = create_optimized_prompt(text, "summarize")
         
-        # Check if model is available
-        available_models = ollama.list_models()
-        if model not in available_models:
-            logger.warning(f"Model {model} not found, using {DEFAULT_MODEL}")
-            model = DEFAULT_MODEL
+        logger.info(f"📝 Summarizing document with {model}")
+        result = ollama.generate(model, prompt, max_tokens)
         
-        # Chunk text if necessary
-        chunks = chunk_text(text, 1500)
-        summaries = []
-        
-        for i, chunk in enumerate(chunks):
-            logger.info(f"📄 Processing chunk {i+1}/{len(chunks)}")
-            
-            prompt = f"""Summarize this legal document excerpt concisely:
-
-{chunk}
-
-Summary:"""
-            
-            # Try multiple models with fallback like in analyze endpoint
-            summary = None
-            models_to_try = [model] if model not in GEMMA_MODELS else GEMMA_MODELS
-            
-            for try_model in models_to_try:
-                logger.info(f"🔄 Trying model: {try_model} for chunk {i+1}")
-                try:
-                    summary = ollama.generate(try_model, prompt, max_tokens or 1000)
-                    if summary and len(summary.strip()) > 30:
-                        logger.info(f"✅ Chunk {i+1} summary: {len(summary)} chars with {try_model}")
-                        model = try_model  # Update successful model
-                        break
-                    else:
-                        logger.warning(f"⚠️ Model {try_model} returned insufficient chunk summary")
-                except Exception as model_error:
-                    logger.error(f"❌ Model {try_model} failed for chunk {i+1}: {model_error}")
-                    continue
-            
-            # Fallback if no model worked for this chunk
-            if not summary or len(summary.strip()) < 30:
-                logger.warning(f"🔄 All models failed for chunk {i+1}, generating fallback")
-                summary = f"Legal document excerpt {i+1}: Contains {len(chunk.split())} words of legal content. This section requires professional legal review for detailed analysis."
-            
-            summaries.append({
-                "chunk_index": i,
-                "summary": summary,
-                "word_count": len(chunk.split()),
-                "model_used": model
-            })
-        
-        # Generate overall summary if multiple chunks
-        if len(chunks) > 1 and summaries:
-            logger.info(f"📝 Generating overall summary from {len(summaries)} chunks")
-            combined_summaries = "\n\n".join([s["summary"] for s in summaries if s.get("summary")])
-            
-            overall_prompt = f"""Combine these summaries into a single, coherent summary:
-
-{combined_summaries}
-
-Overall Summary:"""
-            
-            # Use the same model fallback for overall summary
-            overall_summary = None
-            for try_model in GEMMA_MODELS:
-                try:
-                    overall_summary = ollama.generate(try_model, overall_prompt, max_tokens)
-                    if overall_summary and len(overall_summary.strip()) > 50:
-                        logger.info(f"✅ Overall summary: {len(overall_summary)} chars with {try_model}")
-                        break
-                except Exception:
-                    continue
-                    
-            if not overall_summary or len(overall_summary.strip()) < 50:
-                overall_summary = f"Document Summary: This legal document contains {validation['word_count']} words across {len(chunks)} sections. Each section has been analyzed and requires professional legal review for comprehensive understanding."
-        else:
-            overall_summary = summaries[0]["summary"] if summaries else "Legal document processed successfully. Professional review recommended."
+        if not result:
+            result = "Unable to summarize document."
         
         return jsonify({
             "success": True,
-            "overall_summary": overall_summary,
-            "chunk_summaries": summaries,
+            "summary": result,
             "model_used": model,
-            "total_chunks": len(chunks),
-            "original_word_count": validation['word_count']
+            "prompt_type": "optimized"
         })
         
     except Exception as e:
         logger.error(f"Summarization error: {e}")
         return jsonify({
-            "error": "Internal server error",
+            "error": "Summarization failed",
             "message": str(e)
         }), 500
+
 @app.route('/analyze', methods=['POST'])
 def analyze_document():
-    """Perform detailed document analysis"""
+    """Analyze document with simplified, fast prompt"""
     try:
         data = request.get_json()
+        
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
         
         text = data.get('text', '')
-        filename = data.get('filename', 'document.pdf')
-        analysis_type = data.get('analysis_type', 'comprehensive')
         model = data.get('model', DEFAULT_MODEL)
-        custom_prompt = data.get('prompt')
-
-        # Validate text content
-        validation = validate_text_content(text)
-        if not validation['valid']:
-            return jsonify({
-                "error": "Invalid text content",
-                "reason": validation['reason'],
-                "word_count": validation['word_count']
-            }), 400
-
-        # Check Ollama availability
-        if not ollama.is_available():
-            return jsonify({
-                "error": "AI service unavailable",
-                "reason": "Ollama is not responding"
-            }), 503
-
-        # ✅ Prompt selection
-        if custom_prompt:
-            prompt = custom_prompt
-        else:
-            prompt = f"""
-You are an expert legal assistant. Analyze the following document and produce a **detailed, task-oriented review of at least 200 words**.
-
-Document filename: {filename}
-
-{text[:4000]}
-
-Please include:
-
-1️⃣ Document type and purpose  
-2️⃣ Key facts: names, case numbers, amounts, agencies involved  
-3️⃣ Critical deadlines or dates (list with urgency level)  
-4️⃣ Required actions for the legal assistant or attorney (clear next steps)  
-5️⃣ Potential issues, missing info, or risks that may delay case progress  
-6️⃣ Questions to clarify with client or attorney  
-7️⃣ Practical recommendations for follow-up  
-
-**Rules:**  
-- Return plain text only, no JSON or code formatting.  
-- Do NOT say "I cannot analyze".  
-- Be specific, avoid vague phrases.  
-- Highlight actionable tasks clearly.  
-"""
-
-        # Call Ollama for analysis with fallback models
-        analysis = None
-        models_to_try = [model] if model not in GEMMA_MODELS else GEMMA_MODELS
+        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
         
-        for try_model in models_to_try:
-            logger.info(f"🔄 Trying model: {try_model}")
-            try:
-                analysis = ollama.generate(try_model, prompt, 1000)
-                if analysis and len(analysis.strip()) > 10:  # Require meaningful content
-                    logger.info(f"✅ Success with model: {try_model}, response length: {len(analysis)}")
-                    model = try_model  # Update the successful model name
-                    break
-                else:
-                    logger.warning(f"⚠️ Model {try_model} returned insufficient response: '{str(analysis)[:50]}...'")
-            except Exception as model_error:
-                logger.error(f"❌ Model {try_model} failed: {model_error}")
-                continue
-                
-        # If no models worked, provide a detailed fallback analysis
-        if not analysis or len(analysis.strip()) <= 10:
-            logger.warning("🔄 All AI models failed, generating fallback analysis")
-            analysis = f"""Document Analysis for {filename}
-            
-Document Type: Legal Document
-Content Analysis: This document contains {validation['word_count']} words of legal content. Based on the filename and content structure, this appears to be a legal document requiring professional review.
-
-Key Observations:
-- Document length: {validation['word_count']} words
-- Content quality: {'Valid' if validation['valid'] else 'Needs review'}
-- Processing status: Successfully extracted and analyzed
-
-Recommendations:
-- Professional legal review recommended for detailed analysis
-- Document appears suitable for legal processing workflows
-- Content extraction completed successfully
-
-Note: This analysis was generated using document metadata due to AI service limitations."""
-            model = "fallback_analysis"
+        if not text.strip():
+            return jsonify({"error": "No text provided for analysis"}), 400
         
-        # Final safety check
-        if not analysis or len(analysis.strip()) == 0:
-            logger.error("❌ Critical: Both AI models and fallback failed")
-            return jsonify({
-                "error": "Analysis generation failed", 
-                "reason": "All analysis methods failed including fallback",
-                "attempted_models": models_to_try
-            }), 500
+        # Use optimized prompt for faster processing
+        prompt = create_optimized_prompt(text, "analyze")
+        
+        logger.info(f"🔍 Analyzing document with {model}")
+        result = ollama.generate(model, prompt, max_tokens)
+        
+        if not result:
+            result = "Unable to analyze document."
         
         return jsonify({
             "success": True,
-            "analysis": analysis,
-            "document_filename": filename,
-            "analysis_type": analysis_type,
+            "analysis": result,
             "model_used": model,
-            "word_count": validation['word_count'],
-            "text_sample": text[:200] + "..." if len(text) > 200 else text
+            "prompt_type": "optimized"
         })
         
     except Exception as e:
-        logger.error(f"Document analysis error: {e}")
+        logger.error(f"Analysis error: {e}")
         return jsonify({
-            "error": "Analysis generation failed",
-            "reason": str(e)
+            "error": "Analysis failed",
+            "message": str(e)
+        }), 500
+
+@app.route('/analyze/report', methods=['POST'])
+def analyze_report():
+    """Analyze report with bullet point improvements"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        text = data.get('text', '')
+        model = data.get('model', DEFAULT_MODEL)
+        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
+        
+        if not text.strip():
+            return jsonify({"error": "No text provided for analysis"}), 400
+        
+        # Use specialized report analysis prompt
+        prompt = create_report_analysis_prompt(text)
+        
+        logger.info(f"📊 Analyzing report with {model}")
+        result = ollama.generate(model, prompt, max_tokens)
+        
+        if not result:
+            result = "Unable to analyze report."
+        
+        return jsonify({
+            "success": True,
+            "analysis": result,
+            "model_used": model,
+            "prompt_type": "report_analysis"
+        })
+        
+    except Exception as e:
+        logger.error(f"Report analysis error: {e}")
+        return jsonify({
+            "error": "Report analysis failed",
+            "message": str(e)
         }), 500
 
 @app.route('/models', methods=['GET'])
@@ -509,6 +643,182 @@ Provide a brief analysis focusing on document type and key legal elements. This 
         return jsonify({
             "success": False,
             "error": str(e)
+        }), 500
+
+@app.route('/vector/build', methods=['POST'])
+def build_vector_index():
+    """Build FAISS vector index from document text"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        text = data.get('text', '')
+        document_id = data.get('document_id', 'unknown')
+        filename = data.get('filename', 'document.pdf')
+        
+        if not text.strip():
+            return jsonify({"error": "No text provided for indexing"}), 400
+        
+        # Build the vector index
+        success = vector_engine.build_index(text, document_id, filename)
+        
+        if success:
+            stats = vector_engine.get_index_stats()
+            return jsonify({
+                "success": True,
+                "message": "Vector index built successfully",
+                "stats": stats
+            })
+        else:
+            return jsonify({
+                "error": "Failed to build vector index"
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Vector index build error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
+
+@app.route('/vector/search', methods=['POST'])
+def search_vector_index():
+    """Search FAISS vector index for semantically similar chunks"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        query = data.get('query', '')
+        top_k = data.get('top_k', 3)
+        
+        if not query.strip():
+            return jsonify({"error": "No query provided"}), 400
+        
+        # Search the vector index
+        results = vector_engine.search(query, top_k)
+        
+        return jsonify({
+            "success": True,
+            "query": query,
+            "results": results,
+            "total_found": len(results)
+        })
+        
+    except Exception as e:
+        logger.error(f"Vector search error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
+
+@app.route('/vector/stats', methods=['GET'])
+def get_vector_stats():
+    """Get FAISS vector index statistics"""
+    try:
+        stats = vector_engine.get_index_stats()
+        return jsonify({
+            "success": True,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Vector stats error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
+
+@app.route('/vector/clear', methods=['POST'])
+def clear_vector_index():
+    """Clear FAISS vector index"""
+    try:
+        vector_engine.clear_index()
+        return jsonify({
+            "success": True,
+            "message": "Vector index cleared successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Vector clear error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
+
+@app.route('/query/semantic', methods=['POST'])
+def semantic_query():
+    """Semantic query with FAISS + LLM for reduced load"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        query = data.get('query', '')
+        model = data.get('model', DEFAULT_MODEL)
+        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
+        
+        if not query.strip():
+            return jsonify({"error": "No query provided"}), 400
+        
+        # Check if vector index exists
+        stats = vector_engine.get_index_stats()
+        if stats.get("status") != "active":
+            return jsonify({
+                "error": "No vector index available",
+                "message": "Please build a vector index first using /vector/build"
+            }), 400
+        
+        # Search for relevant chunks using FAISS
+        logger.info(f"🔍 Performing semantic search for: '{query}'")
+        search_results = vector_engine.search(query, top_k=3)
+        
+        if not search_results:
+            return jsonify({
+                "error": "No relevant content found",
+                "message": "The query doesn't match any content in the indexed documents"
+            }), 404
+        
+        # Extract relevant chunks
+        relevant_chunks = [result["chunk"] for result in search_results]
+        combined_context = "\n\n".join(relevant_chunks)
+        
+        # Create prompt with semantic search results
+        prompt = f"""You are a legal AI assistant. Answer this question based ONLY on the provided excerpts:
+
+Question: {query}
+
+Relevant excerpts:
+{combined_context}
+
+Answer:"""
+        
+        # Generate answer using LLM
+        logger.info(f"🤖 Generating answer using {model}")
+        answer = ollama.generate(model, prompt, max_tokens)
+        
+        if not answer:
+            answer = "Unable to generate answer based on the available content."
+        
+        return jsonify({
+            "success": True,
+            "query": query,
+            "answer": answer,
+            "model_used": model,
+            "semantic_search_results": search_results,
+            "chunks_used": len(relevant_chunks),
+            "total_chunks_searched": stats.get("total_chunks", 0)
+        })
+        
+    except Exception as e:
+        logger.error(f"Semantic query error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
         }), 500
 
 if __name__ == '__main__':

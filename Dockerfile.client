@@ -1,0 +1,29 @@
+# Client Service Dockerfile - Node.js with proper esbuild
+FROM node:22-bookworm-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY vite.config.ts ./
+
+# Install dependencies (this will install the correct esbuild for Linux)
+RUN npm install --legacy-peer-deps
+
+# Copy source code
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 3000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Start Vite dev server
+CMD ["npm", "run", "dev:frontend"] 

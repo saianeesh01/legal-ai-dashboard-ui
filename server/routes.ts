@@ -15,13 +15,19 @@ import crypto from "crypto";
 import fetch from 'node-fetch';
 import { DocumentExtractor } from './document_extractor';
 import { setupWarmupRoutes } from './routes/warmup';
+// FAISS vector search integration functions
 
 
-// Configure multer for file uploads
+// ✅ Configure multer for multiple file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
+
+// ✅ Environment variables for CPU optimization
+const MAX_CHUNK_SIZE = parseInt(process.env.MAX_CHUNK_SIZE || '1500');
+const MAX_CHUNKS = parseInt(process.env.MAX_CHUNKS || '8');
+const CHUNK_TIMEOUT = parseInt(process.env.CHUNK_TIMEOUT || '60000');
 
 // Helper function to determine context for extracted dates
 function getDateContext(content: string, date: string): string | null {
@@ -487,7 +493,7 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
 
   // For very large documents (>50k chars), use larger chunks and limit total
   if (documentText.length > 50000) {
-    MAX_CHUNK_SIZE = Math.max(3500, Math.ceil(documentText.length / MAX_CHUNKS));
+    MAX_CHUNK_SIZE = Math.max(1500, Math.ceil(documentText.length / MAX_CHUNKS)); // ✅ Reduced from 3500 to 1500 for faster processing
     console.log(`📊 Large document detected (${documentText.length} chars), using optimized chunking`);
   }
 
@@ -521,10 +527,10 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
           body: JSON.stringify({
             text: chunk,
             filename: `${fileName}_chunk_${index + 1}`,
-            model: 'gemma:2b',
+            model: 'mistral:7b-instruct-q4_0', // ✅ Using optimized model from roadmap
             analysis_type: 'summary'
           }),
-          signal: AbortSignal.timeout(300000) // 90 second timeout per chunk
+          signal: AbortSignal.timeout(1800000) // 30 minute timeout per chunk for large documents
         });
 
         if (!response.ok) {
@@ -569,95 +575,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "healthy", timestamp: new Date().toISOString() });
   });
 
-  // File upload endpoint
-  app.post("/api/upload", upload.single("file"), async (req, res) => {
+  // ✅ Enhanced file upload endpoint with multiple file support
+  app.post("/api/upload", upload.single('file'), async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      // Handle single file upload
+      let files: Express.Multer.File[] = [];
+
+      if (req.file) {
+        files = [req.file];
       }
 
-      // Generate job ID
-      const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+      const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const results = [];
 
-      // Store the job in database
-      await storage.createJob({
-        id: jobId,
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        status: "PROCESSING",
-        progress: 0,
-        createdAt: new Date().toISOString()
-      });
+      console.log(`📁 Processing batch upload with ${files.length} files`);
 
-      // Encrypt and store the document content
-      const fileMetadata = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        uploadedAt: new Date().toISOString(),
-        userAgent: req.headers['user-agent'] || 'unknown'
-      };
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`📄 Processing file ${i + 1}/${files.length}: ${file.originalname}`);
 
-      // Store encrypted document content
-      await storage.storeEncryptedDocument(jobId, req.file.buffer, fileMetadata);
-      console.log(`Document encrypted and stored securely: ${req.file.originalname}`);
+        try {
+          // Generate individual job ID for each file
+          const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Extract text content using hybrid PDF extractor with OCR fallback
-      let fileContent = '';
+          // Store the job in database
+          await storage.createJob({
+            id: jobId,
+            fileName: file.originalname,
+            fileSize: file.size,
+            status: "PROCESSING",
+            progress: 0,
+            createdAt: new Date().toISOString()
+          });
 
-      try {
-        console.log(`=== DOCUMENT EXTRACTION START: ${req.file.originalname} ===`);
-        console.log(`File size: ${req.file.buffer.length} bytes`);
-        console.log(`MIME type: ${req.file.mimetype}`);
+          // Encrypt and store the document content
+          const fileMetadata = {
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            uploadedAt: new Date().toISOString(),
+            userAgent: req.headers['user-agent'] || 'unknown'
+          };
 
-        // Use the reliable PDFExtractor for PDF text extraction
-        if (req.file.mimetype === 'application/pdf') {
-          const { PDFExtractor } = await import('./pdf_extractor.js');
-          const extractionResult = await PDFExtractor.extractText(
-            req.file.buffer,
-            req.file.originalname
-          );
+          // Store encrypted document content
+          await storage.storeEncryptedDocument(jobId, file.buffer, fileMetadata);
+          console.log(`✅ Document encrypted and stored securely: ${file.originalname}`);
 
-          if (extractionResult.success && extractionResult.hasValidContent) {
-            fileContent = extractionResult.text;
-            console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}: ${fileContent.length} characters`);
-          } else {
-            console.error(`✗ PDF extraction failed for ${req.file.originalname}: ${extractionResult.error}`);
-            return res.status(422).json({
+          // Extract text content using hybrid PDF extractor with OCR fallback
+          let fileContent = '';
+
+          try {
+            console.log(`=== DOCUMENT EXTRACTION START: ${file.originalname} ===`);
+            console.log(`File size: ${file.buffer.length} bytes`);
+            console.log(`MIME type: ${file.mimetype}`);
+
+            // Use the reliable PDFExtractor for PDF text extraction
+            if (file.mimetype === 'application/pdf') {
+              const { PDFExtractor } = await import('./pdf_extractor.js');
+              const extractionResult = await PDFExtractor.extractText(
+                file.buffer,
+                file.originalname
+              );
+
+              if (extractionResult.success && extractionResult.hasValidContent) {
+                fileContent = extractionResult.text;
+                console.log(`✓ PDF extraction successful using ${extractionResult.extractionMethod}: ${fileContent.length} characters`);
+              } else {
+                console.error(`✗ PDF extraction failed for ${file.originalname}: ${extractionResult.error}`);
+                results.push({
+                  fileName: file.originalname,
+                  status: "ERROR",
+                  error: "Could not extract text from document"
+                });
+                continue;
+              }
+            } else {
+              // For text files, extract directly
+              fileContent = file.buffer.toString('utf-8');
+            }
+
+            console.log(`=== DOCUMENT EXTRACTION END: Final content length: ${fileContent.length} ===`);
+
+          } catch (error) {
+            console.error(`✗ CRITICAL document extraction error for ${file.originalname}:`, error);
+            results.push({
+              fileName: file.originalname,
+              status: "ERROR",
               error: "Could not extract text from document"
             });
+            continue;
           }
-        } else {
-          // For text files, extract directly
-          fileContent = req.file.buffer.toString('utf-8');
+
+          // Apply personal information redaction
+          const redactionResult: RedactionResult = PersonalInfoRedactor.redactPersonalInfo(fileContent, file.originalname);
+          const redactedContent = redactionResult.redactedContent;
+
+          console.log(`Personal information redaction completed for ${file.originalname}:`);
+          console.log(`  ${PersonalInfoRedactor.getRedactionSummary(redactionResult)}`);
+          console.log(`  Redacted ${redactionResult.redactedItems.length} items`);
+
+          // 🚀 Build FAISS vector index for semantic search
+          console.log(`🔍 Building FAISS vector index for: ${file.originalname}`);
+          const vectorIndexBuilt = await buildVectorIndex(redactedContent, jobId, file.originalname);
+          console.log(`✅ Vector index built: ${vectorIndexBuilt ? 'success' : 'failed'}`);
+
+          await storage.updateJob(jobId, {
+            fileContent: redactedContent, // Store redacted content for analysis
+            redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
+            redactedItemsCount: redactionResult.redactedItems.length
+          });
+
+          results.push({
+            fileName: file.originalname,
+            jobId: jobId,
+            status: "PROCESSING",
+            fileSize: file.size
+          });
+
+        } catch (error) {
+          console.error(`❌ Error processing file ${file.originalname}:`, error);
+          results.push({
+            fileName: file.originalname,
+            status: "ERROR",
+            error: "File processing failed"
+          });
         }
-
-        console.log(`=== DOCUMENT EXTRACTION END: Final content length: ${fileContent.length} ===`);
-
-      } catch (error) {
-        console.error(`✗ CRITICAL document extraction error for ${req.file.originalname}:`, error);
-        return res.status(422).json({
-          error: "Could not extract text from document"
-        });
       }
 
-      // Apply personal information redaction
-      const redactionResult: RedactionResult = PersonalInfoRedactor.redactPersonalInfo(fileContent, req.file.originalname);
-      const redactedContent = redactionResult.redactedContent;
+      const successfulUploads = results.filter(r => r.status === "PROCESSING").length;
+      const failedUploads = results.filter(r => r.status === "ERROR").length;
 
-      console.log(`Personal information redaction completed for ${req.file.originalname}:`);
-      console.log(`  ${PersonalInfoRedactor.getRedactionSummary(redactionResult)}`);
-      console.log(`  Redacted ${redactionResult.redactedItems.length} items`);
+      // For single file uploads, include job_id at top level for frontend compatibility
+      const response: any = {
+        batch_id: batchId,
+        total_files: files.length,
+        successful_uploads: successfulUploads,
+        failed_uploads: failedUploads,
+        results: results
+      };
 
-      await storage.updateJob(jobId, {
-        fileContent: redactedContent, // Store redacted content for analysis
-        redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
-        redactedItemsCount: redactionResult.redactedItems.length
-      });
+      // If it's a single file upload, add job_id at top level for frontend compatibility
+      if (files.length === 1 && results.length === 1 && results[0].jobId) {
+        response.job_id = results[0].jobId;
+      }
 
-      res.json({
-        job_id: jobId,
-        _debug: { status: "PROCESSING", message: "Upload successful, processing document..." }
-      });
+      res.json(response);
 
     } catch (error) {
       console.error("Upload error:", error);
@@ -947,6 +1011,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🚀 Semantic query endpoint using FAISS
+  app.post("/api/query/semantic", async (req, res) => {
+    try {
+      const { query, model = 'mistral:7b-instruct-q4_0' } = req.body;
+
+      if (!query) {
+        return res.status(400).json({ error: "Missing query parameter" });
+      }
+
+      console.log(`🔍 Processing semantic query: "${query}"`);
+
+      // Use semantic query with FAISS + LLM
+      const result = await semanticQuery(query, model);
+
+      if (result && result.success) {
+        res.json({
+          success: true,
+          query: query,
+          answer: result.answer,
+          model_used: result.model_used,
+          chunks_used: result.chunks_used,
+          total_chunks_searched: result.total_chunks_searched,
+          semantic_search_results: result.semantic_search_results
+        });
+      } else {
+        res.status(404).json({
+          error: "No relevant content found",
+          message: "The query doesn't match any content in the indexed documents"
+        });
+      }
+
+    } catch (error) {
+      console.error("Semantic query error:", error);
+      res.status(500).json({ error: "Semantic query failed" });
+    }
+  });
+
+  // Vector index statistics endpoint
+  app.get("/api/vector/stats", async (req, res) => {
+    try {
+      const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://ai_service:5001'}/vector/stats`, {
+        method: 'GET'
+      });
+
+      if (response.ok) {
+        const stats = await response.json();
+        res.json(stats);
+      } else {
+        res.status(500).json({ error: "Failed to get vector stats" });
+      }
+
+    } catch (error) {
+      console.error("Vector stats error:", error);
+      res.status(500).json({ error: "Vector stats failed" });
+    }
+  });
+
+  // Clear vector index endpoint
+  app.post("/api/vector/clear", async (req, res) => {
+    try {
+      const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://ai_service:5001'}/vector/clear`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        res.json({ success: true, message: "Vector index cleared successfully" });
+      } else {
+        res.status(500).json({ error: "Failed to clear vector index" });
+      }
+
+    } catch (error) {
+      console.error("Vector clear error:", error);
+      res.status(500).json({ error: "Vector clear failed" });
+    }
+  });
+
   // Redacted content viewer endpoint
   app.get("/api/documents/:jobId/redacted-content", async (req, res) => {
     try {
@@ -1156,7 +1296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/:jobId/summarize", async (req, res) => {
     try {
       const { jobId } = req.params;
-      const { model = 'gemma:2b', max_tokens = 1000 } = req.body;
+      const { model = 'mistral:7b-instruct-q4_0', max_tokens = 1000 } = req.body; // ✅ Using optimized model from roadmap
 
       console.log(`Starting AI summarization for job: ${jobId}`);
 
@@ -2078,3 +2218,59 @@ export function setupRoutes(app: Express): Server {
 
   return server;
 }
+
+// 🚀 Add FAISS vector search integration
+async function buildVectorIndex(text: string, documentId: string, filename: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://ai_service:5001'}/vector/build`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        document_id: documentId,
+        filename
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Vector index built successfully:', result.stats);
+      return true;
+    } else {
+      console.error('❌ Failed to build vector index:', await response.text());
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error building vector index:', error);
+    return false;
+  }
+}
+
+async function semanticQuery(query: string, model: string = 'mistral:7b-instruct-q4_0'): Promise<any> {
+  try {
+    const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://ai_service:5001'}/query/semantic`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        model,
+        max_tokens: 300
+      })
+    });
+
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.error('❌ Semantic query failed:', await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error in semantic query:', error);
+    return null;
+  }
+}
+

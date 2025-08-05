@@ -27,15 +27,15 @@ export async function uploadFile(file: File): Promise<{ job_id: string }> {
     }
     const result = await res.json();
     console.log("Upload result:", result); // Log the result for debugging
-    
+
     // Normalize the response - backend returns both jobId and job_id
     const jobId = result.job_id || result.jobId;
-    
+
     if (!jobId) {
       console.error("No job ID in upload response:", result);
       throw new ApiError(500, "Upload succeeded but no job ID returned");
     }
-    
+
     console.log(`Upload successful, job ID: ${jobId}`);
     return { job_id: jobId };
   } catch (err) {
@@ -54,7 +54,7 @@ export async function pollJobStatus(
   interval = 1500
 ): Promise<void> {
   console.log(`Starting status polling for job: ${jobId}`);
-  
+
   while (true) {
     try {
       const res = await fetch(`/api/status/${jobId}`);
@@ -62,7 +62,7 @@ export async function pollJobStatus(
 
       const data = await res.json();
       console.log(`Status poll result:`, data);
-      
+
       const { pct = 0, state } = data as {
         pct?: number;
         state: "PENDING" | "PROCESSING" | "DONE" | "ERROR";
@@ -101,18 +101,64 @@ export async function analyzeDocument(jobId: string): Promise<{
   return res.json();
 }
 
-export async function queryDocument(
-  jobId: string,
-  question: string
-): Promise<{
+export async function queryDocument(jobId: string, question: string): Promise<{
   answer: string;
-  context: { page: number; text: string }[];
-  confidence?: number;
+  confidence: number;
+  sourceExcerpts: string[];
+  reasoning: string;
+  cannotAnswer: boolean;
+  suggestions: string[];
 }> {
   const res = await fetch("/api/query", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ job_id: jobId, question }),
+    body: JSON.stringify({ job_id: jobId, query: question }),
+  });
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+// 🚀 Semantic query using FAISS for reduced LLM load
+export async function semanticQuery(question: string, model: string = 'mistral:7b-instruct-q4_0'): Promise<{
+  success: boolean;
+  query: string;
+  answer: string;
+  model_used: string;
+  chunks_used: number;
+  total_chunks_searched: number;
+  semantic_search_results: any[];
+}> {
+  const res = await fetch("/api/query/semantic", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: question, model }),
+  });
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+// Get vector index statistics
+export async function getVectorStats(): Promise<{
+  success: boolean;
+  stats: any;
+}> {
+  const res = await fetch("/api/vector/stats", {
+    method: "GET",
+  });
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+// Clear vector index
+export async function clearVectorIndex(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  const res = await fetch("/api/vector/clear", {
+    method: "POST",
   });
 
   if (!res.ok) throw new ApiError(res.status, await res.text());

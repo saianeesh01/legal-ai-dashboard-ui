@@ -10,7 +10,10 @@ services:
       DATABASE_URL: "postgresql://neondb_owner:npg_oNhiQsanu4p2@ep-broad-mountain-aftyry8d.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require"
       AI_SERVICE_URL: http://ai_service:5001
       NODE_ENV: production
-      WARMUP_ON_START: "true"
+      WARMUP_ON_START: "false"  # ✅ Disable warmups for CPU optimization
+      MAX_CHUNK_SIZE: "1500"     # ✅ Reduced chunk size for faster processing
+      MAX_CHUNKS: "8"            # ✅ Limit chunks for CPU optimization
+      CHUNK_TIMEOUT: "1800000"     # ✅ Increased timeout to 30 minutes for large documents
     volumes:
       - ./Legal_docs:/app/Legal_docs:ro
     depends_on:
@@ -28,7 +31,16 @@ services:
     environment:
       FLASK_ENV: production
       OLLAMA_HOST: host.docker.internal:11434
-      WARMUP_ON_START: "true"
+      WARMUP_ON_START: "false"  # ✅ Disable warmups for CPU optimization
+      OLLAMA_NUM_PARALLEL: "2"  # ✅ Optimized parallel processing
+      OLLAMA_CONTEXT_LENGTH: "1024"  # ✅ Reduced context length
+      MAX_TOKENS_PER_REQUEST: "300"  # ✅ Limit tokens for faster responses
+      DEFAULT_MODEL: "mistral:7b-instruct-q4_0"  # ✅ Use optimized model
+      # 🚀 Additional Ollama speed optimizations
+      OLLAMA_KEEP_ALIVE: "5m"  # Keep model in memory
+      OLLAMA_GPU_LAYERS: "0"  # Force CPU-only for consistency
+      OLLAMA_THREADS: "4"  # Optimize CPU threads
+      OLLAMA_BATCH_SIZE: "512"  # Optimize batch processing
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
