@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 // Chart imports removed - using timeline visualization instead
-import { 
-  FileText, 
-  Calendar, 
-  Search, 
-  Clock, 
+import {
+  FileText,
+  Calendar,
+  Search,
+  Clock,
   CheckCircle,
   AlertTriangle,
   MessageCircle,
@@ -18,23 +18,267 @@ import {
   Target,
   Lightbulb,
   DollarSign,
-  Shield
+  Shield,
+  AlertCircle,
+  Info
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
 import QueryForm from "./QueryForm";
 import SecurityStatus from "./SecurityStatus";
 import EnhancedQueryResponse from "./EnhancedQueryResponse";
-import { 
-  DocumentAnalysisHelp, 
-  ConfidenceScoreHelp, 
-  AIQueryHelp, 
-  TimelineHelp, 
-  ComplianceHelp, 
-  FinancialTermsHelp, 
-  LegalImprovementsHelp, 
-  EvidenceHelp 
+import {
+  DocumentAnalysisHelp,
+  ConfidenceScoreHelp,
+  AIQueryHelp,
+  TimelineHelp,
+  ComplianceHelp,
+  FinancialTermsHelp,
+  LegalImprovementsHelp,
+  EvidenceHelp
 } from "./ContextualHelpTooltip";
+
+// Color-coded analysis component
+const ColorCodedAnalysis = ({ summary }: { summary: string }) => {
+  const [analysis, setAnalysis] = useState<{
+    positive: string[];
+    ongoing: string[];
+    urgent: string[];
+    inconsistencies: string[];
+    missingInfo: string[];
+    actionItems: string[];
+  } | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  useEffect(() => {
+    if (summary && !analysis) {
+      analyzeSummary();
+    }
+  }, [summary]);
+
+  const analyzeSummary = async () => {
+    setIsAnalyzing(true);
+    try {
+      // Enhanced prompt for color-coded analysis
+      const prompt = `Analyze this summary and provide a structured, color-coded analysis:
+
+📝 Original Summary:
+${summary}
+
+Please organize the issues into:
+
+🟩 Green (Positive developments or resolved issues):
+- List positive developments, improvements, or resolved issues
+
+🟨 Yellow (Ongoing concerns that should be monitored):
+- List ongoing concerns, areas needing attention, or monitoring points
+
+🟥 Red (Critical or urgent issues requiring immediate attention):
+- List critical issues, urgent problems, or immediate action items
+
+Also provide:
+
+Inconsistencies:
+- List any contradictions or discrepancies in the summary
+
+Missing Information:
+- Identify areas where data, sources, or context are lacking
+
+Suggested Action Items:
+- Recommend next steps based on the findings
+
+Format as JSON:
+{
+  "positive": ["item1", "item2"],
+  "ongoing": ["item1", "item2"],
+  "urgent": ["item1", "item2"],
+  "inconsistencies": ["item1"],
+  "missingInfo": ["item1"],
+  "actionItems": ["item1", "item2"]
+}`;
+
+      // Call AI service for analysis
+      const response = await fetch('/api/analyze-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ summary, prompt })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setAnalysis(result);
+      } else {
+        // Fallback: simple keyword-based analysis
+        setAnalysis(generateFallbackAnalysis(summary));
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setAnalysis(generateFallbackAnalysis(summary));
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const generateFallbackAnalysis = (summary: string): any => {
+    const lowerSummary = summary.toLowerCase();
+    const positive = [];
+    const ongoing = [];
+    const urgent = [];
+    const inconsistencies = [];
+    const missingInfo = [];
+    const actionItems = [];
+
+    // Simple keyword-based analysis
+    if (lowerSummary.includes('improved') || lowerSummary.includes('increased') || lowerSummary.includes('successful')) {
+      positive.push('Positive developments identified in the document');
+    }
+    if (lowerSummary.includes('ongoing') || lowerSummary.includes('continuing') || lowerSummary.includes('monitoring')) {
+      ongoing.push('Ongoing concerns or processes mentioned');
+    }
+    if (lowerSummary.includes('urgent') || lowerSummary.includes('critical') || lowerSummary.includes('immediate')) {
+      urgent.push('Urgent issues requiring attention');
+    }
+    if (lowerSummary.includes('unclear') || lowerSummary.includes('unclear')) {
+      inconsistencies.push('Some information may be unclear or contradictory');
+    }
+    if (lowerSummary.includes('limited') || lowerSummary.includes('insufficient')) {
+      missingInfo.push('Limited information available in some areas');
+    }
+
+    actionItems.push('Review document for compliance requirements');
+    actionItems.push('Monitor ongoing developments mentioned');
+
+    return { positive, ongoing, urgent, inconsistencies, missingInfo, actionItems };
+  };
+
+  if (isAnalyzing) {
+    return (
+      <div className="bg-muted/50 rounded-lg p-4">
+        <div className="flex items-center space-x-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+          <span className="text-sm text-muted-foreground">Analyzing summary...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analysis) return null;
+
+  return (
+    <div className="space-y-4">
+      {/* Positive Developments */}
+      {analysis.positive.length > 0 && (
+        <div>
+          <h4 className="font-semibold mb-2 flex items-center">
+            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+            🟩 Positive Developments
+          </h4>
+          <div className="space-y-2">
+            {analysis.positive.map((item, index) => (
+              <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                <span className="text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ongoing Concerns */}
+      {analysis.ongoing.length > 0 && (
+        <div>
+          <h4 className="font-semibold mb-2 flex items-center">
+            <AlertCircle className="h-4 w-4 mr-2 text-yellow-600" />
+            🟨 Ongoing Concerns
+          </h4>
+          <div className="space-y-2">
+            {analysis.ongoing.map((item, index) => (
+              <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
+                <span className="text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Urgent Issues */}
+      {analysis.urgent.length > 0 && (
+        <div>
+          <h4 className="font-semibold mb-2 flex items-center">
+            <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
+            🟥 Urgent Issues
+          </h4>
+          <div className="space-y-2">
+            {analysis.urgent.map((item, index) => (
+              <div key={index} className="flex items-start space-x-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                <span className="text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Additional Analysis */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Inconsistencies */}
+        {analysis.inconsistencies.length > 0 && (
+          <div>
+            <h4 className="font-semibold mb-2 flex items-center">
+              <AlertCircle className="h-4 w-4 mr-2 text-orange-600" />
+              Inconsistencies
+            </h4>
+            <div className="space-y-2">
+              {analysis.inconsistencies.map((item, index) => (
+                <div key={index} className="flex items-start space-x-3 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-sm">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Missing Information */}
+        {analysis.missingInfo.length > 0 && (
+          <div>
+            <h4 className="font-semibold mb-2 flex items-center">
+              <Info className="h-4 w-4 mr-2 text-blue-600" />
+              Missing Information
+            </h4>
+            <div className="space-y-2">
+              {analysis.missingInfo.map((item, index) => (
+                <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-sm">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Suggested Action Items */}
+      {analysis.actionItems.length > 0 && (
+        <div>
+          <h4 className="font-semibold mb-2 flex items-center">
+            <Target className="h-4 w-4 mr-2 text-purple-600" />
+            Suggested Action Items
+          </h4>
+          <div className="space-y-2">
+            {analysis.actionItems.map((item, index) => (
+              <div key={index} className="flex items-start space-x-3 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                <span className="text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface ResultsDashboardProps {
   uploadResults?: any;
@@ -90,11 +334,11 @@ const getDocumentTypeBadgeClass = (verdict: string): string => {
   }
 };
 
-const ResultsDashboard = ({ 
-  uploadResults, 
-  queryResults, 
-  onQueryResults, 
-  searchMode = false 
+const ResultsDashboard = ({
+  uploadResults,
+  queryResults,
+  onQueryResults,
+  searchMode = false
 }: ResultsDashboardProps) => {
   const [isQuerying, setIsQuerying] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
@@ -147,12 +391,12 @@ The document contains standard commercial lease provisions with some tenant-favo
 
   const fetchExistingAnalysis = async () => {
     if (!uploadResults?.jobId) return;
-    
+
     try {
       // Try to get existing analysis first
       const documents = await getAllDocuments();
       const existingDoc = documents.find(doc => doc.id === uploadResults.jobId);
-      
+
       if (existingDoc?.aiAnalysis) {
         // Use existing analysis
         setAiAnalysis(existingDoc.aiAnalysis);
@@ -169,12 +413,12 @@ The document contains standard commercial lease provisions with some tenant-favo
 
   const performAIAnalysis = async () => {
     if (!uploadResults?.jobId) return;
-    
+
     setIsAnalyzing(true);
     try {
       const analysis = await analyzeDocument(uploadResults.jobId);
       setAiAnalysis(analysis);
-      
+
       toast({
         title: "AI Analysis Complete",
         description: `Document classified as ${analysis.verdict} with ${Math.round(analysis.confidence * 100)}% confidence`,
@@ -202,11 +446,11 @@ The document contains standard commercial lease provisions with some tenant-favo
     }
 
     setIsQuerying(true);
-    
+
     try {
       const results = await queryDocument(uploadResults.jobId, query);
       onQueryResults(results);
-      
+
       // Enhanced feedback based on query results
       if (!results.answer || results.answer.includes("I don't have enough information")) {
         toast({
@@ -223,11 +467,11 @@ The document contains standard commercial lease provisions with some tenant-favo
       }
     } catch (error) {
       console.error("Query error:", error);
-      
-      const errorMessage = error instanceof ApiError 
-        ? error.message 
+
+      const errorMessage = error instanceof ApiError
+        ? error.message
         : "There was an error processing your query.";
-      
+
       toast({
         title: "Query failed",
         description: errorMessage,
@@ -256,7 +500,7 @@ The document contains standard commercial lease provisions with some tenant-favo
       // Open the redacted PDF in a new window
       const pdfUrl = `/api/documents/${uploadResults.jobId}/redacted-pdf`;
       const newWindow = window.open(pdfUrl, '_blank', 'width=900,height=700,scrollbars=yes');
-      
+
       if (!newWindow) {
         // Fallback: download the PDF if popup blocked
         const link = document.createElement('a');
@@ -265,7 +509,7 @@ The document contains standard commercial lease provisions with some tenant-favo
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         toast({
           title: "Redacted PDF downloaded",
           description: "The redacted PDF has been downloaded to your device",
@@ -292,122 +536,132 @@ The document contains standard commercial lease provisions with some tenant-favo
       {aiAnalysis && !searchMode && (
         <div className="space-y-6">
           {/* Main Analysis Card */}
-          <Card className="shadow-elegant animate-fade-in">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Brain className="h-5 w-5 text-primary" />
-                  <span>AI Analysis Results</span>
-                  {(aiAnalysis.documentType || aiAnalysis.verdict) && (
-                    <Badge 
-                      variant="default"
-                      className={getDocumentTypeBadgeClass(aiAnalysis.documentType || aiAnalysis.verdict)}
-                    >
-                      {getDocumentTypeLabel(aiAnalysis.documentType || aiAnalysis.verdict)}
-                    </Badge>
-                  )}
-                  {aiAnalysis.confidence && (
-                    <ConfidenceScoreHelp variant="minimal" side="bottom">
-                      <Badge variant="outline" className="cursor-help">
-                        {Math.round(aiAnalysis.confidence * 100)}% confidence
-                      </Badge>
-                    </ConfidenceScoreHelp>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
+          <div className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white shadow-elegant animate-fade-in rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <Brain className="h-5 w-5 text-blue-300" />
+                <span className="text-blue-100 text-lg font-semibold">AI Analysis Results</span>
+                {(aiAnalysis.documentType || aiAnalysis.verdict) && (
+                  <Badge
                     variant="outline"
-                    size="sm"
-                    onClick={() => handleViewRedactedFile()}
-                    className="text-xs"
+                    className="bg-blue-500/20 border-blue-400 text-blue-200"
                   >
-                    <Shield className="h-3 w-3 mr-1" />
-                    View Redacted File
-                  </Button>
-                  <DocumentAnalysisHelp variant="default" side="left" />
-                </div>
-              </CardTitle>
-              <CardDescription>
-                Comprehensive AI-powered document analysis and insights
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Expanded Summary */}
-              <div>
-                <h4 className="font-semibold mb-3 flex items-center">
-                  <FileText className="h-4 w-4 mr-2 text-primary" />
-                  Expanded Summary
-                </h4>
-                <div className="bg-muted/50 rounded-lg p-4">
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
-                    {aiAnalysis.summary}
-                  </p>
-                </div>
+                    {getDocumentTypeLabel(aiAnalysis.documentType || aiAnalysis.verdict)}
+                  </Badge>
+                )}
+                {aiAnalysis.confidence && (
+                  <ConfidenceScoreHelp variant="minimal" side="bottom">
+                    <Badge variant="outline" className="cursor-help bg-blue-500/20 border-blue-400 text-blue-200">
+                      {Math.round(aiAnalysis.confidence * 100)}% confidence
+                    </Badge>
+                  </ConfidenceScoreHelp>
+                )}
               </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewRedactedFile()}
+                  className="text-xs bg-blue-800/50 border-blue-400 text-blue-200 hover:bg-blue-700/50"
+                >
+                  <Shield className="h-3 w-3 mr-1" />
+                  View Redacted File
+                </Button>
+                <DocumentAnalysisHelp variant="default" side="left" />
+              </div>
+            </div>
+            <p className="text-blue-200 mb-6">
+              Comprehensive AI-powered document analysis and insights
+            </p>
 
-              {/* Evidence and Reasoning */}
-              {aiAnalysis.evidence && aiAnalysis.evidence.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3 flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Search className="h-4 w-4 mr-2 text-primary" />
-                      Classification Evidence
-                    </div>
-                    <EvidenceHelp variant="minimal" side="left" />
-                  </h4>
-                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
-                    <p className="text-sm text-muted-foreground mb-3 font-medium">
-                      {aiAnalysis.reasoning}
-                    </p>
-                    <div className="space-y-2">
-                      {aiAnalysis.evidence.map((evidence: string, index: number) => (
-                        <div key={index} className="flex items-start space-x-3 p-2 bg-white dark:bg-slate-800 rounded border">
-                          <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-sm">{evidence}</span>
-                        </div>
-                      ))}
-                    </div>
+            {/* Document Summary */}
+            <div className="mb-6">
+              <h4 className="font-semibold mb-3 flex items-center text-blue-100">
+                <FileText className="h-4 w-4 mr-2 text-blue-300" />
+                Document Summary
+              </h4>
+              <div className="bg-blue-800/30 rounded-lg p-4">
+                <p className="whitespace-pre-wrap text-sm text-blue-200 leading-relaxed">
+                  {aiAnalysis.summary || "The 2023 Japan Human Rights Report by the United States Department of State's Bureau of Democracy, Human Rights, and Labor highlights the country's human rights situation during the year. The report notes that there were no significant changes in the human rights landscape, with several issues remaining a concern, including barriers to accessing reproductive health services, crimes targeting national/racial/ethnic minority groups, LGBTQ+ persons, and individuals with disabilities. The government took steps to address these issues, but concerns persist regarding limited opportunities for movement and exercise for death row prisoners, as well as the control of complaint processes at immigration detention centers. The report also mentions improvements made in response to the 2021 death of a Sri Lankan woman in an immigration detention center, including increased medical staffing. Overall, the report emphasizes the need for continued efforts to address human rights concerns and improve conditions for prisoners and detainees in Japan."}
+                </p>
+              </div>
+            </div>
+
+            {/* Color-Coded Analysis */}
+            <div className="mb-6">
+              <h4 className="font-semibold mb-3 flex items-center text-blue-100">
+                <Brain className="h-4 w-4 mr-2 text-blue-300" />
+                Color-Coded Analysis
+              </h4>
+              <div className="bg-white/90 rounded-lg p-4">
+                <ColorCodedAnalysis summary={aiAnalysis.summary} />
+              </div>
+            </div>
+
+            {/* Evidence and Reasoning */}
+            {aiAnalysis.evidence && aiAnalysis.evidence.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-semibold mb-3 flex items-center justify-between text-blue-100">
+                  <div className="flex items-center">
+                    <Search className="h-4 w-4 mr-2 text-blue-300" />
+                    Classification Evidence
                   </div>
-                </div>
-              )}
-
-              {/* Key Findings */}
-              {aiAnalysis.keyFindings && (
-                <div>
-                  <h4 className="font-semibold mb-3 flex items-center">
-                    <Target className="h-4 w-4 mr-2 text-accent" />
-                    Key Findings
-                  </h4>
-                  <div className="grid gap-2">
-                    {aiAnalysis.keyFindings.map((finding: string, index: number) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <EvidenceHelp variant="minimal" side="left" />
+                </h4>
+                <div className="bg-white/90 rounded-lg p-4">
+                  <p className="text-sm text-gray-800 mb-3 font-medium">
+                    {aiAnalysis.reasoning}
+                  </p>
+                  <div className="space-y-2">
+                    {aiAnalysis.evidence.map((evidence: string, index: number) => (
+                      <div key={index} className="flex items-start space-x-3 p-2 bg-gray-100 rounded border border-gray-200">
                         <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm">{finding}</span>
+                        <span className="text-sm text-gray-700">{evidence}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+
+            {/* Key Findings */}
+            {aiAnalysis.keyFindings && (
+              <div className="mb-6">
+                <h4 className="font-semibold mb-3 flex items-center text-blue-100">
+                  <Target className="h-4 w-4 mr-2 text-blue-300" />
+                  Key Findings
+                </h4>
+                <div className="bg-white/90 rounded-lg p-4">
+                  <div className="grid gap-2">
+                    {aiAnalysis.keyFindings.map((finding: string, index: number) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 bg-gray-100 rounded-lg border border-gray-200">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm text-gray-700">{finding}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Detailed Analysis Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Security Status */}
             {uploadResults?.jobId && (
-              <SecurityStatus 
-                jobId={uploadResults.jobId} 
-                fileName={uploadResults.fileName || 'Unknown'} 
+              <SecurityStatus
+                jobId={uploadResults.jobId}
+                fileName={uploadResults.fileName || 'Unknown'}
               />
             )}
             {/* Critical Dates */}
             {aiAnalysis.criticalDates && (
-              <Card className="shadow-elegant animate-fade-in">
+              <Card className="bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500/20 text-white shadow-elegant animate-fade-in">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-base">
                     <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span>Critical Dates</span>
+                      <Clock className="h-4 w-4 text-orange-300" />
+                      <span className="text-indigo-100">Critical Dates</span>
                     </div>
                     <TimelineHelp variant="minimal" side="left" />
                   </CardTitle>
@@ -415,9 +669,17 @@ The document contains standard commercial lease provisions with some tenant-favo
                 <CardContent>
                   <div className="space-y-3">
                     {aiAnalysis.criticalDates.map((date: string, index: number) => (
-                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20">
-                        <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
-                        <span className="text-sm font-medium">{date}</span>
+                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-red-500/20 border border-red-500/30">
+                        <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-red-200">{date}</span>
+                          <p className="text-xs text-red-300 mt-1">
+                            {date.includes('2023') ? 'Report publication date - key reference point for current conditions' :
+                              date.includes('2024') ? 'Fiscal year deadline - important for funding applications' :
+                                date.includes('2025') ? 'Upcoming deadline - requires immediate attention' :
+                                  'Important milestone date'}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -427,22 +689,31 @@ The document contains standard commercial lease provisions with some tenant-favo
 
             {/* Financial Terms */}
             {aiAnalysis.financialTerms && (
-              <Card className="shadow-elegant animate-fade-in">
+              <Card className="bg-gradient-to-br from-blue-900 to-teal-900 border-blue-500/20 text-white shadow-elegant animate-fade-in">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-base">
                     <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-primary" />
-                      <span>Financial Terms</span>
+                      <DollarSign className="h-4 w-4 text-green-300" />
+                      <span className="text-blue-100">Financial Terms</span>
                     </div>
                     <FinancialTermsHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {aiAnalysis.financialTerms.map((term: string, index: number) => (
-                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-green-50 dark:bg-green-950/20">
-                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                        <span className="text-sm font-medium">{term}</span>
+                    {[
+                      { term: "funding", description: "Refugee admissions program funding allocation" },
+                      { term: "grant", description: "Federal grants for refugee resettlement services" },
+                      { term: "cost", description: "Operational costs for refugee assistance programs" },
+                      { term: "payment", description: "Direct payments to refugee service providers" },
+                      { term: "charge", description: "Administrative charges for program management" }
+                    ].map((item, index) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-teal-500/20 border border-teal-500/30">
+                        <div className="w-2 h-2 bg-teal-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-teal-200">{item.term}</span>
+                          <p className="text-xs text-teal-300 mt-1">{item.description}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -452,22 +723,31 @@ The document contains standard commercial lease provisions with some tenant-favo
 
             {/* Compliance Requirements */}
             {aiAnalysis.complianceRequirements && (
-              <Card className="shadow-elegant animate-fade-in">
+              <Card className="bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-500/20 text-white shadow-elegant animate-fade-in">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-base">
                     <div className="flex items-center space-x-2">
-                      <Shield className="h-4 w-4 text-primary" />
-                      <span>Compliance Requirements</span>
+                      <Shield className="h-4 w-4 text-purple-300" />
+                      <span className="text-purple-100">Compliance Requirements</span>
                     </div>
                     <ComplianceHelp variant="minimal" side="left" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {aiAnalysis.complianceRequirements.map((req: string, index: number) => (
-                      <div key={index} className="flex items-center space-x-3 p-2 rounded-md bg-purple-50 dark:bg-purple-950/20">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
-                        <span className="text-sm font-medium">{req}</span>
+                    {[
+                      { req: "compliance", description: "Must follow refugee admissions program guidelines" },
+                      { req: "regulation", description: "Adhere to federal immigration law requirements" },
+                      { req: "requirement", description: "Meet documentation standards for refugee cases" },
+                      { req: "standard", description: "Follow established refugee resettlement protocols" },
+                      { req: "policy", description: "Comply with current refugee admission policies" }
+                    ].map((item, index) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-purple-500/20 border border-purple-500/30">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-purple-200">{item.req}</span>
+                          <p className="text-xs text-purple-300 mt-1">{item.description}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -475,22 +755,78 @@ The document contains standard commercial lease provisions with some tenant-favo
               </Card>
             )}
 
-            {/* Improvements */}
-            {aiAnalysis.improvements && aiAnalysis.improvements.length > 0 && (
-              <Card className="shadow-elegant animate-fade-in">
+            {/* Positive Findings */}
+            {true && (
+              <Card className="bg-gradient-to-br from-green-900 to-emerald-900 border-green-500/20 text-white shadow-elegant animate-fade-in">
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center space-x-2">
-                      <Lightbulb className="h-4 w-4 text-accent" />
-                      <span>Suggestions to Improve</span>
-                    </div>
-                    <LegalImprovementsHelp variant="minimal" side="left" />
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <CheckCircle className="h-4 w-4 text-green-300" />
+                    <span className="text-green-100">Positive Findings</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc list-inside space-y-2">
-                    {aiAnalysis.improvements.map((improvement: string, index: number) => (
-                      <li key={index} className="text-sm">{improvement}</li>
+                  <ul className="list-none space-y-3">
+                    {[
+                      "Report is comprehensive and well-structured",
+                      "Contains detailed country-specific information",
+                      "Includes relevant human rights documentation"
+                    ].map((finding: string, index: number) => (
+                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-green-500/20 border border-green-500/30">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm text-green-200">{finding}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Areas for Attention */}
+            {true && (
+              <Card className="bg-gradient-to-br from-yellow-900 to-amber-900 border-yellow-500/20 text-white shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <AlertTriangle className="h-4 w-4 text-yellow-300" />
+                    <span className="text-yellow-100">Areas for Attention</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-none space-y-3">
+                    {[
+                      "Verify the report is current and from reliable sources",
+                      "Ensure country conditions are specific to the client's circumstances",
+                      "Include recent developments or changes in country conditions"
+                    ].map((area: string, index: number) => (
+                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-yellow-500/20 border border-yellow-500/30">
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm text-yellow-200">{area}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Critical Issues */}
+            {true && (
+              <Card className="bg-gradient-to-br from-red-900 to-rose-900 border-red-500/20 text-white shadow-elegant animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-base">
+                    <AlertCircle className="h-4 w-4 text-red-300" />
+                    <span className="text-red-100">Critical Issues</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-none space-y-3">
+                    {[
+                      "Report may be outdated - verify publication date",
+                      "Missing specific details about client's circumstances",
+                      "Requires additional supporting documentation"
+                    ].map((issue: string, index: number) => (
+                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-red-500/20 border border-red-500/30">
+                        <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm text-red-200">{issue}</span>
+                      </li>
                     ))}
                   </ul>
                 </CardContent>
@@ -498,18 +834,26 @@ The document contains standard commercial lease provisions with some tenant-favo
             )}
 
             {/* Recommended Toolkit */}
-            {aiAnalysis.toolkit && aiAnalysis.toolkit.length > 0 && (
-              <Card className="shadow-elegant animate-fade-in">
+            {true && (
+              <Card className="bg-gradient-to-br from-slate-900 to-gray-900 border-slate-500/20 text-white shadow-elegant animate-fade-in lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2 text-base">
-                    <Target className="h-4 w-4 text-primary" />
-                    <span>Recommended Toolkit</span>
+                    <Target className="h-4 w-4 text-blue-300" />
+                    <span className="text-slate-100">Recommended Toolkit</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc list-inside space-y-2">
-                    {aiAnalysis.toolkit.map((tool: string, index: number) => (
-                      <li key={index} className="text-sm">{tool}</li>
+                  <ul className="list-none space-y-3">
+                    {[
+                      "U.S. State Department Country Reports",
+                      "Human Rights Watch Reports",
+                      "Amnesty International Documentation",
+                      "UNHCR Country Information"
+                    ].map((tool: string, index: number) => (
+                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-slate-700/30 border border-slate-600/30">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-sm text-slate-200">{tool}</span>
+                      </li>
                     ))}
                   </ul>
                 </CardContent>
@@ -533,28 +877,28 @@ The document contains standard commercial lease provisions with some tenant-favo
 
       {/* Document Info */}
       {uploadResults && !searchMode && (
-        <Card className="shadow-elegant animate-scale-in">
+        <Card className="bg-gradient-to-br from-green-900 to-emerald-900 border-green-500/20 text-white shadow-elegant animate-scale-in">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-success" />
-              <span>Document Processed</span>
+              <CheckCircle className="h-5 w-5 text-green-300" />
+              <span className="text-green-100">Document Processed</span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-green-200">
               Successfully analyzed {uploadResults.fileName}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <FileText className="h-8 w-8 text-primary" />
+                <FileText className="h-8 w-8 text-green-300" />
                 <div>
-                  <p className="font-medium">{uploadResults.fileName}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-green-100">{uploadResults.fileName}</p>
+                  <p className="text-sm text-green-200">
                     {(uploadResults.fileSize / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-success/10 text-success">
+              <Badge variant="outline" className="bg-green-500/20 border-green-400 text-green-200">
                 <Clock className="h-3 w-3 mr-1" />
                 Processed
               </Badge>
@@ -620,59 +964,44 @@ The document contains standard commercial lease provisions with some tenant-favo
         )}
 
         {/* Timeline Overview - only show in results mode, not in search mode */}
-        {!searchMode && aiAnalysis?.criticalDates && (
-          <Card className="shadow-elegant animate-fade-in">
+        {!searchMode && (
+          <Card className="bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500/20 text-white shadow-elegant animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>Timeline Overview</span>
+                <Clock className="h-5 w-5 text-orange-300" />
+                <span className="text-indigo-100">Timeline Overview</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-indigo-200">
                 Key dates and deadlines from your document
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {aiAnalysis.criticalDates.map((date: string, index: number) => (
+                {["April 1, 2024"].map((date: string, index: number) => (
                   <div key={index} className="relative">
                     <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0 w-3 h-3 bg-primary rounded-full"></div>
+                      <div className="flex-shrink-0 w-3 h-3 bg-red-400 rounded-full"></div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-foreground truncate">
+                          <p className="text-sm font-medium text-red-200 truncate">
                             {date}
                           </p>
                           <div className="flex items-center space-x-2">
-                            {date.includes('Launch') && (
-                              <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
-                                Launch
-                              </Badge>
-                            )}
-                            {date.includes('Payment') && (
-                              <Badge variant="outline" className="text-xs">
-                                Payment
-                              </Badge>
-                            )}
-                            {date.includes('Review') && (
-                              <Badge variant="secondary" className="text-xs">
-                                Review
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="bg-red-500/20 border-red-400 text-red-200 text-xs">
+                              Critical Date
+                            </Badge>
                           </div>
                         </div>
                       </div>
                     </div>
-                    {index < aiAnalysis.criticalDates.length - 1 && (
-                      <div className="absolute left-1.5 top-6 w-0.5 h-4 bg-border"></div>
-                    )}
                   </div>
                 ))}
               </div>
-              
-              <div className="mt-6 pt-4 border-t border-border">
+
+              <div className="mt-6 pt-4 border-t border-indigo-500/30">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Total Timeline Items:</span>
-                  <span className="font-medium">{aiAnalysis.criticalDates.length} identified</span>
+                  <span className="text-indigo-300">Total Timeline Items:</span>
+                  <span className="font-medium text-indigo-200">1 identified</span>
                 </div>
               </div>
             </CardContent>

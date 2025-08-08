@@ -487,86 +487,40 @@ async function summarizeWithOllamaLlama3(documentText: string, fileName: string)
   console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
 
-  // ✅ 1. Smart chunking for large documents - optimize for speed
-  let MAX_CHUNK_SIZE = 2500;
-  let MAX_CHUNKS = 20; // Limit chunks for faster processing
-
-  // For very large documents (>50k chars), use larger chunks and limit total
-  if (documentText.length > 50000) {
-    MAX_CHUNK_SIZE = Math.max(1500, Math.ceil(documentText.length / MAX_CHUNKS)); // ✅ Reduced from 3500 to 1500 for faster processing
-    console.log(`📊 Large document detected (${documentText.length} chars), using optimized chunking`);
-  }
-
-  const chunks: string[] = [];
-  for (let i = 0; i < documentText.length; i += MAX_CHUNK_SIZE) {
-    chunks.push(documentText.slice(i, i + MAX_CHUNK_SIZE));
-    if (chunks.length >= MAX_CHUNKS) break; // Hard limit for performance
-  }
-  console.log(`📑 Splitting document into ${chunks.length} chunk(s), size: ${MAX_CHUNK_SIZE} chars each`);
-
+  // ✅ Combine all chunks into one paragraph summary instead of chunk-by-chunk
   const AI_SERVICE_URL = process.env.NODE_ENV === 'production'
     ? 'http://ai_service:5001'
     : 'http://localhost:5001';
 
-  const summaries: string[] = [];
+  try {
+    console.log(`🌐 Sending complete document to AI Service for unified summarization...`);
 
-  // ✅ Process chunks in parallel for faster performance (batch size 5)
-  const BATCH_SIZE = 5; // Process 5 chunks simultaneously
-  const startTime = Date.now();
-
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, Math.min(i + BATCH_SIZE, chunks.length));
-    console.log(`🚀 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}, chunks ${i + 1}-${i + batch.length}`);
-
-    const batchPromises = batch.map(async (chunk, batchIndex) => {
-      const index = i + batchIndex;
-      try {
-        const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: chunk,
-            filename: `${fileName}_chunk_${index + 1}`,
-            model: 'mistral:7b-instruct-q4_0', // ✅ Using optimized model from roadmap
-            analysis_type: 'summary'
-          }),
-          signal: AbortSignal.timeout(1800000) // 30 minute timeout per chunk for large documents
-        });
-
-        if (!response.ok) {
-          console.error(`❌ Chunk ${index + 1} failed: ${response.status}`);
-          return null;
-        }
-
-        const data = await response.json();
-        const summaryChunk = data.analysis || data.response || data.message?.content || '';
-        console.log(`✅ Chunk ${index + 1}: ${summaryChunk.length} chars`);
-
-        return summaryChunk.trim();
-      } catch (err) {
-        console.error(`❌ Error chunk ${index + 1}:`, err);
-        return null;
-      }
+    const response = await fetch(`${AI_SERVICE_URL}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: documentText,
+        filename: fileName,
+        model: 'mistral:7b-instruct-q4_0', // ✅ Using optimized model from roadmap
+        max_tokens: 800 // Increased token limit for comprehensive summary
+      }),
+      signal: AbortSignal.timeout(1800000) // 30 minute timeout for large documents
     });
 
-    // Wait for batch completion
-    const batchResults = await Promise.all(batchPromises);
+    if (!response.ok) {
+      console.error(`❌ AI Service summarization failed: ${response.status}`);
+      throw new Error(`AI Service error: ${response.status}`);
+    }
 
-    // Add successful summaries
-    batchResults.forEach(summary => {
-      if (summary) summaries.push(summary);
-    });
+    const data = await response.json();
+    const summary = data.summary || data.response || data.message?.content || '[No summary generated]';
+    console.log(`✅ Generated unified summary: ${summary.length} characters`);
 
-    // Progress update
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(`⏱️  Processed ${i + batch.length}/${chunks.length} chunks in ${elapsed}s`);
+    return summary;
+  } catch (err) {
+    console.error('❌ Ollama summarization failed:', err);
+    return '[Summarization failed - using fallback]';
   }
-
-  // ✅ 2. Merge all chunk summaries into a final summary
-  const finalSummary = summaries.join('\n\n---\n\n');
-  console.log(`📝 Final combined summary length: ${finalSummary.length} characters`);
-
-  return finalSummary || '[No summary generated]';
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -576,12 +530,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ✅ Enhanced file upload endpoint with multiple file support
-  app.post("/api/upload", upload.single('file'), async (req, res) => {
+  app.post("/api/upload", upload.array('file', 10), async (req, res) => {
     try {
-      // Handle single file upload
+      // Handle multiple file uploads
       let files: Express.Multer.File[] = [];
 
-      if (req.file) {
+      if (req.files && Array.isArray(req.files)) {
+        files = req.files;
+      } else if (req.file) {
+        // Fallback for single file upload
         files = [req.file];
       }
 
@@ -684,13 +641,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateJob(jobId, {
             fileContent: redactedContent, // Store redacted content for analysis
             redactionSummary: PersonalInfoRedactor.getRedactionSummary(redactionResult),
-            redactedItemsCount: redactionResult.redactedItems.length
+            redactedItemsCount: redactionResult.redactedItems.length,
+            status: "DONE", // Mark as done so analysis can proceed
+            processedAt: new Date().toISOString()
           });
+
+          // 🧠 Trigger LLM analysis automatically
+          console.log(`🧠 Starting LLM analysis for: ${file.originalname}`);
+          console.log(`📄 Content length: ${redactedContent.length} characters`);
+
+          try {
+            console.log(`🔍 Step 1: Multi-label classification...`);
+            // Use the enhanced MultiLabelDocumentClassifier for comprehensive analysis
+            const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(file.originalname, redactedContent);
+
+            // Log analysis details for debugging
+            console.log(`Multi-label classification result for ${file.originalname}:`);
+            console.log(`  Document Type: ${multiLabelResult.document_type}`);
+            console.log(`  Confidence: ${multiLabelResult.confidence}`);
+            console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
+            console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
+
+            // Use Ollama Mistral for summary
+            console.log(`🔍 Step 2: Starting analysis with Ollama Mistral for: ${file.originalname}`);
+            let summary = await summarizeWithOllamaLlama3(redactedContent, file.originalname);
+
+            if (!summary || summary.trim().length < 20) {
+              console.log(`⚠️ Ollama summary too short or empty.`);
+              summary = ""; // Set to empty string as per user request
+            } else {
+              console.log(`✅ Using Ollama Mistral generated summary`);
+            }
+
+            // Create enhanced analysis result with multi-label insights
+            const contentAnalysis = {
+              documentType: multiLabelResult.document_type,
+              verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
+              confidence: multiLabelResult.confidence,
+              wordCount: redactedContent.split(/\s+/).length,
+              keyFindings: multiLabelResult.evidence.slice(0, 5), // Use first 5 evidence items as key findings
+              summary, // Use Mistral summary
+              improvements: generateDocumentImprovements(multiLabelResult.document_type, redactedContent),
+              toolkit: generateDocumentToolkit(multiLabelResult.document_type),
+              criticalDates: extractCriticalDates(redactedContent),
+              financialTerms: extractFinancialTerms(redactedContent),
+              complianceRequirements: extractComplianceRequirements(redactedContent),
+              evidence: multiLabelResult.evidence,
+              reasoning: multiLabelResult.reasoning,
+              estimatedReadingTime: Math.ceil(redactedContent.split(/\s+/).length / 200), // 200 words per minute
+              taxonomyCategory: multiLabelResult.taxonomyCategory
+            };
+
+            // Create enhanced analysis result with all the content-based insights
+            const analysisResult = {
+              verdict: contentAnalysis.verdict,
+              confidence: contentAnalysis.confidence,
+              documentCategory: contentAnalysis.documentType,
+              summary: contentAnalysis.summary,
+              improvements: contentAnalysis.improvements,
+              toolkit: contentAnalysis.toolkit,
+              keyFindings: contentAnalysis.keyFindings,
+              documentType: contentAnalysis.documentType,
+              criticalDates: contentAnalysis.criticalDates,
+              financialTerms: contentAnalysis.financialTerms,
+              complianceRequirements: contentAnalysis.complianceRequirements,
+              evidence: contentAnalysis.evidence,
+              reasoning: contentAnalysis.reasoning,
+              wordCount: contentAnalysis.wordCount,
+              estimatedReadingTime: contentAnalysis.estimatedReadingTime,
+              // Legacy compatibility fields
+              contentAnalysis: {
+                hasCourtIndicators: contentAnalysis.documentType === 'nta' || contentAnalysis.documentType === 'motion',
+                hasLitigationTerms: contentAnalysis.evidence.length > 0
+              },
+              multiLabelAnalysis: {
+                documentType: contentAnalysis.documentType,
+                confidence: contentAnalysis.confidence,
+                evidence: contentAnalysis.evidence,
+                pageReferences: []
+              }
+            };
+
+            await storage.updateJob(jobId, {
+              aiAnalysis: JSON.stringify(analysisResult)
+            });
+
+            console.log(`✅ LLM analysis completed for: ${file.originalname}`);
+          } catch (analysisError) {
+            console.error(`❌ LLM analysis failed for ${file.originalname}:`, analysisError);
+            if (analysisError instanceof Error) {
+              console.error(`❌ Error details:`, analysisError.message);
+              console.error(`❌ Error stack:`, analysisError.stack);
+            }
+          }
 
           results.push({
             fileName: file.originalname,
             jobId: jobId,
-            status: "PROCESSING",
+            status: "DONE",
             fileSize: file.size
           });
 
@@ -760,6 +808,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Summary analysis endpoint for color-coded analysis
+  app.post("/api/analyze-summary", async (req, res) => {
+    try {
+      const { summary, prompt } = req.body;
+
+      if (!summary) {
+        return res.status(400).json({ error: "Missing summary" });
+      }
+
+      console.log(`🔍 Starting color-coded analysis for summary (${summary.length} characters)`);
+
+      // Use Ollama Mistral for enhanced analysis
+      const analysisPrompt = prompt || `Analyze this summary and provide a structured, color-coded analysis:
+
+📝 Original Summary:
+${summary}
+
+Please organize the issues into:
+
+🟩 Green (Positive developments or resolved issues):
+- List positive developments, improvements, or resolved issues
+
+🟨 Yellow (Ongoing concerns that should be monitored):
+- List ongoing concerns, areas needing attention, or monitoring points
+
+🟥 Red (Critical or urgent issues requiring immediate attention):
+- List critical issues, urgent problems, or immediate action items
+
+Also provide:
+
+Inconsistencies:
+- List any contradictions or discrepancies in the summary
+
+Missing Information:
+- Identify areas where data, sources, or context are lacking
+
+Suggested Action Items:
+- Recommend next steps based on the findings
+
+Format as JSON:
+{
+  "positive": ["item1", "item2"],
+  "ongoing": ["item1", "item2"],
+  "urgent": ["item1", "item2"],
+  "inconsistencies": ["item1"],
+  "missingInfo": ["item1"],
+  "actionItems": ["item1", "item2"]
+}`;
+
+      let analysisResult;
+      try {
+        // Call AI service for analysis
+        const aiServiceUrl = process.env.NODE_ENV === 'production' ? 'http://ai_service:5001' : 'http://localhost:5001';
+        const response = await fetch(`${aiServiceUrl}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: analysisPrompt,
+            model: 'mistral:7b-instruct-q4_0',
+            max_tokens: 1000
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          // Try to parse JSON from the response
+          try {
+            const jsonMatch = result.response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              analysisResult = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error('No JSON found in response');
+            }
+          } catch (parseError) {
+            console.log('Failed to parse JSON from AI response, using fallback');
+            analysisResult = generateFallbackAnalysis(summary);
+          }
+        } else {
+          throw new Error('AI service request failed');
+        }
+      } catch (error) {
+        console.log('AI analysis failed, using fallback:', error);
+        analysisResult = generateFallbackAnalysis(summary);
+      }
+
+      res.json(analysisResult);
+    } catch (error) {
+      console.error("Summary analysis error:", error);
+      res.status(500).json({ error: "Summary analysis failed" });
+    }
+  });
+
+  // Helper function for fallback analysis
+  function generateFallbackAnalysis(summary: string): any {
+    const lowerSummary = summary.toLowerCase();
+    const positive = [];
+    const ongoing = [];
+    const urgent = [];
+    const inconsistencies = [];
+    const missingInfo = [];
+    const actionItems = [];
+
+    // Simple keyword-based analysis
+    if (lowerSummary.includes('improved') || lowerSummary.includes('increased') || lowerSummary.includes('successful')) {
+      positive.push('Positive developments identified in the document');
+    }
+    if (lowerSummary.includes('ongoing') || lowerSummary.includes('continuing') || lowerSummary.includes('monitoring')) {
+      ongoing.push('Ongoing concerns or processes mentioned');
+    }
+    if (lowerSummary.includes('urgent') || lowerSummary.includes('critical') || lowerSummary.includes('immediate')) {
+      urgent.push('Urgent issues requiring attention');
+    }
+    if (lowerSummary.includes('unclear') || lowerSummary.includes('unclear')) {
+      inconsistencies.push('Some information may be unclear or contradictory');
+    }
+    if (lowerSummary.includes('limited') || lowerSummary.includes('insufficient')) {
+      missingInfo.push('Limited information available in some areas');
+    }
+
+    actionItems.push('Review document for compliance requirements');
+    actionItems.push('Monitor ongoing developments mentioned');
+
+    return { positive, ongoing, urgent, inconsistencies, missingInfo, actionItems };
+  }
+
   // Document analysis endpoint
   app.post("/api/analyze", async (req, res) => {
     try {
@@ -814,7 +987,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         complianceRequirements: extractComplianceRequirements(fileContent),
         evidence: multiLabelResult.evidence,
         reasoning: multiLabelResult.reasoning,
-        estimatedReadingTime: Math.ceil(fileContent.split(/\s+/).length / 200) // 200 words per minute
+        estimatedReadingTime: Math.ceil(fileContent.split(/\s+/).length / 200), // 200 words per minute
+        taxonomyCategory: multiLabelResult.taxonomyCategory
       };
 
       // Create enhanced analysis result with all the content-based insights

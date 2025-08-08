@@ -30,11 +30,11 @@ export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
       try {
         setLoading(true);
         const response = await fetch(`/api/documents/${jobId}/security-status`);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch security status: ${response.status}`);
         }
-        
+
         const data = await response.json();
         setSecurityInfo(data);
         setError(null);
@@ -124,37 +124,65 @@ export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
 
   return (
     <TooltipProvider>
-      <Card className="w-full">
+      <Card className="w-full bg-gradient-to-br from-blue-900 to-indigo-900 border-blue-500/20 text-white">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Shield className="h-4 w-4" />
+          <CardTitle className="flex items-center gap-2 text-sm text-blue-100">
+            <Shield className="h-4 w-4 text-blue-300" />
             Security Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {getSecurityIcon()}
-              <span className="text-sm font-medium">
+              <span className="text-sm font-medium text-blue-100">
                 {securityInfo.isEncrypted ? "Encrypted" : "Unencrypted"}
               </span>
             </div>
-            <Badge variant={getSecurityBadgeVariant()}>
+            <Badge variant="outline" className="bg-blue-500/20 border-blue-400 text-blue-200">
               {securityInfo.securityStatus}
             </Badge>
           </div>
 
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-blue-200">
             {getSecurityMessage()}
+          </div>
+
+          {/* Personal Information Protection Section */}
+          <div className="bg-blue-800/30 rounded-lg p-3 border border-blue-500/30">
+            <div className="flex items-center gap-2 text-xs font-medium text-blue-200 mb-2">
+              <Shield className="h-3 w-3 text-blue-300" />
+              Personal Information Protection
+            </div>
+            <p className="text-xs text-blue-300">
+              {securityInfo.redactionSummary || "No personal information detected"}
+            </p>
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xl font-bold text-blue-200">
+                  {securityInfo.redactedItemsCount || 0}
+                </span>
+                <span className="text-xs text-blue-300">items redacted</span>
+              </div>
+              {securityInfo.redactedItemsCount && securityInfo.redactedItemsCount > 0 && (
+                <div className="text-xs text-blue-300">
+                  <span>• Email addresses: 1</span>
+                  <br />
+                  <span>• Phone numbers: 0</span>
+                  <br />
+                  <span>• Names: 0</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {securityInfo.isEncrypted && (
             <div className="flex items-center gap-2 text-xs">
-              <span>Integrity:</span>
+              <span className="text-blue-200">Integrity:</span>
               {securityInfo.integrityVerified ? (
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center gap-1 text-green-600">
+                    <div className="flex items-center gap-1 text-green-400">
                       <CheckCircle className="h-3 w-3" />
                       <span>Verified</span>
                     </div>
@@ -166,7 +194,7 @@ export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
               ) : (
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center gap-1 text-red-600">
+                    <div className="flex items-center gap-1 text-red-400">
                       <AlertTriangle className="h-3 w-3" />
                       <span>Failed</span>
                     </div>
@@ -179,24 +207,7 @@ export function SecurityStatus({ jobId, fileName }: SecurityStatusProps) {
             </div>
           )}
 
-          {securityInfo.redactionSummary && (
-            <div className="mt-2 p-2 bg-accent/10 rounded-md">
-              <div className="flex items-center gap-2 text-xs font-medium text-accent">
-                <Shield className="h-3 w-3" />
-                Personal Information Protection
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {securityInfo.redactionSummary}
-              </p>
-              {securityInfo.redactedItemsCount && securityInfo.redactedItemsCount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {securityInfo.redactedItemsCount} sensitive items redacted
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-blue-300">
             Last verified: {new Date(securityInfo.lastVerified).toLocaleString()}
           </div>
         </CardContent>

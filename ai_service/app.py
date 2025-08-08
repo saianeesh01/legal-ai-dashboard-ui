@@ -323,30 +323,68 @@ Document text:
 def create_optimized_prompt(text: str, task: str = "analyze") -> str:
     """Create a simplified, fast prompt for document analysis"""
     
-    # Limit text to prevent token overflow
+    # For summarization, allow larger context for comprehensive summary
+    if task == "summarize":
+        max_chars = 8000  # Increased for comprehensive summarization
+        limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
+        
+        return f"""You are a legal AI assistant. Create a comprehensive, unified summary of this legal document in one cohesive paragraph:
+
+{limited_text}
+
+Provide a detailed summary that covers:
+- Main purpose and key objectives
+- Critical dates, deadlines, and timelines
+- Important parties, entities, or individuals mentioned
+- Key financial terms, amounts, or budgetary information
+- Legal requirements, compliance issues, or regulatory concerns
+- Major findings, conclusions, or recommendations
+- Any unique or noteworthy aspects of the document
+
+Write as a single, flowing paragraph that captures the essence of the entire document. Be specific and include concrete details from the text."""
+    
+    # For other tasks, use smaller context
     max_chars = 2000
     limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
     
     if task == "analyze":
-        return f"""You are a legal AI assistant. Analyze this legal document in one paragraph:
+        return f"""You are a legal AI assistant. Analyze this legal document and provide a structured analysis:
 
 {limited_text}
 
-Provide:
-1. **Document Type**: [Classify as Motion/Brief/Proposal/Report/Form/Other]
-2. **Summary**: [2-3 sentence summary]
-3. **Missing Items**: [List key missing elements]
-4. **Action Items**: [What user needs to do]
-5. **Inconsistencies**: [Any contradictions found]
+📝 Original Summary:
+[Provide a concise 2-3 sentence summary of the document's main purpose and key content]
 
-Format with **bold** for important info. Be concise."""
-    
-    elif task == "summarize":
-        return f"""You are a legal AI assistant. Summarize this document in 2-3 sentences:
+---
 
-{limited_text}
+🟩 Positive Developments:
+• [List positive developments or resolved issues]
+• [Highlight any strong legal arguments or comprehensive coverage]
+• [Note any particularly clear or effective sections]
 
-Focus on key points and main purpose."""
+🟨 Ongoing Concerns:
+• [Identify ongoing concerns that should be monitored]
+• [Point out missing information or gaps in coverage]
+• [Suggest areas that need improvement or clarification]
+
+🟥 Urgent Issues:
+• [List critical or urgent issues requiring immediate attention]
+• [Highlight immediate action items that require attention]
+• [Note any deadlines or time-sensitive matters]
+
+---
+
+Inconsistencies:
+• [List any contradictions or discrepancies present in the document]
+
+Missing Information:
+• [Identify any areas where data, sources, or context are lacking]
+
+Suggested Action Items:
+• [Recommend next steps based on the document's findings]
+• [Suggest further research, policy review, or outreach to organizations]
+
+Format with clear sections and bullet points for easy reading."""
     
     else:
         return f"""You are a legal AI assistant. Answer this question about the document:
@@ -436,7 +474,7 @@ def health_check():
 
 @app.route('/summarize', methods=['POST'])
 def summarize_document():
-    """Summarize document with simplified, fast prompt"""
+    """Summarize document with comprehensive, unified prompt"""
     try:
         data = request.get_json()
         
@@ -445,15 +483,15 @@ def summarize_document():
         
         text = data.get('text', '')
         model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
+        max_tokens = data.get('max_tokens', 800)  # Increased for comprehensive summary
         
         if not text.strip():
             return jsonify({"error": "No text provided for summarization"}), 400
         
-        # Use optimized prompt for faster processing
+        # Use comprehensive prompt for unified summarization
         prompt = create_optimized_prompt(text, "summarize")
         
-        logger.info(f"📝 Summarizing document with {model}")
+        logger.info(f"📝 Summarizing document with {model} (max_tokens: {max_tokens})")
         result = ollama.generate(model, prompt, max_tokens)
         
         if not result:
@@ -463,7 +501,7 @@ def summarize_document():
             "success": True,
             "summary": result,
             "model_used": model,
-            "prompt_type": "optimized"
+            "prompt_type": "comprehensive_unified"
         })
         
     except Exception as e:
