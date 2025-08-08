@@ -437,54 +437,8 @@ function getRelevantDomain(fileName: string): string {
   return 'legal services and regulatory compliance frameworks';
 }
 
-// Helper to call Ollama Mistral for summarization  
-/* async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
-  console.log(`📄 Document text length: ${documentText.length} characters`);
-  
-  const prompt = `You are a legal document analysis AI. Read the following document and generate a detailed, content-specific summary. Quote or paraphrase key facts, dates, names, monetary amounts, and legal citations. Do NOT state the document type or use generic templates. Focus on the actual content.\n\nDocument: ${fileName}\n\n${documentText}`;
-  
-  try {
-    console.log(`🌐 Sending request to AI Service...`);
-    // Use correct AI service URL for development vs Docker
-    const AI_SERVICE_URL = process.env.NODE_ENV === 'production' 
-      ? 'http://ai_service:5001'
-      : 'http://localhost:5001';
-    
-    const response = await fetch(`${AI_SERVICE_URL}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: documentText,
-        model: 'mistral:latest',
-        prompt: prompt
-      })
-    });
-    
-    console.log(`📡 Ollama response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Ollama API error: ${response.status} - ${errorText}`);
-      throw new Error(`Ollama error: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    console.log(`✅ Ollama response received, length: ${data.response?.length || 0} characters`);
-    
-    const summary = data.response || data.message?.content || '[Ollama returned no summary]';
-    console.log(`📝 Generated summary length: ${summary.length} characters`);
-    
-    return summary;
-  } catch (err) {
-    console.error('❌ Ollama Llama 3 summarization failed:', err);
-    return '';
-  }
-}
- */
-
 async function summarizeWithOllamaLlama3(documentText: string, fileName: string): Promise<string> {
-  console.log(`🤖 Attempting Ollama Mistral summarization for: ${fileName}`);
+  console.log(`🤖 Attempting incremental summarization for: ${fileName}`);
   console.log(`📄 Document text length: ${documentText.length} characters`);
 
   // ✅ Combine all chunks into one paragraph summary instead of chunk-by-chunk
