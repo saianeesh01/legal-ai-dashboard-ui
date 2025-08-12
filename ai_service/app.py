@@ -547,7 +547,7 @@ def summarize_document():
         
         return jsonify({
             "success": True,
-            "summary": overall_summary,
+            "summary": result,
             "model_used": model,
             "prompt_type": "comprehensive_unified"
         })
