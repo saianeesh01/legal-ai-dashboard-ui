@@ -10,7 +10,7 @@ export class ApiError extends Error {
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 120000): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -198,6 +198,7 @@ export async function getAllDocuments(): Promise<Array<{
     confidence: number;
     summary: string;
     suggestions: string[];
+    universalExtraction?: any; // Universal Legal Document Extractor results
   };
 }>> {
   const res = await fetch("/api/documents");
@@ -227,6 +228,69 @@ export async function checkDuplicate(fileName: string): Promise<{
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fileName }),
   });
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+// Universal Legal Document Extractor
+export async function extractUniversal(jobId: string): Promise<{
+  success: boolean;
+  extraction: any;
+  message: string;
+}> {
+  const res = await fetchWithTimeout("/api/extract-universal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  }, 120000); // 2 minutes
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+// Batch upload functions
+export async function uploadBatch(files: File[]): Promise<{
+  success: boolean;
+  batch_id: string;
+  message: string;
+  jobs: Array<{
+    id: string;
+    filename: string;
+    status: string;
+    batchId: string;
+  }>;
+}> {
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+
+  const res = await fetchWithTimeout("/api/upload-batch", {
+    method: "POST",
+    body: formData,
+  }, 120000); // 2 minutes
+
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json();
+}
+
+export async function getBatchStatus(batchId: string): Promise<{
+  success: boolean;
+  batch_id: string;
+  created_at: string;
+  completed_count: number;
+  error_count: number;
+  jobs: Array<{
+    id: string;
+    filename: string;
+    status: string;
+    result_path?: string;
+    doc_type?: string;
+    error_message?: string;
+  }>;
+}> {
+  const res = await fetchWithTimeout(`/api/batch-status/${batchId}`, {
+    method: "GET",
+  }, 30000);
+
   if (!res.ok) throw new ApiError(res.status, await res.text());
   return res.json();
 }

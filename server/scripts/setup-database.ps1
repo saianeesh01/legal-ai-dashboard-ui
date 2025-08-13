@@ -2,7 +2,7 @@
 # This script helps set up PostgreSQL for production use
 
 param(
-    [string]$Host = "localhost",
+    [string]$DatabaseHost = "localhost",
     [int]$Port = 5432,
     [string]$Database = "legal_ai_db",
     [string]$Username = "legal_ai_user",
@@ -18,7 +18,7 @@ Database Setup Script for Legal AI Dashboard
 Usage: .\setup-database.ps1 [options]
 
 Options:
-    -Host <string>        Database host (default: localhost)
+    -DatabaseHost <string>        Database host (default: localhost)
     -Port <int>          Database port (default: 5432)
     -Database <string>   Database name (default: legal_ai_db)
     -Username <string>   Database username (default: legal_ai_user)
@@ -28,7 +28,7 @@ Options:
 
 Examples:
     .\setup-database.ps1
-    .\setup-database.ps1 -Host "db.example.com" -UseSSL
+    .\setup-database.ps1 -DatabaseHost "db.example.com" -UseSSL
     .\setup-database.ps1 -Password "my-secure-password"
 "@
     exit 0
@@ -59,7 +59,7 @@ Write-Host "🔍 Testing PostgreSQL connection..." -ForegroundColor Yellow
 
 try {
     $env:PGPASSWORD = $Password
-    $testResult = psql -h $Host -p $Port -U $Username -d postgres -c "SELECT version();" 2>&1
+    $testResult = psql -h $DatabaseHost -p $Port -U $Username -d postgres -c "SELECT version();" 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ Successfully connected to PostgreSQL" -ForegroundColor Green
@@ -73,9 +73,9 @@ try {
         
         try {
             # Connect as postgres superuser
-            $createUser = psql -h $Host -p $Port -U postgres -c "CREATE USER $Username WITH PASSWORD '$Password';" 2>&1
-            $createDb = psql -h $Host -p $Port -U postgres -c "CREATE DATABASE $Database OWNER $Username;" 2>&1
-            $grantPrivileges = psql -h $Host -p $Port -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE $Database TO $Username;" 2>&1
+            $createUser = psql -h $DatabaseHost -p $Port -U postgres -c "CREATE USER $Username WITH PASSWORD '$Password';" 2>&1
+            $createDb = psql -h $DatabaseHost -p $Port -U postgres -c "CREATE DATABASE $Database OWNER $Username;" 2>&1
+            $grantPrivileges = psql -h $DatabaseHost -p $Port -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE $Database TO $Username;" 2>&1
             
             Write-Host "✅ User and database created successfully" -ForegroundColor Green
         }
@@ -96,7 +96,7 @@ Write-Host "📝 Creating environment configuration..." -ForegroundColor Yellow
 
 $envContent = @"
 # Database Configuration
-DB_HOST=$Host
+DB_HOST=$DatabaseHost
 DB_PORT=$Port
 DB_NAME=$Database
 DB_USER=$Username
@@ -104,7 +104,7 @@ DB_PASSWORD=$Password
 
 # SSL Configuration
 DB_SSL=$($UseSSL.IsPresent)
-DB_SSL_MODE=$($UseSSL.IsPresent ? "require" : "disable")
+DB_SSL_MODE=$($UseSSL.IsPresent -and "require" -or "disable")
 
 # Connection Pool Settings
 DB_MAX_CONNECTIONS=20
@@ -135,14 +135,14 @@ Write-Host "🧪 Testing new database configuration..." -ForegroundColor Yellow
 
 try {
     $env:PGPASSWORD = $Password
-    $testResult = psql -h $Host -p $Port -U $Username -d $Database -c "SELECT current_database(), current_user;" 2>&1
+    $testResult = psql -h $DatabaseHost -p $Port -U $Username -d $Database -c "SELECT current_database(), current_user;" 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ Database configuration test successful!" -ForegroundColor Green
         Write-Host "📊 Database: $Database" -ForegroundColor Cyan
         Write-Host "👤 User: $Username" -ForegroundColor Cyan
-        Write-Host "🌐 Host: $Host:$Port" -ForegroundColor Cyan
-        Write-Host "🔒 SSL: $($UseSSL.IsPresent ? "Enabled" : "Disabled")" -ForegroundColor Cyan
+        Write-Host "🌐 Host: $DatabaseHost:$Port" -ForegroundColor Cyan
+        Write-Host "🔒 SSL: $($UseSSL.IsPresent -and "Enabled" -or "Disabled")" -ForegroundColor Cyan
     }
     else {
         Write-Host "❌ Database configuration test failed" -ForegroundColor Red

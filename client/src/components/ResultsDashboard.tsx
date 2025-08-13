@@ -23,10 +23,11 @@ import {
   Info
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib/api";
+import { queryDocument, analyzeDocument, getAllDocuments, ApiError, extractUniversal } from "@/lib/api";
 import QueryForm from "./QueryForm";
 import SecurityStatus from "./SecurityStatus";
 import EnhancedQueryResponse from "./EnhancedQueryResponse";
+import UniversalAnalysis from "./UniversalAnalysis";
 import {
   DocumentAnalysisHelp,
   ConfidenceScoreHelp,
@@ -342,7 +343,9 @@ const ResultsDashboard = ({
 }: ResultsDashboardProps) => {
   const [isQuerying, setIsQuerying] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [universalExtraction, setUniversalExtraction] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isUniversalExtracting, setIsUniversalExtracting] = useState(false);
 
   // Mock data for demo purposes
   const mockAnswer = queryResults?.answer || `This legal document appears to be a commercial lease agreement with several key provisions:
@@ -400,9 +403,18 @@ The document contains standard commercial lease provisions with some tenant-favo
       if (existingDoc?.aiAnalysis) {
         // Use existing analysis
         setAiAnalysis(existingDoc.aiAnalysis);
+
+        // Check if universal extraction exists
+        if (existingDoc.aiAnalysis.universalExtraction) {
+          setUniversalExtraction(existingDoc.aiAnalysis.universalExtraction);
+        } else if (existingDoc.status === "DONE") {
+          // Trigger universal extraction if not present
+          performUniversalExtraction();
+        }
       } else if (existingDoc?.status === "DONE") {
         // Trigger new analysis for completed document
         performAIAnalysis();
+        performUniversalExtraction();
       }
     } catch (error) {
       console.error("Error fetching existing analysis:", error);
@@ -432,6 +444,30 @@ The document contains standard commercial lease provisions with some tenant-favo
       });
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const performUniversalExtraction = async () => {
+    if (!uploadResults?.jobId) return;
+
+    setIsUniversalExtracting(true);
+    try {
+      const extraction = await extractUniversal(uploadResults.jobId);
+      setUniversalExtraction(extraction.extraction);
+
+      toast({
+        title: "Universal Extraction Complete",
+        description: `Document analyzed with Universal Legal Extractor`,
+      });
+    } catch (error) {
+      console.error("Universal extraction error:", error);
+      toast({
+        title: "Universal extraction failed",
+        description: "Could not perform universal extraction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUniversalExtracting(false);
     }
   };
 
@@ -561,6 +597,16 @@ The document contains standard commercial lease provisions with some tenant-favo
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => performUniversalExtraction()}
+                  className="text-xs bg-blue-800/50 border-blue-400 text-blue-200 hover:bg-blue-700/50"
+                  disabled={isUniversalExtracting}
+                >
+                  <Brain className="h-3 w-3 mr-1" />
+                  {isUniversalExtracting ? 'Processing...' : universalExtraction ? 'Universal Analysis Ready' : 'Run Universal Analysis'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleViewRedactedFile()}
                   className="text-xs bg-blue-800/50 border-blue-400 text-blue-200 hover:bg-blue-700/50"
                 >
@@ -644,6 +690,68 @@ The document contains standard commercial lease provisions with some tenant-favo
               </div>
             )}
           </div>
+
+          {/* Universal Legal Analysis Loading */}
+          {isUniversalExtracting && (
+            <Card className="shadow-elegant animate-scale-in">
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center space-y-2">
+                  <Brain className="h-8 w-8 text-accent mx-auto animate-pulse" />
+                  <p className="text-sm text-muted-foreground">Running Universal Legal Analysis...</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Universal Legal Analysis Not Yet Run */}
+          {!universalExtraction && !isUniversalExtracting && aiAnalysis && (
+            <Card className="bg-gradient-to-br from-amber-900 to-orange-900 text-white shadow-elegant animate-fade-in">
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center space-y-4">
+                  <Brain className="h-12 w-12 text-amber-300 mx-auto" />
+                  <h3 className="text-lg font-semibold text-amber-100">Universal Legal Analysis Available</h3>
+                  <p className="text-amber-200 text-sm">
+                    Click the "Run Universal Analysis" button above to perform comprehensive legal document extraction
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => performUniversalExtraction()}
+                    className="bg-amber-800/50 border-amber-400 text-amber-200 hover:bg-amber-700/50"
+                  >
+                    <Brain className="h-4 w-4 mr-2" />
+                    Start Universal Analysis
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Universal Legal Analysis */}
+          {universalExtraction && (
+            <div className="bg-gradient-to-br from-emerald-900 to-teal-900 text-white shadow-elegant animate-fade-in rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-5 w-5 text-emerald-300" />
+                  <span className="text-emerald-100 text-lg font-semibold">Universal Legal Analysis</span>
+                  <Badge
+                    variant="outline"
+                    className="bg-emerald-500/20 border-emerald-400 text-emerald-200"
+                  >
+                    {universalExtraction.doc_type || 'Document Analysis'}
+                  </Badge>
+                </div>
+              </div>
+              <p className="text-emerald-200 mb-6">
+                Comprehensive legal document extraction using Universal Legal Extractor
+              </p>
+
+              <UniversalAnalysis
+                extractionResult={universalExtraction}
+                className="bg-white/90 rounded-lg p-4"
+              />
+            </div>
+          )}
 
           {/* Detailed Analysis Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

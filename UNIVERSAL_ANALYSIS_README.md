@@ -1,352 +1,232 @@
-# 🚀 Universal Legal Analysis System
+# Universal Legal-Doc Extractor (Doc-Only • Multi-Type • No Hallucinations)
 
-## Overview
+**You are a legal/document extraction agent. Follow these rules exactly.**
 
-The **Universal Legal Analysis System** is a comprehensive, document-agnostic solution that automatically extracts structured legal facts from various document types. It replaces generic analysis with precise, evidence-based extraction that follows strict rules against hallucination.
+## 🚫 Hard Rules
 
-## ✨ Key Features
-
-### 🔍 **Document Type Detection**
-- **Automatic Classification**: Detects document type from content, not filename
-- **6 Document Categories**: 
-  - `court_opinion_or_order` - Court decisions, opinions, orders
-  - `complaint_or_docket` - Legal complaints, petitions, dockets
-  - `government_form` - Immigration forms, government documents
-  - `council_or_rfp` - Council memos, RFPs, public notices
-  - `country_or_policy_report` - Human rights reports, policy documents
-  - `other_legal` - Miscellaneous legal documents
-
-### 📊 **Structured Data Extraction**
-- **Dates**: Filing, hearing, order, decision dates with context
-- **Parties**: Plaintiffs, defendants, agencies with roles
-- **Legal References**: Statutes, cases, regulations with citations
-- **Statistics**: Numerical data with units and context
-- **Requirements**: Compliance requirements and deadlines
-- **Funding**: Budget amounts and financial terms
-
-### 🛡️ **Anti-Hallucination Rules**
-- **Document-Only**: Uses ONLY provided text, no external knowledge
-- **Verbatim Evidence**: Every fact includes exact quote and page number
-- **Confidence Scoring**: 0-1 scale based on evidence clarity
-- **Context Validation**: Cross-checks dates and facts in surrounding text
-
-## 🎯 **Use Cases**
-
-### **Legal Professionals**
-- Extract key dates and deadlines from court documents
-- Identify parties and their roles in litigation
-- Find relevant statutes and legal citations
-- Analyze compliance requirements in contracts
-
-### **Government Agencies**
-- Process immigration forms and applications
-- Extract requirements from RFPs and solicitations
-- Analyze policy reports and white papers
-- Identify deadlines and compliance dates
-
-### **Research & Compliance**
-- Extract statistics and findings from reports
-- Identify themes and key findings
-- Track funding and budget information
-- Monitor compliance requirements
-
-## 🚀 **Getting Started**
-
-### **1. Upload Document**
-```typescript
-// Upload any legal document through the FileUploader component
-const uploadResult = await uploadFile(document);
-```
-
-### **2. Choose Analysis Type**
-The system provides three analysis options:
-
-#### **Traditional Analysis** (Legacy)
-- General AI-powered document classification
-- Summary and key findings
-- Color-coded analysis
-
-#### **Universal Extraction** (New)
-- Structured fact extraction
-- Evidence-based results
-- Document-type specific schemas
-
-#### **Enhanced Analysis** (Combined)
-- Both traditional and universal analysis
-- Comprehensive document understanding
-
-### **3. View Results**
-```typescript
-// The UniversalAnalysis component automatically displays results
-<UniversalAnalysis extractionResult={universalExtraction} />
-```
-
-## 🏗️ **Architecture**
-
-### **Backend Components**
-
-#### **UniversalLegalExtractor** (`server/universal_legal_extractor.ts`)
-- Core extraction logic
-- Document type detection
-- Type-specific extraction methods
-- Evidence validation
-
-#### **API Endpoints**
-- `POST /api/extract-universal` - Run universal extraction
-- `POST /api/analyze` - Enhanced analysis with universal extraction
-- `GET /api/status/{job_id}` - Check processing status
-
-### **Frontend Components**
-
-#### **UniversalAnalysis** (`client/src/components/UniversalAnalysis.tsx`)
-- Beautiful, theme-consistent display
-- Collapsible sections for organization
-- Evidence display with confidence scores
-- Document-type specific layouts
-
-#### **ResultsDashboard** (`client/src/components/ResultsDashboard.tsx`)
-- Analysis type toggle (Traditional vs Universal)
-- Action buttons for different analysis types
-- Integrated display of both analysis types
-
-## 📋 **Output Schema**
-
-### **Base Structure**
-```typescript
-interface UniversalExtractionResult {
-  doc_type: DocumentType;
-  meta: DocumentMetadata;
-  sections: DocumentTypeSpecificSections;
-}
-```
-
-### **Metadata**
-```typescript
-interface DocumentMetadata {
-  title: string | null;
-  jurisdiction_or_body: string | null;
-  date_iso: string | null;
-  page_count: number;
-}
-```
-
-### **Court Opinion Sections**
-```typescript
-interface CourtOpinionSections {
-  caption: {
-    court: string;
-    case_no: string | null;
-    parties: {
-      plaintiffs: ExtractedParty[];
-      defendants: ExtractedParty[];
-    };
-  };
-  holding_or_disposition: ExtractedItem[];
-  key_dates: ExtractedDate[];
-  statutes_cases_notices: ExtractedStatute[];
-  statistics_or_figures: ExtractedStatistic[];
-}
-```
-
-### **Government Form Sections**
-```typescript
-interface GovernmentFormSections {
-  form_id: string;
-  agency: string;
-  edition_or_omb: string | null;
-  named_fields: ExtractedField[];
-  warnings_or_instructions: ExtractedWarning[];
-}
-```
-
-## 🎨 **UI Features**
-
-### **Design System**
-- **Gradient Cards**: Beautiful gradient backgrounds for each section
-- **Color Coding**: Document-type specific color schemes
-- **Collapsible Sections**: Organized, space-efficient layout
-- **Evidence Display**: Clear presentation of extracted facts
-- **Confidence Indicators**: Visual confidence scoring
-
-### **Interactive Elements**
-- **Toggle Buttons**: Switch between analysis types
-- **Collapsible Sections**: Expand/collapse detailed information
-- **Action Buttons**: Run different types of analysis
-- **Loading States**: Clear feedback during processing
-
-## 🔧 **Configuration**
-
-### **Environment Variables**
-```bash
-# Database connection
-DATABASE_URL=postgresql://user:password@localhost:5432/legal_ai
-
-# AI Service configuration
-AI_SERVICE_URL=http://localhost:5001
-OLLAMA_BASE_URL=http://localhost:11434
-```
-
-### **Extraction Settings**
-```typescript
-// Confidence thresholds
-const MIN_CONFIDENCE = 0.7;
-const HIGH_CONFIDENCE = 0.9;
-
-// Date extraction patterns
-const DATE_PATTERNS = [
-  /(January|February|...)\s+\d{1,2},?\s+\d{4}/gi,
-  /\b\d{4}-\d{2}-\d{2}\b/g
-];
-```
-
-## 🧪 **Testing**
-
-### **Test Scripts**
-- `test_multiple_document_types.js` - Test all document types
-- `test_universal_extractor.js` - Test extraction logic
-- `test_extractor_simple.js` - Simple extraction tests
-
-### **Sample Documents**
-The system includes sample documents for each category:
-- **Court Opinion**: Memorandum opinion and order
-- **Government Form**: I-589 asylum application
-- **Council RFP**: Legal services solicitation
-- **Country Report**: Human rights report
-- **Complaint**: Legal complaint document
-
-## 📈 **Performance**
-
-### **Processing Times**
-- **Small Documents** (< 10 pages): 2-5 seconds
-- **Medium Documents** (10-50 pages): 5-15 seconds
-- **Large Documents** (50+ pages): 15-30 seconds
-
-### **Memory Usage**
-- **Text Processing**: ~2MB per 100 pages
-- **Extraction Results**: ~50KB per document
-- **Total Memory**: Linear scaling with document size
-
-## 🔒 **Security & Privacy**
-
-### **Data Protection**
-- **No External APIs**: All processing is local
-- **Document Isolation**: Each document processed independently
-- **No Data Storage**: Extracted data not persisted externally
-- **Redaction Support**: Personal information protection
-
-### **Access Control**
-- **Job-based Access**: Results tied to specific upload sessions
-- **No Cross-User Access**: Users can only access their own documents
-- **Secure Endpoints**: All API endpoints require valid job IDs
-
-## 🚀 **Deployment**
-
-### **Docker Setup**
-```bash
-# Build and run the complete system
-docker-compose up --build
-
-# Or run individual services
-docker run -p 5000:5000 legal-ai-server
-docker run -p 3000:3000 legal-ai-client
-```
-
-### **Production Considerations**
-- **Load Balancing**: Multiple server instances
-- **Database Scaling**: PostgreSQL clustering
-- **Caching**: Redis for frequent queries
-- **Monitoring**: Health checks and metrics
-
-## 🔮 **Future Enhancements**
-
-### **Planned Features**
-- **Multi-language Support**: Non-English document processing
-- **Advanced OCR**: Handwritten document support
-- **Template Learning**: Custom extraction patterns
-- **Batch Processing**: Multiple document analysis
-- **Export Formats**: PDF, Word, Excel output
-
-### **Integration Opportunities**
-- **Document Management Systems**: SharePoint, Box, Dropbox
-- **Legal Research Platforms**: Westlaw, LexisNexis
-- **Case Management**: Clio, MyCase, PracticePanther
-- **Compliance Tools**: Regulatory tracking systems
-
-## 📚 **API Reference**
-
-### **Universal Extraction**
-```typescript
-POST /api/extract-universal
-Body: { job_id: string }
-Response: {
-  success: boolean;
-  extraction: UniversalExtractionResult;
-  message: string;
-}
-```
-
-### **Enhanced Analysis**
-```typescript
-POST /api/analyze
-Body: { 
-  job_id: string;
-  use_universal_extraction: boolean;
-}
-Response: {
-  success: boolean;
-  extraction: EnhancedAnalysisResult;
-  message: string;
-}
-```
-
-## 🤝 **Contributing**
-
-### **Development Setup**
-```bash
-# Clone the repository
-git clone https://github.com/your-org/legal-ai-dashboard-ui.git
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Run tests
-npm test
-```
-
-### **Code Style**
-- **TypeScript**: Strict typing throughout
-- **React Hooks**: Functional components with hooks
-- **Tailwind CSS**: Utility-first styling
-- **ESLint**: Code quality enforcement
-
-## 📞 **Support**
-
-### **Documentation**
-- **API Docs**: Comprehensive endpoint documentation
-- **Component Library**: UI component documentation
-- **Examples**: Sample implementations and use cases
-
-### **Community**
-- **GitHub Issues**: Bug reports and feature requests
-- **Discussions**: Community support and questions
-- **Contributions**: Pull requests and improvements
+• **Use ONLY the provided document text** (no filename cues, prior runs, or web)
+• Every item must include a **verbatim snippet** and a **page number**
+• If a fact is not explicit in the text, **omit it** - Do **not** guess
+• If you're unsure how to label something, return it under `other` with low confidence **or drop it**
+• Output **valid JSON only** - No prose
 
 ---
 
-## 🎉 **Quick Start Example**
+## 📋 Step 1: Document Type Detection
 
-1. **Upload a court document**
-2. **Click "Run Universal Extraction"**
-3. **View structured results**:
-   - Court caption with parties
-   - Key dates with context
-   - Legal citations and statutes
-   - Holdings and disposition
-4. **Toggle between Traditional and Universal views**
-5. **Export results for further analysis**
+**Choose ONE document type from content (not filename):**
 
-The Universal Legal Analysis System transforms complex legal documents into structured, searchable data while maintaining the highest standards of accuracy and evidence-based extraction.
+• `court_opinion_or_order` - Court decisions, judicial orders
+• `complaint_or_docket` - Legal complaints, case filings
+• `government_form` - Official forms, applications
+• `council_or_rfp` - City council memos, public notices, RFPs
+• `grant_notice_or_rfa` - Grant NOFO/RFA/FOA, funding invitations
+• `meeting_minutes` - Board/commission/council meeting records
+• `procurement_sow_or_contract` - SOW, PWS, contracts
+• `audit_or_investigation_report` - Inspector general, comptroller audits
+• `federal_report_to_congress` - Statute-mandated reports, annuals
+• `country_or_policy_report` - Country/human-rights, policy papers
+• `academic_program_or_clinic_brochure` - Law clinic flyers, program sheets
+• `proposal_or_whitepaper` - Grant proposals, program proposals
+• `other_legal` - If uncertain, choose this
+
+---
+
+## 🏗️ Step 2: JSON Structure
+
+**Top-Level Structure:**
+```json
+{
+  "doc_type": "string",
+  "meta": {
+    "title": "string|null",
+    "jurisdiction_or_body": "string|null",
+    "date_iso": "YYYY-MM-DD|null",
+    "page_count": 0
+  },
+  "sections": {}
+}
+```
+
+---
+
+## 📊 Document Type Schemas
+
+### A) Court Opinion or Order
+**Extract:**
+• **Caption**: Court name, case number, parties (plaintiffs/defendants)
+• **Holding/Disposition**: Key legal conclusions with evidence
+• **Critical Dates**: Filing, hearing, order, decision dates
+• **Statutes/Cases**: Legal citations and references
+• **Statistics**: Any numerical data or metrics
+
+### B) Complaint or Docket
+**Extract:**
+• **Parties & Roles**: All involved parties and their legal roles
+• **Claims/Causes**: Legal basis and descriptions
+• **Relief Requested**: What the plaintiff is asking for
+• **Critical Dates**: Filing, hearing, deadline dates
+
+### C) Government Form
+**Extract:**
+• **Form ID**: Official form identifier
+• **Agency**: Issuing government body
+• **Edition/OMB**: Form version or approval number
+• **Named Fields**: Specific form fields and values
+• **Warnings/Instructions**: Important notices or directions
+
+### D) Council or RFP
+**Extract:**
+• **Issuing Body**: Organization releasing the document
+• **Agenda Item/Program**: Specific topic or initiative
+• **Deadlines**: Submission, hearing, award dates
+• **Requirements**: What applicants must provide
+• **Funding/Budget**: Available amounts and context
+
+### E) Grant Notice or RFA
+**Extract:**
+• **Program Name**: Official program title
+• **Funder**: Source of funding
+• **Funding Ceiling**: Maximum available amount
+• **Award Count**: Number of awards available
+• **Eligibility**: Who can apply
+• **Critical Dates**: LOI, application, webinar, questions, award dates
+• **How to Apply**: Application steps
+• **KPIs/Deliverables**: Expected outcomes
+
+### F) Meeting Minutes
+**Extract:**
+• **Body**: Meeting organization name
+• **Meeting Date/Time**: When the meeting occurred
+• **Attendees**: Names and roles of participants
+• **Motions**: What was proposed and results (passed/failed/tabled)
+• **Agenda Items**: Topics discussed and summaries
+• **Actions/Follow-ups**: Decisions made and who's responsible
+
+### G) Procurement SOW or Contract
+**Extract:**
+• **Agency/Buyer**: Contracting organization
+• **Period of Performance**: Start and end dates
+• **Place of Performance**: Where work will be done
+• **Scope**: What work is required
+• **Qualifications**: Required skills or experience
+• **Compliance**: Standards or policies to follow
+
+### H) Audit or Investigation Report
+**Extract:**
+• **Issuing Body**: Organization conducting the audit
+• **Scope Period**: Time period covered
+• **Findings**: Key discoveries with evidence
+• **Metrics**: Any numerical data or statistics
+• **Recommendations**: Suggested improvements
+
+### I) Federal Report to Congress
+**Extract:**
+• **Statutory Basis**: Legal authority for the report
+• **Proposed Targets/Ceilings**: Numerical goals or limits
+• **Program Components**: Parts of the program
+• **Tables/Annexes**: Supporting data or appendices
+
+### J) Country or Policy Report
+**Extract:**
+• **Scope and Year**: What the report covers and when
+• **Themes**: Main topics discussed
+• **Findings**: Key conclusions with evidence
+• **Statistics**: Any numerical data or metrics
+
+### K) Academic Program or Clinic Brochure
+**Extract:**
+• **Institution**: School or organization name
+• **Program Name**: Specific program title
+• **Goals**: What the program aims to achieve
+• **Structure**: How the program is organized
+• **Prerequisites**: What's required to participate
+• **Units/Hours**: Academic credit or time commitment
+• **Contact**: How to get more information
+
+### L) Proposal or Whitepaper
+**Extract:**
+• **Sponsor/Author**: Who created the document
+• **Objective**: What the proposal aims to accomplish
+• **Need/Justification**: Why this is important
+• **Budget/Funding**: Financial requirements
+• **Deliverables/Plan**: What will be provided
+
+### M) Other Legal
+**Extract:**
+• **Headings**: Document section titles
+• **Extracted Items**: Any other relevant information
+
+---
+
+## 🔍 Step 3: Data Extraction Rules
+
+**What to Look For:**
+• **Dates**: Convert all dates to YYYY-MM-DD format
+• **Numbers**: Extract amounts, percentages, counts with units
+• **Citations**: Legal references, case names, statutes
+• **Names**: Parties, organizations, officials
+• **Locations**: Addresses, jurisdictions, venues
+
+**Evidence Requirements:**
+• Every item must include the exact text snippet
+• Include page number where found
+• Keep snippets concise but meaningful
+• Confidence score 0.7+ for clear evidence
+
+---
+
+## 🛡️ Step 4: Anti-Hallucination Rules
+
+**What NOT to Do:**
+• Don't infer information not in the text
+• Don't use filename to determine content
+• Don't add boilerplate language
+• Don't summarize page by page
+• Don't create generic descriptions
+
+**What TO Do:**
+• Extract only explicit facts from the document
+• Use exact quotes from the text
+• Include page numbers for verification
+• Return empty arrays if no evidence found
+• Focus on structured, factual extraction
+
+---
+
+## 📝 Implementation Notes
+
+**Processing:**
+• Feed document text page by page
+• Run extraction on each batch
+• Merge and deduplicate results
+• Calculate total page count
+• Ensure all dates are in ISO format
+
+**Output:**
+• Valid JSON only
+• No explanatory text
+• All confidence scores ≥ 0.7
+• Evidence snippets for every item
+• Page numbers for verification
+
+---
+
+## 🎯 Key Success Metrics
+
+**Quality Indicators:**
+• Every extracted item has evidence
+• All dates are properly formatted
+• Page numbers are accurate
+• No generic or boilerplate text
+• Structured data is complete
+• Confidence scores are justified
+
+**Document Coverage:**
+• Handles all 13 document types
+• Extracts critical dates and deadlines
+• Identifies key parties and roles
+• Captures financial terms and amounts
+• Records legal requirements and compliance
+• Preserves specific evidence and context
 

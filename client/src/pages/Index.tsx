@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import FileUploader from "../components/FileUploader";
+
 import ResultsDashboard from "../components/ResultsDashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -264,8 +265,10 @@ const Index = ({ onLogout }: IndexProps) => {
               </p>
             </div>
 
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto space-y-8">
               <FileUploader onUploadComplete={handleUploadComplete} />
+              
+
             </div>
           </div>
         )}

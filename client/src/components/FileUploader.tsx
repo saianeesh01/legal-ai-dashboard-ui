@@ -29,9 +29,11 @@ import {
   Clock,
   Files,
   Loader2,
+  Zap,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { uploadFile, pollJobStatus, checkDuplicate, deleteDocument, ApiError } from "@/lib/api";
+import { uploadFile, pollJobStatus, checkDuplicate, deleteDocument, ApiError, uploadBatch, getBatchStatus } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { UploadHelp } from "./ContextualHelpTooltip";
 
@@ -63,6 +65,24 @@ interface FileUploadStatus {
   timeRemaining?: number;
 }
 
+interface BatchJobStatus {
+  id: string;
+  filename: string;
+  status: string;
+  result_path?: string;
+  doc_type?: string;
+  error_message?: string;
+}
+
+interface BatchStatus {
+  success: boolean;
+  batch_id: string;
+  created_at: string;
+  completed_count: number;
+  error_count: number;
+  jobs: BatchJobStatus[];
+}
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
@@ -73,6 +93,11 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  
+  // Batch processing state
+  const [useBatchProcessing, setUseBatchProcessing] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null);
+  const [isBatchPolling, setIsBatchPolling] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -143,8 +168,170 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
 
     if (filesToUpload.length > 0) {
       console.log("Starting upload for", filesToUpload.length, "files");
-      await performMultipleUploads(filesToUpload);
+      
+      // Auto-detect if batch processing should be used (5+ files)
+      const shouldUseBatch = filesToUpload.length >= 3;
+      setUseBatchProcessing(shouldUseBatch);
+      
+      if (shouldUseBatch) {
+        await performBatchUpload(filesToUpload);
+      } else {
+        await performMultipleUploads(filesToUpload);
+      }
     }
+  };
+
+  const performBatchUpload = async (files: File[]) => {
+    console.log("performBatchUpload called with", files.length, "files");
+    setIsUploading(true);
+
+    try {
+      // Initialize upload status for all files
+      const initialUploads: FileUploadStatus[] = files.map(file => ({
+        file,
+        status: "pending",
+        progress: 0,
+      }));
+
+      setFileUploads(initialUploads);
+
+      // Upload batch to AI service
+      const result = await uploadBatch(files);
+      
+      // Update status to processing
+      setFileUploads(prev => prev.map(upload => ({
+        ...upload,
+        status: "processing" as const,
+        progress: 50
+      })));
+
+      // Set batch status and start polling
+      setBatchStatus({
+        success: true,
+        batch_id: result.batch_id,
+        created_at: new Date().toISOString(),
+        completed_count: 0,
+        error_count: 0,
+        jobs: result.jobs.map(job => ({
+          id: job.id,
+          filename: job.filename,
+          status: job.status
+        }))
+      });
+
+      // Start polling for batch status
+      startBatchStatusPolling(result.batch_id);
+
+      toast({
+        title: "Batch upload started",
+        description: `Processing ${files.length} files in parallel...`,
+      });
+
+    } catch (err) {
+      console.error("Batch upload failed:", err);
+      const errorMsg = err instanceof ApiError ? err.message : "Batch upload failed";
+      
+      setFileUploads(prev => prev.map(upload => ({
+        ...upload,
+        status: "error" as const,
+        error: errorMsg
+      })));
+
+      toast({
+        title: "Batch upload failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const startBatchStatusPolling = async (batchId: string) => {
+    setIsBatchPolling(true);
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await getBatchStatus(batchId);
+        setBatchStatus(status);
+        
+        // Update individual file statuses based on batch status
+        setFileUploads(prev => prev.map(upload => {
+          const batchJob = status.jobs.find(job => job.filename === upload.file.name);
+          if (batchJob) {
+            let newStatus: FileUploadStatus['status'] = 'processing';
+            let progress = 50;
+            
+            switch (batchJob.status) {
+              case 'queued':
+                newStatus = 'pending';
+                progress = 25;
+                break;
+              case 'running':
+                newStatus = 'processing';
+                progress = 75;
+                break;
+              case 'done':
+                newStatus = 'complete';
+                progress = 100;
+                break;
+              case 'error':
+                newStatus = 'error';
+                progress = 0;
+                break;
+            }
+            
+            return {
+              ...upload,
+              status: newStatus,
+              progress,
+              error: batchJob.error_message
+            };
+          }
+          return upload;
+        }));
+        
+        // Check if all jobs are completed
+        if (status.completed_count + status.error_count === status.jobs.length) {
+          clearInterval(pollInterval);
+          setIsBatchPolling(false);
+          
+          // Invalidate document queries to refresh the UI
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          
+          if (status.error_count === 0) {
+            toast({
+              title: "Batch processing complete!",
+              description: `Successfully processed ${status.completed_count} files.`,
+            });
+          } else {
+            toast({
+              title: "Batch processing finished",
+              description: `${status.completed_count} files processed, ${status.error_count} failed.`,
+              variant: status.error_count > status.completed_count ? "destructive" : "default",
+            });
+          }
+          
+          // Call onUploadComplete with batch results
+          const uploadResults = status.jobs
+            .filter(job => job.status === 'done')
+            .map(job => ({
+              jobId: job.id,
+              fileName: job.filename,
+              fileSize: 0, // We don't have file size in batch status
+              processedAt: new Date().toISOString(),
+            }));
+          
+          if (uploadResults.length > 0) {
+            onUploadComplete(uploadResults);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to get batch status:', error);
+        clearInterval(pollInterval);
+        setIsBatchPolling(false);
+      }
+    }, 2000); // Poll every 2 seconds
   };
 
   const performMultipleUploads = async (files: File[]) => {
@@ -281,7 +468,14 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
 
     try {
       // For now, we'll just upload the files (replace logic would need backend support)
-      await performMultipleUploads(pendingFiles);
+      const shouldUseBatch = pendingFiles.length >= 3;
+      setUseBatchProcessing(shouldUseBatch);
+      
+      if (shouldUseBatch) {
+        await performBatchUpload(pendingFiles);
+      } else {
+        await performMultipleUploads(pendingFiles);
+      }
     } catch (err) {
       console.error("Replace failed:", err);
       toast({
@@ -300,7 +494,14 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
     if (!pendingFiles) return;
 
     // Upload the files anyway (keep all)
-    await performMultipleUploads(pendingFiles);
+    const shouldUseBatch = pendingFiles.length >= 3;
+    setUseBatchProcessing(shouldUseBatch);
+    
+    if (shouldUseBatch) {
+      await performBatchUpload(pendingFiles);
+    } else {
+      await performMultipleUploads(pendingFiles);
+    }
 
     setShowDuplicateDialog(false);
     setPendingFiles([]);
@@ -332,10 +533,16 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
 
   const reset = () => {
     setFileUploads([]);
+    setBatchStatus(null);
+    setIsBatchPolling(false);
   };
 
   const removeFile = (index: number) => {
     setFileUploads(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const toggleBatchProcessing = () => {
+    setUseBatchProcessing(!useBatchProcessing);
   };
 
   /* ------------------------------ render ----------------------------- */
@@ -353,7 +560,46 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
           </CardTitle>
           <CardDescription className="text-blue-200">
             Upload multiple PDF or image files (≤ 50 MB each). AI-powered analysis with OCR support.
+            {fileUploads.length >= 3 && (
+              <span className="ml-2 text-green-300">
+                <Zap className="h-3 w-3 inline mr-1" />
+                Batch processing available for faster parallel processing
+              </span>
+            )}
           </CardDescription>
+          
+          {/* Batch Processing Toggle */}
+          {fileUploads.length >= 3 && (
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                variant={useBatchProcessing ? "default" : "outline"}
+                size="sm"
+                onClick={toggleBatchProcessing}
+                className={`${
+                  useBatchProcessing 
+                    ? "bg-green-600 hover:bg-green-700 text-white" 
+                    : "border-white/30 text-white hover:bg-white/10"
+                }`}
+              >
+                {useBatchProcessing ? (
+                  <>
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Batch Processing Enabled
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Enable Batch Processing
+                  </>
+                )}
+              </Button>
+              {useBatchProcessing && (
+                <span className="text-xs text-green-300 bg-green-900/30 px-2 py-1 rounded">
+                  Files will be processed in parallel for faster results
+                </span>
+              )}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
@@ -422,7 +668,7 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                     )}
                     {upload.status === "processing" && (
                       <p className="text-xs text-blue-300 mt-1">
-                        AI analysis in progress...
+                        {useBatchProcessing ? "AI analysis in parallel..." : "AI analysis in progress..."}
                       </p>
                     )}
                     {upload.status === "complete" && (
@@ -492,7 +738,7 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                           )}
                           {upload.status === "processing" && (
                             <span className="text-blue-300 font-medium">
-                              Analyzing document content...
+                              {useBatchProcessing ? "Processing in parallel..." : "Analyzing document content..."}
                             </span>
                           )}
                         </div>
@@ -519,7 +765,14 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <Loader2 className="h-5 w-5 text-blue-300 animate-spin" />
-                      <span className="font-bold text-blue-200 text-lg">Processing Documents</span>
+                      <span className="font-bold text-blue-200 text-lg">
+                        {useBatchProcessing ? "Batch Processing Documents" : "Processing Documents"}
+                      </span>
+                      {useBatchProcessing && (
+                        <span className="text-xs text-green-300 bg-green-900/30 px-2 py-1 rounded">
+                          Parallel Processing
+                        </span>
+                      )}
                     </div>
                     <div className="text-right">
                       <span className="font-bold text-blue-200 text-lg">
@@ -552,6 +805,42 @@ const FileUploader = ({ onUploadComplete }: FileUploaderProps) => {
                       <div className="text-xs text-red-300">Failed</div>
                     </div>
                   </div>
+                  
+                  {/* Batch Processing Status */}
+                  {useBatchProcessing && batchStatus && (
+                    <div className="mt-4 p-4 bg-green-900/20 rounded-lg border border-green-500/30">
+                      <div className="flex items-center gap-2 text-green-300 mb-2">
+                        <Zap className="h-4 w-4" />
+                        <span className="font-medium">Batch Processing Status</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                        <div>
+                          <div className="text-lg font-bold text-green-200">
+                            {batchStatus.jobs.filter(j => j.status === 'queued').length}
+                          </div>
+                          <div className="text-xs text-green-300">Queued</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-blue-200">
+                            {batchStatus.jobs.filter(j => j.status === 'running').length}
+                          </div>
+                          <div className="text-xs text-blue-300">Running</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-green-200">
+                            {batchStatus.completed_count}
+                          </div>
+                          <div className="text-xs text-green-300">Completed</div>
+                        </div>
+                      </div>
+                      {isBatchPolling && (
+                        <div className="text-center text-xs text-green-300 mt-2">
+                          <Clock className="h-3 w-3 inline mr-1 animate-spin" />
+                          Monitoring progress...
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
