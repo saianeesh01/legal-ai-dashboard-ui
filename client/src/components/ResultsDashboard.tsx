@@ -27,6 +27,7 @@ import { queryDocument, analyzeDocument, getAllDocuments, ApiError } from "@/lib
 import QueryForm from "./QueryForm";
 import SecurityStatus from "./SecurityStatus";
 import EnhancedQueryResponse from "./EnhancedQueryResponse";
+import { EnhancedUniversalAnalysis } from "./EnhancedUniversalAnalysis";
 import {
   DocumentAnalysisHelp,
   ConfidenceScoreHelp,
@@ -38,244 +39,113 @@ import {
   EvidenceHelp
 } from "./ContextualHelpTooltip";
 
-// Color-coded analysis component
-const ColorCodedAnalysis = ({ summary }: { summary: string }) => {
-  const [analysis, setAnalysis] = useState<{
-    positive: string[];
-    ongoing: string[];
-    urgent: string[];
-    inconsistencies: string[];
-    missingInfo: string[];
-    actionItems: string[];
-  } | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  useEffect(() => {
-    if (summary && !analysis) {
-      analyzeSummary();
-    }
-  }, [summary]);
-
-  const analyzeSummary = async () => {
-    setIsAnalyzing(true);
-    try {
-      // Enhanced prompt for color-coded analysis
-      const prompt = `Analyze this summary and provide a structured, color-coded analysis:
-
-📝 Original Summary:
-${summary}
-
-Please organize the issues into:
-
-🟩 Green (Positive developments or resolved issues):
-- List positive developments, improvements, or resolved issues
-
-🟨 Yellow (Ongoing concerns that should be monitored):
-- List ongoing concerns, areas needing attention, or monitoring points
-
-🟥 Red (Critical or urgent issues requiring immediate attention):
-- List critical issues, urgent problems, or immediate action items
-
-Also provide:
-
-Inconsistencies:
-- List any contradictions or discrepancies in the summary
-
-Missing Information:
-- Identify areas where data, sources, or context are lacking
-
-Suggested Action Items:
-- Recommend next steps based on the findings
-
-Format as JSON:
-{
-  "positive": ["item1", "item2"],
-  "ongoing": ["item1", "item2"],
-  "urgent": ["item1", "item2"],
-  "inconsistencies": ["item1"],
-  "missingInfo": ["item1"],
-  "actionItems": ["item1", "item2"]
-}`;
-
-      // Call AI service for analysis
-      const response = await fetch('/api/analyze-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary, prompt })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setAnalysis(result);
-      } else {
-        // Fallback: simple keyword-based analysis
-        setAnalysis(generateFallbackAnalysis(summary));
-      }
-    } catch (error) {
-      console.error('Analysis error:', error);
-      setAnalysis(generateFallbackAnalysis(summary));
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const generateFallbackAnalysis = (summary: string): any => {
-    const lowerSummary = summary.toLowerCase();
-    const positive = [];
-    const ongoing = [];
-    const urgent = [];
-    const inconsistencies = [];
-    const missingInfo = [];
-    const actionItems = [];
-
-    // Simple keyword-based analysis
-    if (lowerSummary.includes('improved') || lowerSummary.includes('increased') || lowerSummary.includes('successful')) {
-      positive.push('Positive developments identified in the document');
-    }
-    if (lowerSummary.includes('ongoing') || lowerSummary.includes('continuing') || lowerSummary.includes('monitoring')) {
-      ongoing.push('Ongoing concerns or processes mentioned');
-    }
-    if (lowerSummary.includes('urgent') || lowerSummary.includes('critical') || lowerSummary.includes('immediate')) {
-      urgent.push('Urgent issues requiring attention');
-    }
-    if (lowerSummary.includes('unclear') || lowerSummary.includes('unclear')) {
-      inconsistencies.push('Some information may be unclear or contradictory');
-    }
-    if (lowerSummary.includes('limited') || lowerSummary.includes('insufficient')) {
-      missingInfo.push('Limited information available in some areas');
-    }
-
-    actionItems.push('Review document for compliance requirements');
-    actionItems.push('Monitor ongoing developments mentioned');
-
-    return { positive, ongoing, urgent, inconsistencies, missingInfo, actionItems };
-  };
-
-  if (isAnalyzing) {
-    return (
-      <div className="bg-muted/50 rounded-lg p-4">
-        <div className="flex items-center space-x-2">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-          <span className="text-sm text-muted-foreground">Analyzing summary...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!analysis) return null;
+// Universal extraction display component
+const UniversalExtractionDisplay = ({ extraction }: { extraction: any }) => {
+  if (!extraction) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Positive Developments */}
-      {analysis.positive.length > 0 && (
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center">
-            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-            🟩 Positive Developments
-          </h4>
-          <div className="space-y-2">
-            {analysis.positive.map((item, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span className="text-sm">{item}</span>
-              </div>
-            ))}
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          📋 Document Analysis Results
+        </h3>
+        
+        {/* Document Type and Metadata */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-medium text-gray-500">Document Type:</span>
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+              {extraction.doc_type?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Unknown'}
+            </span>
           </div>
-        </div>
-      )}
-
-      {/* Ongoing Concerns */}
-      {analysis.ongoing.length > 0 && (
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center">
-            <AlertCircle className="h-4 w-4 mr-2 text-yellow-600" />
-            🟨 Ongoing Concerns
-          </h4>
-          <div className="space-y-2">
-            {analysis.ongoing.map((item, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span className="text-sm">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Urgent Issues */}
-      {analysis.urgent.length > 0 && (
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center">
-            <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
-            🟥 Urgent Issues
-          </h4>
-          <div className="space-y-2">
-            {analysis.urgent.map((item, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span className="text-sm">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Additional Analysis */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Inconsistencies */}
-        {analysis.inconsistencies.length > 0 && (
-          <div>
-            <h4 className="font-semibold mb-2 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2 text-orange-600" />
-              Inconsistencies
-            </h4>
-            <div className="space-y-2">
-              {analysis.inconsistencies.map((item, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-sm">{item}</span>
+          
+          {extraction.meta && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              {extraction.meta.title && (
+                <div>
+                  <span className="font-medium text-gray-600">Title:</span>
+                  <p className="text-gray-900">{extraction.meta.title}</p>
                 </div>
-              ))}
+              )}
+              {extraction.meta.jurisdiction_or_body && (
+                <div>
+                  <span className="font-medium text-gray-600">Jurisdiction:</span>
+                  <p className="text-gray-900">{extraction.meta.jurisdiction_or_body}</p>
+                </div>
+              )}
+              {extraction.meta.date_iso && (
+                <div>
+                  <span className="font-medium text-gray-600">Date:</span>
+                  <p className="text-gray-900">{extraction.meta.date_iso}</p>
+                </div>
+              )}
             </div>
+          )}
+        </div>
+
+        {/* Extracted Sections */}
+        {extraction.sections && Object.keys(extraction.sections).length > 0 && (
+          <div className="space-y-4">
+            {Object.entries(extraction.sections).map(([sectionName, sectionData]: [string, any]) => {
+              if (!sectionData || (Array.isArray(sectionData) && sectionData.length === 0)) return null;
+              
+              return (
+                <div key={sectionName} className="border-l-4 border-blue-200 pl-4">
+                  <h4 className="font-medium text-gray-800 mb-2 capitalize">
+                    {sectionName.replace(/_/g, ' ')}
+                  </h4>
+                  
+                  {Array.isArray(sectionData) ? (
+                    <div className="space-y-2">
+                      {sectionData.map((item: any, index: number) => (
+                        <div key={index} className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                          {item.evidence && (
+                            <p className="font-medium">"{item.evidence}"</p>
+                          )}
+                          {item.page && (
+                            <span className="text-xs text-gray-500">Page {item.page}</span>
+                          )}
+                          {item.confidence && (
+                            <span className="ml-2 text-xs text-blue-600">
+                              {Math.round(item.confidence * 100)}% confidence
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-700">
+                      {typeof sectionData === 'object' ? (
+                        <pre className="whitespace-pre-wrap text-xs">
+                          {JSON.stringify(sectionData, null, 2)}
+                        </pre>
+                      ) : (
+                        <p>{String(sectionData)}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Missing Information */}
-        {analysis.missingInfo.length > 0 && (
-          <div>
-            <h4 className="font-semibold mb-2 flex items-center">
-              <Info className="h-4 w-4 mr-2 text-blue-600" />
-              Missing Information
-            </h4>
-            <div className="space-y-2">
-              {analysis.missingInfo.map((item, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-sm">{item}</span>
-                </div>
-              ))}
+        {/* Confidence Score */}
+        {extraction.confidence && (
+          <div className="mt-6 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Overall Confidence:</span>
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round(extraction.confidence * 100)}%` }}
+                ></div>
+              </div>
+              <span className="text-sm text-gray-900">{Math.round(extraction.confidence * 100)}%</span>
             </div>
           </div>
         )}
       </div>
-
-      {/* Suggested Action Items */}
-      {analysis.actionItems.length > 0 && (
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center">
-            <Target className="h-4 w-4 mr-2 text-purple-600" />
-            Suggested Action Items
-          </h4>
-          <div className="space-y-2">
-            {analysis.actionItems.map((item, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
-                <span className="text-sm">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -587,6 +457,21 @@ The document contains standard commercial lease provisions with some tenant-favo
               </div>
             </div>
 
+            {/* Enhanced Universal Analysis */}
+            {aiAnalysis.universalExtraction && (
+              <div className="mb-6">
+                <h4 className="font-semibold mb-3 flex items-center text-blue-100">
+                  <Brain className="h-4 w-4 mr-2 text-blue-300" />
+                  Enhanced Universal Analysis
+                </h4>
+                <div className="bg-white/90 rounded-lg p-4">
+                  <EnhancedUniversalAnalysis 
+                    universalExtraction={aiAnalysis.universalExtraction} 
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Color-Coded Analysis */}
             <div className="mb-6">
               <h4 className="font-semibold mb-3 flex items-center text-blue-100">
@@ -594,7 +479,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 Color-Coded Analysis
               </h4>
               <div className="bg-white/90 rounded-lg p-4">
-                <ColorCodedAnalysis summary={aiAnalysis.summary} />
+                <UniversalExtractionDisplay extraction={aiAnalysis} />
               </div>
             </div>
 

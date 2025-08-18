@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { SmartLegalClassifier, type SmartClassificationResult } from "./smart_classifier";
-import { MultiLabelDocumentClassifier, type MultiLabelClassificationResult } from "./multi_label_classifier";
+
 import { EnhancedContentAnalyzer } from "./enhanced_content_analyzer";
 import { DocumentQueryEngine } from "./document_query_engine";
 import { PDFExtractor } from "./pdf_extractor.js";
@@ -15,6 +15,7 @@ import crypto from "crypto";
 import fetch from 'node-fetch';
 import { DocumentExtractor } from './document_extractor';
 import { setupWarmupRoutes } from './routes/warmup';
+import { EnhancedUniversalExtractor, type UniversalExtractionResult } from './enhanced_universal_extractor';
 // FAISS vector search integration functions
 
 
@@ -605,16 +606,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`📄 Content length: ${redactedContent.length} characters`);
 
           try {
-            console.log(`🔍 Step 1: Multi-label classification...`);
-            // Use the enhanced MultiLabelDocumentClassifier for comprehensive analysis
-            const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(file.originalname, redactedContent);
+            console.log(`🔍 Step 1: Enhanced Universal Document Analysis...`);
+            
+            // Perform enhanced universal extraction for comprehensive analysis
+            let universalExtraction: UniversalExtractionResult | null = null;
+            try {
+              console.log(`🔍 Performing enhanced universal extraction for: ${file.originalname}`);
+              universalExtraction = await EnhancedUniversalExtractor.extractDocumentInfo(
+                file.originalname,
+                redactedContent
+              );
+              console.log(`✅ Enhanced universal extraction completed for: ${file.originalname}`);
+              console.log(`  Document Type: ${universalExtraction.doc_type}`);
+              console.log(`  Confidence: ${universalExtraction.confidence_score}`);
+              console.log(`  Processing Time: ${universalExtraction.processing_time_ms}ms`);
+            } catch (extractionError) {
+              console.error(`❌ Enhanced universal extraction failed for ${file.originalname}:`, extractionError);
+              // Fallback to basic content analysis
+            }
+
+            // Fallback to basic content analysis if universal extraction fails
+            let enhancedAnalysis;
+            if (universalExtraction) {
+              // Use universal extraction results
+              enhancedAnalysis = {
+                documentType: universalExtraction.doc_type,
+                verdict: universalExtraction.classification.verdict,
+                confidence: universalExtraction.confidence_score,
+                wordCount: redactedContent.split(' ').length,
+                keyFindings: Object.keys(universalExtraction.sections).map(key => `${key}: ${JSON.stringify(universalExtraction.sections[key]).slice(0, 100)}...`),
+                criticalDates: universalExtraction.content_analysis.dates,
+                financialTerms: universalExtraction.content_analysis.financial_terms,
+                complianceRequirements: universalExtraction.content_analysis.compliance_requirements,
+                evidence: universalExtraction.classification.evidence,
+                reasoning: universalExtraction.classification.reasoning,
+                estimatedReadingTime: Math.ceil(redactedContent.split(' ').length / 200),
+                improvements: universalExtraction.content_analysis.suggestions,
+                toolkit: {
+                  documentType: universalExtraction.doc_type,
+                  confidence: universalExtraction.confidence_score,
+                  sections: Object.keys(universalExtraction.sections)
+                }
+              };
+            } else {
+              // Fallback to basic content analysis
+              const { ContentBasedAnalyzer } = await import('./content_based_analyzer');
+              enhancedAnalysis = await ContentBasedAnalyzer.analyzeDocument(file.originalname, redactedContent);
+            }
 
             // Log analysis details for debugging
-            console.log(`Multi-label classification result for ${file.originalname}:`);
-            console.log(`  Document Type: ${multiLabelResult.document_type}`);
-            console.log(`  Confidence: ${multiLabelResult.confidence}`);
-            console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
-            console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
+            console.log(`Enhanced universal analysis result for ${file.originalname}:`);
+            console.log(`  Document Type: ${enhancedAnalysis.documentType}`);
+            console.log(`  Confidence: ${enhancedAnalysis.confidence}`);
+            console.log(`  Evidence Count: ${enhancedAnalysis.evidence?.length || 0}`);
+            console.log(`  Verdict: ${enhancedAnalysis.verdict}`);
 
             // Use Ollama Mistral for summary
             console.log(`🔍 Step 2: Starting analysis with Ollama Mistral for: ${file.originalname}`);
@@ -627,23 +672,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`✅ Using Ollama Mistral generated summary`);
             }
 
-            // Create enhanced analysis result with multi-label insights
+            // Create enhanced analysis result with universal extractor insights
             const contentAnalysis = {
-              documentType: multiLabelResult.document_type,
-              verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
-              confidence: multiLabelResult.confidence,
-              wordCount: redactedContent.split(/\s+/).length,
-              keyFindings: multiLabelResult.evidence.slice(0, 5), // Use first 5 evidence items as key findings
+              documentType: enhancedAnalysis.documentType,
+              verdict: enhancedAnalysis.verdict,
+              confidence: enhancedAnalysis.confidence,
+              wordCount: enhancedAnalysis.wordCount,
+              keyFindings: enhancedAnalysis.keyFindings,
               summary, // Use Mistral summary
-              improvements: generateDocumentImprovements(multiLabelResult.document_type, redactedContent),
-              toolkit: generateDocumentToolkit(multiLabelResult.document_type),
-              criticalDates: extractCriticalDates(redactedContent),
-              financialTerms: extractFinancialTerms(redactedContent),
-              complianceRequirements: extractComplianceRequirements(redactedContent),
-              evidence: multiLabelResult.evidence,
-              reasoning: multiLabelResult.reasoning,
-              estimatedReadingTime: Math.ceil(redactedContent.split(/\s+/).length / 200), // 200 words per minute
-              taxonomyCategory: multiLabelResult.taxonomyCategory
+              improvements: enhancedAnalysis.improvements,
+              toolkit: enhancedAnalysis.toolkit,
+              criticalDates: enhancedAnalysis.criticalDates,
+              financialTerms: enhancedAnalysis.financialTerms,
+              complianceRequirements: enhancedAnalysis.complianceRequirements,
+              evidence: enhancedAnalysis.evidence,
+              reasoning: enhancedAnalysis.reasoning,
+              estimatedReadingTime: enhancedAnalysis.estimatedReadingTime,
+              // Add universal extraction data if available
+              universalExtraction: universalExtraction ? {
+                doc_type: universalExtraction.doc_type,
+                meta: universalExtraction.meta,
+                sections: universalExtraction.sections,
+                processing_time_ms: universalExtraction.processing_time_ms,
+                confidence_score: universalExtraction.confidence_score
+              } : null
             };
 
             // Create enhanced analysis result with all the content-based insights
@@ -663,15 +715,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               reasoning: contentAnalysis.reasoning,
               wordCount: contentAnalysis.wordCount,
               estimatedReadingTime: contentAnalysis.estimatedReadingTime,
+              // Enhanced universal extraction data
+              universalExtraction: contentAnalysis.universalExtraction,
               // Legacy compatibility fields
               contentAnalysis: {
                 hasCourtIndicators: contentAnalysis.documentType === 'nta' || contentAnalysis.documentType === 'motion',
-                hasLitigationTerms: contentAnalysis.evidence.length > 0
+                hasLitigationTerms: contentAnalysis.evidence?.length > 0
               },
               multiLabelAnalysis: {
                 documentType: contentAnalysis.documentType,
                 confidence: contentAnalysis.confidence,
-                evidence: contentAnalysis.evidence,
+                evidence: contentAnalysis.evidence || [],
                 pageReferences: []
               }
             };
@@ -762,129 +816,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Summary analysis endpoint for color-coded analysis
-  app.post("/api/analyze-summary", async (req, res) => {
-    try {
-      const { summary, prompt } = req.body;
 
-      if (!summary) {
-        return res.status(400).json({ error: "Missing summary" });
-      }
 
-      console.log(`🔍 Starting color-coded analysis for summary (${summary.length} characters)`);
 
-      // Use Ollama Mistral for enhanced analysis
-      const analysisPrompt = prompt || `Analyze this summary and provide a structured, color-coded analysis:
 
-📝 Original Summary:
-${summary}
+  // Helper function for fallback universal extraction
+  function generateFallbackExtraction(text: string, filename: string): any {
+    const lowerText = text.toLowerCase();
+    const pageCount = Math.ceil(text.length / 2000);
+    
+    // Basic document type detection
+    let docType = 'other_legal';
+    if (lowerText.includes('court') || lowerText.includes('judge') || lowerText.includes('case no')) {
+      docType = 'court_opinion_or_order';
+    } else if (lowerText.includes('complaint') || lowerText.includes('petition')) {
+      docType = 'complaint_or_docket';
+    } else if (lowerText.includes('form') || lowerText.includes('application')) {
+      docType = 'government_form';
+    } else if (lowerText.includes('grant') || lowerText.includes('funding opportunity')) {
+      docType = 'grant_notice_or_rfa';
+    } else if (lowerText.includes('minutes') || lowerText.includes('meeting')) {
+      docType = 'meeting_minutes';
+    } else if (lowerText.includes('sow') || lowerText.includes('contract')) {
+      docType = 'procurement_sow_or_contract';
+    } else if (lowerText.includes('audit') || lowerText.includes('investigation')) {
+      docType = 'audit_or_investigation_report';
+    } else if (lowerText.includes('country') || lowerText.includes('human rights')) {
+      docType = 'country_or_policy_report';
+    } else if (lowerText.includes('clinic') || lowerText.includes('program')) {
+      docType = 'academic_program_or_clinic_brochure';
+    } else if (lowerText.includes('proposal') || lowerText.includes('budget')) {
+      docType = 'proposal_or_whitepaper';
+    }
 
-Please organize the issues into:
-
-🟩 Green (Positive developments or resolved issues):
-- List positive developments, improvements, or resolved issues
-
-🟨 Yellow (Ongoing concerns that should be monitored):
-- List ongoing concerns, areas needing attention, or monitoring points
-
-🟥 Red (Critical or urgent issues requiring immediate attention):
-- List critical issues, urgent problems, or immediate action items
-
-Also provide:
-
-Inconsistencies:
-- List any contradictions or discrepancies in the summary
-
-Missing Information:
-- Identify areas where data, sources, or context are lacking
-
-Suggested Action Items:
-- Recommend next steps based on the findings
-
-Format as JSON:
-{
-  "positive": ["item1", "item2"],
-  "ongoing": ["item1", "item2"],
-  "urgent": ["item1", "item2"],
-  "inconsistencies": ["item1"],
-  "missingInfo": ["item1"],
-  "actionItems": ["item1", "item2"]
-}`;
-
-      let analysisResult;
+    // Extract basic dates
+    const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi;
+    const dates = text.match(datePattern) || [];
+    const normalizedDates = dates.map(date => {
       try {
-        // Call AI service for analysis
-        const aiServiceUrl = process.env.NODE_ENV === 'production' ? 'http://ai_service:5001' : 'http://localhost:5001';
-        const response = await fetch(`${aiServiceUrl}/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: analysisPrompt,
-            model: 'mistral:7b-instruct-q4_0',
-            max_tokens: 1000
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          // Try to parse JSON from the response
-          try {
-            const jsonMatch = result.response.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              analysisResult = JSON.parse(jsonMatch[0]);
-            } else {
-              throw new Error('No JSON found in response');
-            }
-          } catch (parseError) {
-            console.log('Failed to parse JSON from AI response, using fallback');
-            analysisResult = generateFallbackAnalysis(summary);
-          }
-        } else {
-          throw new Error('AI service request failed');
-        }
-      } catch (error) {
-        console.log('AI analysis failed, using fallback:', error);
-        analysisResult = generateFallbackAnalysis(summary);
+        const dateObj = new Date(date);
+        return dateObj.toISOString().split('T')[0];
+      } catch {
+        return date;
       }
+    });
 
-      res.json(analysisResult);
-    } catch (error) {
-      console.error("Summary analysis error:", error);
-      res.status(500).json({ error: "Summary analysis failed" });
-    }
-  });
-
-  // Helper function for fallback analysis
-  function generateFallbackAnalysis(summary: string): any {
-    const lowerSummary = summary.toLowerCase();
-    const positive = [];
-    const ongoing = [];
-    const urgent = [];
-    const inconsistencies = [];
-    const missingInfo = [];
-    const actionItems = [];
-
-    // Simple keyword-based analysis
-    if (lowerSummary.includes('improved') || lowerSummary.includes('increased') || lowerSummary.includes('successful')) {
-      positive.push('Positive developments identified in the document');
-    }
-    if (lowerSummary.includes('ongoing') || lowerSummary.includes('continuing') || lowerSummary.includes('monitoring')) {
-      ongoing.push('Ongoing concerns or processes mentioned');
-    }
-    if (lowerSummary.includes('urgent') || lowerSummary.includes('critical') || lowerSummary.includes('immediate')) {
-      urgent.push('Urgent issues requiring attention');
-    }
-    if (lowerSummary.includes('unclear') || lowerSummary.includes('unclear')) {
-      inconsistencies.push('Some information may be unclear or contradictory');
-    }
-    if (lowerSummary.includes('limited') || lowerSummary.includes('insufficient')) {
-      missingInfo.push('Limited information available in some areas');
-    }
-
-    actionItems.push('Review document for compliance requirements');
-    actionItems.push('Monitor ongoing developments mentioned');
-
-    return { positive, ongoing, urgent, inconsistencies, missingInfo, actionItems };
+    return {
+      doc_type: docType,
+      meta: {
+        title: filename,
+        jurisdiction_or_body: null,
+        date_iso: normalizedDates[0] || null,
+        page_count: pageCount
+      },
+      sections: {
+        headings: [],
+        extracted_items: []
+      },
+      confidence: 0.6,
+      evidence: dates.slice(0, 5) // Limit evidence to first 5 dates
+    };
   }
 
   // Document analysis endpoint
@@ -905,15 +896,18 @@ Format as JSON:
       const fileContent = job.fileContent || '';
       console.log(`Starting content-based analysis for ${job.fileName}, content length: ${fileContent.length}`);
 
-      // Use the enhanced MultiLabelDocumentClassifier for comprehensive analysis
-      const multiLabelResult: MultiLabelClassificationResult = MultiLabelDocumentClassifier.classifyDocument(job.fileName, fileContent);
+      // Use the enhanced Universal Legal-Doc Extractor for comprehensive analysis
+      const { ContentBasedAnalyzer } = await import('./content_based_analyzer');
+
+      console.log(`Attempting enhanced universal extraction for: ${job.fileName}`);
+      const enhancedAnalysis = await ContentBasedAnalyzer.analyzeDocument(job.fileName, fileContent);
 
       // Log analysis details for debugging
-      console.log(`Multi-label classification result for ${job.fileName}:`);
-      console.log(`  Document Type: ${multiLabelResult.document_type}`);
-      console.log(`  Confidence: ${multiLabelResult.confidence}`);
-      console.log(`  Evidence Count: ${multiLabelResult.evidence.length}`);
-      console.log(`  Reasoning: ${multiLabelResult.reasoning}`);
+      console.log(`Enhanced universal analysis result for ${job.fileName}:`);
+      console.log(`  Document Type: ${enhancedAnalysis.documentType}`);
+      console.log(`  Confidence: ${enhancedAnalysis.confidence}`);
+      console.log(`  Evidence Count: ${enhancedAnalysis.evidence.length}`);
+      console.log(`  Verdict: ${enhancedAnalysis.verdict}`);
 
       // Use Ollama Mistral for summary
       console.log(`🔍 Starting analysis with Ollama Mistral for: ${job.fileName}`);
@@ -926,23 +920,22 @@ Format as JSON:
         console.log(`✅ Using Ollama Mistral generated summary`);
       }
 
-      // Create enhanced analysis result with multi-label insights
+      // Create enhanced analysis result with universal extractor insights
       const contentAnalysis = {
-        documentType: multiLabelResult.document_type,
-        verdict: multiLabelResult.document_type === 'proposal' ? 'proposal' : 'non-proposal',
-        confidence: multiLabelResult.confidence,
-        wordCount: fileContent.split(/\s+/).length,
-        keyFindings: multiLabelResult.evidence.slice(0, 5), // Use first 5 evidence items as key findings
+        documentType: enhancedAnalysis.documentType,
+        verdict: enhancedAnalysis.verdict,
+        confidence: enhancedAnalysis.confidence,
+        wordCount: enhancedAnalysis.wordCount,
+        keyFindings: enhancedAnalysis.keyFindings,
         summary, // Use Mistral summary
-        improvements: generateDocumentImprovements(multiLabelResult.document_type, fileContent),
-        toolkit: generateDocumentToolkit(multiLabelResult.document_type),
-        criticalDates: extractCriticalDates(fileContent),
-        financialTerms: extractFinancialTerms(fileContent),
-        complianceRequirements: extractComplianceRequirements(fileContent),
-        evidence: multiLabelResult.evidence,
-        reasoning: multiLabelResult.reasoning,
-        estimatedReadingTime: Math.ceil(fileContent.split(/\s+/).length / 200), // 200 words per minute
-        taxonomyCategory: multiLabelResult.taxonomyCategory
+        improvements: enhancedAnalysis.improvements,
+        toolkit: enhancedAnalysis.toolkit,
+        criticalDates: enhancedAnalysis.criticalDates,
+        financialTerms: enhancedAnalysis.financialTerms,
+        complianceRequirements: enhancedAnalysis.complianceRequirements,
+        evidence: enhancedAnalysis.evidence,
+        reasoning: enhancedAnalysis.reasoning,
+        estimatedReadingTime: enhancedAnalysis.estimatedReadingTime
       };
 
       // Create enhanced analysis result with all the content-based insights
@@ -1496,7 +1489,7 @@ Format as JSON:
 
         res.json({
           success: true,
-          summary: aiResult.overall_summary,
+          summary: aiResult.summary,
           chunks: aiResult.chunk_summaries,
           extraction: {
             method: extractionResult.extractionMethod,
@@ -1525,6 +1518,188 @@ Format as JSON:
         error: "Failed to generate summary",
         details: error.message
       });
+    }
+  });
+
+  // 🚀 Test enhanced universal extractor endpoint
+  app.post("/api/test/enhanced-extractor", async (req: any, res: any) => {
+    try {
+      const { text, filename } = req.body;
+
+      if (!text || !filename) {
+        return res.status(400).json({
+          error: "Both text and filename are required"
+        });
+      }
+
+      console.log(`Testing enhanced extractor with: ${filename}`);
+
+      // Import the enhanced extractor
+      const { EnhancedUniversalExtractor } = await import('./enhanced_universal_extractor');
+
+      // Get page count estimate
+      const pageCount = Math.ceil(text.length / 2000);
+
+      // Test enhanced extraction
+      const enhancedResult = await EnhancedUniversalExtractor.extractDocumentInfo(
+        text,
+        filename,
+        pageCount
+      );
+
+      // Also get enhanced document type classification
+      const enhancedType = EnhancedUniversalExtractor.classifyDocumentType(text);
+
+      // Compare with existing classification using the public method
+      const { ContentBasedAnalyzer } = await import('./content_based_analyzer');
+      const existingTypeResult = await ContentBasedAnalyzer.getEnhancedDocumentType(text);
+
+      res.json({
+        success: true,
+        comparison: {
+          existing_classification: existingTypeResult.type,
+          enhanced_classification: enhancedType,
+          enhanced_full_result: enhancedResult
+        },
+        enhanced_features: {
+          document_type: enhancedResult.doc_type,
+          confidence: enhancedResult.confidence,
+          metadata: enhancedResult.meta,
+          sections_available: Object.keys(enhancedResult.sections || {}),
+          evidence_count: enhancedResult.evidence.length
+        },
+        message: "Enhanced extractor test completed successfully"
+      });
+
+    } catch (error: any) {
+      console.error("Enhanced extractor test error:", error);
+      res.status(500).json({
+        error: "Enhanced extractor test failed",
+        message: error.message
+      });
+    }
+  });
+
+  // Test enhanced analysis method
+  app.post("/api/test/enhanced-analysis", async (req: any, res: any) => {
+    try {
+      const { text, filename } = req.body;
+
+      if (!text || !filename) {
+        return res.status(400).json({
+          error: "Both text and filename are required"
+        });
+      }
+
+      console.log(`Testing enhanced analysis with: ${filename}`);
+
+      // Import the enhanced analyzer
+      const { ContentBasedAnalyzer } = await import('./content_based_analyzer');
+
+      // Test both standard and enhanced analysis
+      const standardResult = await ContentBasedAnalyzer.analyzeDocument(filename, text);
+      const enhancedResult = await ContentBasedAnalyzer.analyzeWithEnhancedExtractor(filename, text);
+
+      res.json({
+        success: true,
+        comparison: {
+          standard_analysis: {
+            document_type: standardResult.documentType,
+            verdict: standardResult.verdict,
+            confidence: standardResult.confidence,
+            summary_length: standardResult.summary?.length || 0
+          },
+          enhanced_analysis: {
+            document_type: enhancedResult.documentType,
+            verdict: enhancedResult.verdict,
+            confidence: enhancedResult.confidence,
+            summary_length: enhancedResult.summary?.length || 0,
+            enhanced_extraction: enhancedResult.enhancedExtraction
+          }
+        },
+        enhanced_features_demonstrated: {
+          expanded_document_types: enhancedResult.enhancedExtraction?.documentType || 'Not available',
+          structured_extraction: enhancedResult.enhancedExtraction?.sections ? 'Available' : 'Not available',
+          evidence_based_analysis: enhancedResult.enhancedExtraction?.evidence ? 'Available' : 'Not available'
+        },
+        message: "Enhanced analysis test completed successfully"
+      });
+
+    } catch (error: any) {
+      console.error("Enhanced analysis test error:", error);
+      res.status(500).json({
+        error: "Enhanced analysis test failed",
+        message: error.message
+      });
+    }
+  });
+
+  // Universal document extraction endpoint using the enhanced extractor
+  app.post("/api/extract-universal", async (req, res) => {
+    try {
+      const { text, filename } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ error: "Missing document text" });
+      }
+
+      console.log(`🔍 Starting universal document extraction for: ${filename || 'unknown'}`);
+
+      try {
+        // Call AI service for universal extraction
+        const aiServiceUrl = process.env.NODE_ENV === 'production' ? 'http://ai_service:5001' : 'http://localhost:5001';
+        const response = await fetch(`${aiServiceUrl}/extract/universal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            filename: filename || 'document.pdf',
+            model: 'mistral:7b-instruct-q4_0',
+            max_tokens: 1500
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.extraction) {
+            // Try to parse JSON from the extraction result
+            try {
+              const jsonMatch = result.extraction.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const extractionResult = JSON.parse(jsonMatch[0]);
+                res.json({
+                  success: true,
+                  extraction: extractionResult,
+                  model_used: result.model_used
+                });
+              } else {
+                throw new Error('No JSON found in extraction response');
+              }
+            } catch (parseError) {
+              console.log('Failed to parse JSON from extraction response, using fallback');
+              res.json({
+                success: false,
+                error: 'Failed to parse extraction result',
+                fallback: generateFallbackExtraction(text, filename)
+              });
+            }
+          } else {
+            throw new Error('AI service returned unsuccessful response');
+          }
+        } else {
+          throw new Error('AI service request failed');
+        }
+      } catch (error) {
+        console.log('AI extraction failed, using fallback:', error);
+        res.json({
+          success: false,
+          error: 'AI extraction failed',
+          fallback: generateFallbackExtraction(text, filename)
+        });
+      }
+    } catch (error) {
+      console.error("Universal extraction error:", error);
+      res.status(500).json({ error: "Universal extraction failed" });
     }
   });
 
@@ -2401,4 +2576,6 @@ async function semanticQuery(query: string, model: string = 'mistral:7b-instruct
     return null;
   }
 }
+
+
 

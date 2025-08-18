@@ -20,7 +20,6 @@ from flask_cors import CORS
 from typing import List, Dict, Optional
 import requests
 from dataclasses import dataclass
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -332,7 +331,7 @@ def create_optimized_prompt(text: str, task: str = "analyze") -> str:
     
     # For summarization, allow larger context for comprehensive summary
     if task == "summarize":
-        max_chars = 8000  # Increased for comprehensive summarization
+        max_chars = 4000  # Reduced to prevent memory issues
         limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
         
         return f"""You are a legal AI assistant. Create a comprehensive, unified summary of this legal document in one cohesive paragraph:
@@ -427,98 +426,148 @@ def create_report_analysis_prompt(text: str) -> str:
 
 Be concise and use bullet points."""
 
-def validate_text_content(text: str) -> Dict[str, Any]:
-    """Validate text content for AI processing"""
-    if not text or not text.strip():
-        return {
-            "valid": False,
-            "reason": "Empty or whitespace-only text",
-            "word_count": 0
-        }
+def create_universal_extraction_prompt(text: str, filename: str) -> str:
+    """Create the Enhanced Universal Legal-Doc Extractor prompt for comprehensive document analysis"""
     
-    words = text.split()
-    word_count = len(words)
+    # Smart context selection for large documents
+    if len(text) > 10000:
+        # For large documents, use strategic sampling
+        limited_text = smart_context_selection(text, filename)
+    else:
+        # For smaller documents, use full context
+        max_chars = 8000
+        limited_text = text[:max_chars] + "..." if len(text) > max_chars else text
     
-    if word_count < 10:
-        return {
-            "valid": False,
-            "reason": f"Insufficient content: only {word_count} words",
-            "word_count": word_count
-        }
-    
-    # Check for corruption patterns
-    alphabetic_chars = sum(1 for c in text if c.isalpha())
-    total_chars = len(text)
-    alphabetic_ratio = alphabetic_chars / total_chars if total_chars > 0 else 0
-    
-    if alphabetic_ratio < 0.3:
-        return {
-            "valid": False,
-            "reason": f"Text appears corrupted: {alphabetic_ratio:.2%} alphabetic characters",
-            "word_count": word_count
-        }
-    
-    return {
-        "valid": True,
-        "word_count": word_count,
-        "alphabetic_ratio": alphabetic_ratio
-    }
+    return f"""# Enhanced Universal Legal-Doc Extractor (Doc-Only • Multi-Type • No Hallucinations)
 
+**You are a legal/document extraction agent. Follow these rules exactly.**
 
+## Hard Rules
 
-def process_single_chunk(ollama: OllamaClient, chunk: str, index: int, models_to_try: List[str], prompt_template: str) -> Dict:
-    """Process a single chunk - designed to be run in parallel"""
-    logger.info(f"📄 Processing chunk {index+1}")
+1. **Use ONLY the provided document text** (no filename cues, prior runs, or web).
+2. Every item must include a **verbatim snippet** and a **page number**.
+3. If a fact is not explicit in the text, **omit it**. Do **not** guess.
+4. If you're unsure how to label something, return it under `other` with low confidence **or drop it**.
+5. Output **valid JSON only**. No prose.
+
+---
+
+## Step 1 — Detect `doc_type` from content (not filename)
+
+Choose one of:
+
+* `court_opinion_or_order` - Court decisions, opinions, orders, judgments
+* `complaint_or_docket` - Legal complaints, petitions, docket entries
+* `government_form` - Official forms, applications, petitions
+* `council_or_rfp` - City council memos, public notices, RFPs, board documents
+* `grant_notice_or_rfa` - Grant NOFO/RFA/FOA, funding announcements, invitations
+* `meeting_minutes` - Board/commission/council meeting minutes, agendas
+* `procurement_sow_or_contract` - SOW, PWS, contracts, procurement documents
+* `audit_or_investigation_report` - Inspector general, comptroller, audit reports
+* `federal_report_to_congress` - Statute-mandated reports, annual reports to Congress
+* `country_or_policy_report` - Country/human-rights reports, policy white papers
+* `academic_program_or_clinic_brochure` - Law clinic brochures, program sheets, flyers
+* `proposal_or_whitepaper` - Grant proposals, program proposals, white papers
+* `other_legal` - Other legal documents not fitting above categories
+
+If uncertain, choose `other_legal`.
+
+---
+
+## Step 2 — Top-Level JSON shape
+
+```json
+{{
+  "doc_type": "string",
+  "meta": {{
+    "title": "string|null",
+    "jurisdiction_or_body": "string|null",
+    "date_iso": "YYYY-MM-DD|null",
+    "page_count": 0
+  }},
+  "sections": {{}}
+}}
+```
+
+Populate `sections` using the schema for the detected type.
+
+---
+
+## Document Text to Analyze:
+
+{limited_text}
+
+## Instructions:
+
+Analyze this document and return ONLY a valid JSON object following the schema above. Use the exact document types and section structures specified. Include verbatim evidence and page numbers for all extracted information. Do not include any explanatory text or prose - only the JSON object."""
+
+def smart_context_selection(text: str, filename: str) -> str:
+    """Intelligently select the most relevant context from large documents"""
     
-    prompt = prompt_template.format(chunk=chunk)
-    summary = None
-    model_used = None
+    # Strategy: Combine beginning, key sections, and end
+    total_length = len(text)
     
-    for try_model in models_to_try:
-        logger.info(f"🔄 Trying model: {try_model} for chunk {index+1}")
-        try:
-            # Reduced timeout for faster failure
-            start_time = time.time()
-            summary = ollama.generate(try_model, prompt, max_tokens=500)  # Reduced tokens for speed
-            
-            if summary and len(summary.strip()) > 30:
-                elapsed = time.time() - start_time
-                logger.info(f"✅ Chunk {index+1} summary: {len(summary)} chars with {try_model} in {elapsed:.1f}s")
-                model_used = try_model
-                break
-            else:
-                logger.warning(f"⚠️ Model {try_model} returned insufficient chunk summary")
-        except Exception as model_error:
-            logger.error(f"❌ Model {try_model} failed for chunk {index+1}: {model_error}")
-            continue
+    # Get beginning (title, header, introduction)
+    beginning = text[:2000]
     
-    # Fallback if no model worked for this chunk
-    if not summary or len(summary.strip()) < 30:
-        logger.warning(f"🔄 All models failed for chunk {index+1}, generating fallback")
-        summary = f"Legal document excerpt {index+1}: Contains {len(chunk.split())} words of legal content."
-        model_used = "fallback"
+    # Get middle section (often contains key content)
+    middle_start = total_length // 3
+    middle_end = middle_start + 2000
+    middle = text[middle_start:middle_end]
     
-    return {
-        "chunk_index": index,
-        "summary": summary,
-        "word_count": len(chunk.split()),
-        "model_used": model_used
-    }
+    # Get end (conclusions, recommendations)
+    end = text[-2000:] if total_length > 4000 else ""
+    
+    # Look for key sections based on document type
+    key_sections = []
+    
+    # For country reports, look for specific patterns
+    if 'human rights' in filename.lower() or 'country report' in filename.lower():
+        # Find sections with key indicators
+        patterns = [
+            r'(?:Executive Summary|Introduction|Overview).*?(?=\n\n|\n[A-Z]|$)',
+            r'(?:Key Findings|Main Issues|Conclusions).*?(?=\n\n|\n[A-Z]|$)',
+            r'(?:Recommendations|Action Items|Next Steps).*?(?=\n\n|\n[A-Z]|$)',
+            r'(?:Department of State|Bureau of Democracy).*?(?=\n\n|\n[A-Z]|$)'
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE | re.DOTALL)
+            if matches:
+                key_sections.extend(matches[:2])  # Take first 2 matches
+    
+    # Combine all sections
+    combined = beginning + "\n\n" + middle
+    
+    if key_sections:
+        combined += "\n\n" + "\n\n".join(key_sections)
+    
+    if end:
+        combined += "\n\n" + end
+    
+    # Limit to reasonable size
+    max_combined = 6000
+    if len(combined) > max_combined:
+        combined = combined[:max_combined] + "..."
+    
+    return combined
+
+# Enable CORS
+CORS(app)
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint with model availability"""
-    ollama_status = ollama.is_available()
-    available_models = ollama.list_models() if ollama_status else []
-    
-    return jsonify({
-        "status": "healthy" if ollama_status else "degraded",
-        "ollama_available": ollama_status,
-        "ollama_host": OLLAMA_HOST,
-        "available_models": available_models,
-        "default_model": DEFAULT_MODEL,
-        "gemma_models_available": [m for m in available_models if 'gemma' in m.lower()]
-    })
+    """Health check endpoint"""
+    try:
+        ollama_status = ollama.is_available()
+        return jsonify({
+            "status": "healthy" if ollama_status else "degraded",
+            "ollama_available": ollama_status,
+            "ollama_host": OLLAMA_HOST
+        })
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/summarize', methods=['POST'])
 def summarize_document():
@@ -531,23 +580,23 @@ def summarize_document():
         text = data.get('text', '')
         filename = data.get('filename', 'unknown')
         model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', 800)  # Increased for comprehensive summary
+        max_tokens = data.get('max_tokens', 800)
         
         if not text.strip():
             return jsonify({"error": "No text provided for summarization"}), 400
         
         # Use comprehensive prompt for unified summarization
         prompt = create_optimized_prompt(text, "summarize")
-        
         logger.info(f"📝 Summarizing document with {model} (max_tokens: {max_tokens})")
+        
         result = ollama.generate(model, prompt, max_tokens)
         
         if not result:
-            result = "Unable to summarize document."
+            result = "Unable to process document."
         
         return jsonify({
             "success": True,
-            "summary": overall_summary,
+            "summary": result,
             "model_used": model,
             "prompt_type": "comprehensive_unified"
         })
@@ -556,6 +605,256 @@ def summarize_document():
         logger.error(f"Summarization error: {e}")
         return jsonify({
             "error": "Summarization failed",
+            "message": str(e)
+        }), 500
+
+@app.route('/extract/universal', methods=['POST'])
+def universal_document_extraction():
+    """Extract structured information using Enhanced Universal Legal-Doc Extractor prompt"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        text = data.get('text', '')
+        filename = data.get('filename', 'unknown')
+        model = data.get('model', DEFAULT_MODEL)
+        max_tokens = data.get('max_tokens', 2000)
+        
+        if not text.strip():
+            return jsonify({"error": "No text provided for extraction"}), 400
+        
+        # Create the enhanced universal extraction prompt
+        prompt = create_universal_extraction_prompt(text, filename)
+        
+        logger.info(f"🔍 Performing enhanced universal document extraction with {model}")
+        result = ollama.generate(model, prompt, max_tokens)
+        
+        if not result:
+            return jsonify({"error": "Extraction failed - no response from AI model"}), 500
+        
+        # Try to parse JSON response
+        try:
+            parsed_result = json.loads(result)
+            return jsonify({
+                "success": True,
+                "extraction": parsed_result,
+                "raw_response": result,
+                "model_used": model,
+                "prompt_type": "enhanced_universal_extractor"
+            })
+        except json.JSONDecodeError:
+            # Return raw response if JSON parsing fails
+            return jsonify({
+                "success": True,
+                "extraction": result,
+                "raw_response": result,
+                "model_used": model,
+                "prompt_type": "enhanced_universal_extractor",
+                "warning": "Response is not valid JSON - returning raw text"
+            })
+        
+    except Exception as e:
+        logger.error(f"Enhanced universal extraction error: {e}")
+        return jsonify({
+            "error": "Enhanced universal extraction failed",
+            "message": str(e)
+        }), 500
+
+@app.route('/extract/enhanced', methods=['POST'])
+def enhanced_document_extraction():
+    """Enhanced document extraction with comprehensive analysis and bullet-point formatting"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        text = data.get('text', '')
+        filename = data.get('filename', 'unknown')
+        model = data.get('model', DEFAULT_MODEL)
+        max_tokens = data.get('max_tokens', 1500)
+        
+        if not text.strip():
+            return jsonify({"error": "No text provided for extraction"}), 400
+        
+        # For large documents, use chunked processing
+        if len(text) > 10000:
+            logger.info(f"📄 Large document detected ({len(text)} chars), using chunked processing")
+            return process_large_document_chunked(text, filename, model, max_tokens)
+        
+        # Create comprehensive analysis prompt with bullet points
+        analysis_prompt = f"""# Enhanced Legal Document Analysis
+
+Analyze this legal document comprehensively and provide detailed insights in a clean, bullet-point format.
+
+**Document:** {filename}
+
+**Content:**
+{text[:3000] + "..." if len(text) > 3000 else text}
+
+**Provide analysis in the following format:**
+
+## 📋 Document Classification
+• **Document Type:** [Classify as: Court Opinion/Order, Complaint/Docket, Government Form, Council/RFP, Grant Notice/RFA, Meeting Minutes, Procurement/SOW/Contract, Audit/Investigation Report, Federal Report to Congress, Country/Policy Report, Academic Program/Clinic Brochure, Proposal/White Paper, or Other Legal]
+• **Confidence Level:** [High/Medium/Low]
+• **Key Indicators:** [List specific content patterns that led to classification]
+
+## 📅 Critical Dates & Deadlines
+• [Extract and list all important dates with context]
+• [Include filing deadlines, hearing dates, submission dates, etc.]
+
+## 💰 Financial Information
+• [Extract monetary amounts, budgets, funding ceilings, costs]
+• [Include currency and context for each amount]
+
+## ⚖️ Legal Requirements & Compliance
+• [List all legal requirements, regulations, compliance standards]
+• [Include statutory citations and regulatory references]
+
+## 🎯 Key Findings & Decisions
+• [Extract main findings, decisions, conclusions, or outcomes]
+• [Include supporting evidence and reasoning]
+
+## 📋 Parties & Entities
+• [List all parties, agencies, organizations mentioned]
+• [Include their roles and relationships]
+
+## 📊 Statistics & Metrics
+• [Extract any numerical data, percentages, counts]
+• [Include context and significance]
+
+## 🔍 Recommendations & Action Items
+• [List any recommendations, suggestions, or required actions]
+• [Include deadlines and responsible parties]
+
+## ⚠️ Important Warnings & Notices
+• [Extract any warnings, disclaimers, or important notices]
+• [Include compliance requirements and consequences]
+
+## 📝 Additional Notes
+• [Any other significant information not covered above]
+• [Include document-specific insights and observations]
+
+**Instructions:**
+- Use bullet points for all items
+- Be specific and include exact quotes when possible
+- Maintain professional legal analysis tone
+- Focus on actionable insights and practical information
+- Include page numbers or locations if available
+- Ensure all information is directly from the document content"""
+        
+        logger.info(f"🔍 Performing enhanced document analysis with {model}")
+        result = ollama.generate(model, analysis_prompt, max_tokens)
+        
+        if not result:
+            return jsonify({"error": "Enhanced analysis failed - no response from AI model"}), 500
+        
+        return jsonify({
+            "success": True,
+            "analysis": result,
+            "model_used": model,
+            "prompt_type": "enhanced_analysis",
+            "document_type": "comprehensive_legal_analysis"
+        })
+        
+    except Exception as e:
+        logger.error(f"Enhanced analysis error: {e}")
+        return jsonify({
+            "error": "Enhanced analysis failed",
+            "message": str(e)
+        }), 500
+
+def process_large_document_chunked(text: str, filename: str, model: str, max_tokens: int):
+    """Process large documents in chunks to avoid memory issues"""
+    try:
+        # Split text into manageable chunks
+        chunk_size = 2000
+        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        
+        logger.info(f"📄 Processing {len(chunks)} chunks for large document")
+        
+        # Process first chunk for document classification
+        classification_prompt = f"""# Document Classification
+
+Analyze this document excerpt and classify it:
+
+**Document:** {filename}
+**Content:** {chunks[0]}
+
+**Classify as one of:**
+- Court Opinion/Order
+- Complaint/Docket  
+- Government Form
+- Council/RFP
+- Grant Notice/RFA
+- Meeting Minutes
+- Procurement/SOW/Contract
+- Audit/Investigation Report
+- Federal Report to Congress
+- Country/Policy Report
+- Academic Program/Clinic Brochure
+- Proposal/White Paper
+- Other Legal
+
+**Response format:**
+Document Type: [type]
+Confidence: [High/Medium/Low]
+Key Indicators: [list specific patterns]"""
+
+        classification_result = ollama.generate(model, classification_prompt, 500)
+        
+        # Process key sections from different chunks
+        key_sections = []
+        for i, chunk in enumerate(chunks[:3]):  # Process first 3 chunks
+            section_prompt = f"""# Document Analysis - Section {i+1}
+
+Analyze this document section and extract key information:
+
+**Document:** {filename}
+**Content:** {chunk}
+
+**Extract:**
+- Important dates and deadlines
+- Financial information (amounts, budgets, costs)
+- Legal requirements and compliance standards
+- Key findings and decisions
+- Parties and entities mentioned
+- Statistics and metrics
+- Recommendations and action items
+
+**Format as bullet points.**"""
+
+            section_result = ollama.generate(model, section_prompt, 800)
+            if section_result:
+                key_sections.append(f"**Section {i+1}:**\n{section_result}")
+        
+        # Combine results
+        combined_analysis = f"""# Enhanced Document Analysis
+
+**Document:** {filename}
+
+## 📋 Document Classification
+{classification_result}
+
+## 📄 Key Sections Analysis
+{chr(10).join(key_sections)}
+
+## 📝 Summary
+This document was processed in chunks due to its large size. The analysis above covers the most important sections and provides a comprehensive overview of the document's key elements."""
+
+        return jsonify({
+            "success": True,
+            "analysis": combined_analysis,
+            "model_used": model,
+            "prompt_type": "chunked_analysis",
+            "document_type": "large_document_analysis",
+            "chunks_processed": len(chunks[:3])
+        })
+        
+    except Exception as e:
+        logger.error(f"Chunked processing error: {e}")
+        return jsonify({
+            "error": "Chunked processing failed",
             "message": str(e)
         }), 500
 
@@ -608,139 +907,6 @@ def analyze_document():
         return jsonify({
             "error": "Analysis failed",
             "message": str(e)
-        }), 500
-
-@app.route('/analyze/report', methods=['POST'])
-def analyze_report():
-    """Analyze report with bullet point improvements"""
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
-        
-        text = data.get('text', '')
-        model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
-        
-        if not text.strip():
-            return jsonify({"error": "No text provided for analysis"}), 400
-        
-        # Use specialized report analysis prompt
-        prompt = create_report_analysis_prompt(text)
-        
-        logger.info(f"📊 Analyzing report with {model}")
-        result = ollama.generate(model, prompt, max_tokens)
-        
-        if not result:
-            result = "Unable to analyze report."
-        
-        return jsonify({
-            "success": True,
-            "analysis": result,
-            "model_used": model,
-            "prompt_type": "report_analysis"
-        })
-        
-    except Exception as e:
-        logger.error(f"Report analysis error: {e}")
-        return jsonify({
-            "error": "Report analysis failed",
-            "message": str(e)
-        }), 500
-
-@app.route('/models', methods=['GET'])
-def list_available_models():
-    """List available AI models"""
-    try:
-        models = ollama.list_models()
-        return jsonify({
-            "available_models": models,
-            "default_model": DEFAULT_MODEL,
-            "ollama_available": ollama.is_available()
-        })
-    except Exception as e:
-        logger.error(f"Model listing error: {e}")
-        return jsonify({
-            "error": "Failed to list models",
-            "message": str(e)
-        }), 500
-
-@app.route('/warmup', methods=['POST'])
-def warmup_model():
-    """Warm up the Ollama model to improve performance"""
-    try:
-        model = request.json.get('model', DEFAULT_MODEL) if request.json else DEFAULT_MODEL
-        
-        logger.info(f"🔥 Warming up model: {model}")
-        
-        # Simple warm-up prompt to load the model into memory
-        warmup_prompt = "Hello, I'm testing the model. Please respond with 'Ready'."
-        
-        # Use the OllamaClient to warm up
-        response = ollama.generate(model, warmup_prompt, 200)
-        
-        if response:
-            logger.info(f"✅ Model {model} warmed up successfully")
-            return jsonify({
-                "success": True,
-                "message": f"Model {model} is now warmed up and ready",
-                "model": model,
-                "response": response[:100] + "..." if len(response) > 100 else response
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Model warmup failed - no response",
-                "model": model
-            }), 500
-            
-    except Exception as e:
-        logger.error(f"Model warmup error: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "model": DEFAULT_MODEL
-        }), 500
-
-@app.route('/warmup/auto', methods=['POST'])
-def auto_warmup():
-    """Automatically warm up the default model with legal document context"""
-    try:
-        logger.info("🔥 Starting automatic legal document model warmup")
-        
-        # Legal-specific warmup prompt to pre-load relevant context
-        legal_warmup_prompt = """You are a legal document analysis AI. Analyze this sample legal text:
-
-SAMPLE LEGAL DOCUMENT EXCERPT:
-"NOTICE TO APPEAR - Immigration Court proceedings for removal under section 240 of the Immigration and Nationality Act. The respondent is required to appear before an Immigration Judge."
-
-Provide a brief analysis focusing on document type and key legal elements. This is a warmup request."""
-
-        # Warm up with legal context
-        
-        response = ollama.generate(DEFAULT_MODEL, legal_warmup_prompt, 200)
-        
-        if response:
-            logger.info(f"✅ Legal document model warmup completed")
-            return jsonify({
-                "success": True,
-                "message": f"Legal document analysis model ({DEFAULT_MODEL}) is warmed up and ready",
-                "model": DEFAULT_MODEL,
-                "warmup_type": "legal_context",
-                "ready_for": ["document_classification", "legal_analysis", "proposal_detection"]
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Auto warmup failed - no response"
-            }), 500
-            
-    except Exception as e:
-        logger.error(f"Auto warmup error: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
         }), 500
 
 @app.route('/vector/build', methods=['POST'])
@@ -813,109 +979,20 @@ def search_vector_index():
             "message": str(e)
         }), 500
 
-@app.route('/vector/stats', methods=['GET'])
-def get_vector_stats():
-    """Get FAISS vector index statistics"""
+@app.route('/models', methods=['GET'])
+def list_available_models():
+    """List available AI models"""
     try:
-        stats = vector_engine.get_index_stats()
+        models = ollama.list_models()
         return jsonify({
-            "success": True,
-            "stats": stats
+            "available_models": models,
+            "default_model": DEFAULT_MODEL,
+            "ollama_available": ollama.is_available()
         })
-        
     except Exception as e:
-        logger.error(f"Vector stats error: {e}")
+        logger.error(f"Model listing error: {e}")
         return jsonify({
-            "error": "Internal server error",
-            "message": str(e)
-        }), 500
-
-@app.route('/vector/clear', methods=['POST'])
-def clear_vector_index():
-    """Clear FAISS vector index"""
-    try:
-        vector_engine.clear_index()
-        return jsonify({
-            "success": True,
-            "message": "Vector index cleared successfully"
-        })
-        
-    except Exception as e:
-        logger.error(f"Vector clear error: {e}")
-        return jsonify({
-            "error": "Internal server error",
-            "message": str(e)
-        }), 500
-
-@app.route('/query/semantic', methods=['POST'])
-def semantic_query():
-    """Semantic query with FAISS + LLM for reduced load"""
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
-        
-        query = data.get('query', '')
-        model = data.get('model', DEFAULT_MODEL)
-        max_tokens = data.get('max_tokens', MAX_TOKENS_PER_REQUEST)
-        
-        if not query.strip():
-            return jsonify({"error": "No query provided"}), 400
-        
-        # Check if vector index exists
-        stats = vector_engine.get_index_stats()
-        if stats.get("status") != "active":
-            return jsonify({
-                "error": "No vector index available",
-                "message": "Please build a vector index first using /vector/build"
-            }), 400
-        
-        # Search for relevant chunks using FAISS
-        logger.info(f"🔍 Performing semantic search for: '{query}'")
-        search_results = vector_engine.search(query, top_k=3)
-        
-        if not search_results:
-            return jsonify({
-                "error": "No relevant content found",
-                "message": "The query doesn't match any content in the indexed documents"
-            }), 404
-        
-        # Extract relevant chunks
-        relevant_chunks = [result["chunk"] for result in search_results]
-        combined_context = "\n\n".join(relevant_chunks)
-        
-        # Create prompt with semantic search results
-        prompt = f"""You are a legal AI assistant. Answer this question based ONLY on the provided excerpts:
-
-Question: {query}
-
-Relevant excerpts:
-{combined_context}
-
-Answer:"""
-        
-        # Generate answer using LLM
-        logger.info(f"🤖 Generating answer using {model}")
-        answer = ollama.generate(model, prompt, max_tokens)
-        
-        if not answer:
-            answer = "Unable to generate answer based on the available content."
-        
-        return jsonify({
-            "success": True,
-            "query": query,
-            "answer": answer,
-            "model_used": model,
-            "semantic_search_results": search_results,
-            "chunks_used": len(relevant_chunks),
-            "total_chunks_searched": stats.get("total_chunks", 0)
-        })
-        
-    except Exception as e:
-        logger.error(f"Semantic query error: {e}")
-        return jsonify({
-            "error": "Internal server error",
+            "error": "Failed to list models",
             "message": str(e)
         }), 500
 

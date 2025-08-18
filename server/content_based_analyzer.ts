@@ -3,6 +3,8 @@
  * Generates detailed analysis based on actual extracted document content
  */
 
+import { EnhancedUniversalExtractor, UniversalExtractionResult } from './enhanced_universal_extractor';
+
 interface ContentAnalysisResult {
   verdict: string;
   confidence: number;
@@ -24,8 +26,9 @@ export class ContentBasedAnalyzer {
 
   /**
    * Analyze document content to generate comprehensive insights
+   * Now automatically uses enhanced universal extractor when available
    */
-  static analyzeDocument(fileName: string, content: string): ContentAnalysisResult {
+  static async analyzeDocument(fileName: string, content: string): Promise<ContentAnalysisResult> {
     console.log(`Starting content-based analysis for: ${fileName}`);
 
     if (!content || content.length < 100) {
@@ -33,8 +36,60 @@ export class ContentBasedAnalyzer {
       return this.generateFallbackAnalysis(fileName, content);
     }
 
+    try {
+      // Try to use enhanced universal extractor first
+      console.log(`Attempting enhanced universal extraction for: ${fileName}`);
+      const pageCount = Math.ceil(content.length / 2000); // Estimate page count
+
+      const universalResult = await EnhancedUniversalExtractor.extractDocumentInfo(
+        content,
+        fileName,
+        pageCount
+      );
+
+      console.log(`Enhanced extraction successful for: ${fileName}, type: ${universalResult.doc_type}`);
+
+      // Map enhanced result to legacy format for compatibility
+      const legacyDocumentType = this.mapEnhancedToLegacyType(universalResult.doc_type);
+      const legacyVerdict = legacyDocumentType === 'proposal' ? 'proposal' : 'non-proposal';
+
+      // Generate enhanced summary using universal sections
+      const enhancedSummary = this.generateEnhancedSummary(universalResult, content);
+      const enhancedEvidence = universalResult.evidence;
+      const enhancedConfidence = universalResult.confidence;
+
+      return {
+        verdict: legacyVerdict,
+        confidence: enhancedConfidence,
+        summary: enhancedSummary,
+        improvements: this.generateEnhancedImprovements(universalResult),
+        toolkit: this.generateEnhancedToolkit(universalResult),
+        keyFindings: this.extractEnhancedKeyFindings(universalResult),
+        documentType: legacyDocumentType,
+        criticalDates: this.extractEnhancedDates(universalResult),
+        financialTerms: this.extractEnhancedFinancialInfo(universalResult),
+        complianceRequirements: this.extractEnhancedComplianceInfo(universalResult),
+        evidence: enhancedEvidence,
+        reasoning: this.generateEnhancedReasoning(universalResult),
+        wordCount: this.countWords(content),
+        estimatedReadingTime: Math.ceil(this.countWords(content) / 200)
+      };
+
+    } catch (error) {
+      console.log('Enhanced extraction not available, using standard analysis');
+      // Return standard analysis if enhanced extraction fails
+      return this.analyzeDocumentStandard(fileName, content);
+    }
+  }
+
+  /**
+   * Standard document analysis when enhanced extraction is not available
+   */
+  private static analyzeDocumentStandard(fileName: string, content: string): ContentAnalysisResult {
+    console.log(`Using standard analysis for: ${fileName}`);
+    
     const wordCount = this.countWords(content);
-    const estimatedReadingTime = Math.ceil(wordCount / 200); // Average reading speed
+    const estimatedReadingTime = Math.ceil(wordCount / 200);
 
     // Extract key information from content
     const documentType = this.classifyDocumentType(content, fileName);
@@ -52,7 +107,7 @@ export class ContentBasedAnalyzer {
     const improvements = this.generateImprovements(content, documentType);
     const toolkit = this.generateToolkit(documentType);
 
-    console.log(`Content analysis complete for ${fileName}: ${verdict} (${Math.round(confidence * 100)}% confidence)`);
+    console.log(`Standard analysis complete for ${fileName}: ${verdict} (${Math.round(confidence * 100)}% confidence)`);
 
     return {
       verdict,
@@ -70,6 +125,165 @@ export class ContentBasedAnalyzer {
       wordCount,
       estimatedReadingTime
     };
+  }
+
+  /**
+   * Enhanced analysis using the universal legal document extractor
+   * This provides more detailed extraction while maintaining compatibility
+   */
+  static async analyzeDocumentEnhanced(
+    fileName: string,
+    content: string,
+    aiModel?: any
+  ): Promise<ContentAnalysisResult> {
+    console.log(`Starting enhanced universal analysis for: ${fileName}`);
+
+    if (!content || content.length < 100) {
+      console.log(`Insufficient content for enhanced analysis: ${content.length} characters`);
+      return this.generateFallbackAnalysis(fileName, content);
+    }
+
+    try {
+      // Use enhanced universal extractor if AI model is available
+      if (aiModel) {
+        try {
+          const pageCount = Math.ceil(content.length / 2000); // Estimate page count
+          const universalResult = await EnhancedUniversalExtractor.extractDocumentInfo(
+            content,
+            fileName,
+            pageCount
+          );
+
+          // Map enhanced result to legacy format for compatibility
+          const legacyDocumentType = this.mapEnhancedToLegacyType(universalResult.doc_type);
+          const legacyVerdict = legacyDocumentType === 'proposal' ? 'proposal' : 'non-proposal';
+
+          // Generate enhanced summary using universal sections
+          const enhancedSummary = this.generateEnhancedSummary(universalResult, content);
+          const enhancedEvidence = universalResult.evidence;
+          const enhancedConfidence = universalResult.confidence;
+
+          return {
+            verdict: legacyVerdict,
+            confidence: enhancedConfidence,
+            summary: enhancedSummary,
+            improvements: this.generateEnhancedImprovements(universalResult),
+            toolkit: this.generateEnhancedToolkit(universalResult),
+            keyFindings: this.extractEnhancedKeyFindings(universalResult),
+            documentType: legacyDocumentType,
+            criticalDates: this.extractEnhancedDates(universalResult),
+            financialTerms: this.extractEnhancedFinancialInfo(universalResult),
+            complianceRequirements: this.extractEnhancedComplianceInfo(universalResult),
+            evidence: enhancedEvidence,
+            reasoning: this.generateEnhancedReasoning(universalResult),
+            wordCount: this.countWords(content),
+            estimatedReadingTime: Math.ceil(this.countWords(content) / 200)
+          };
+        } catch (error) {
+          console.error('Enhanced analysis failed, falling back to standard analysis:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Enhanced analysis failed, falling back to standard analysis:', error);
+    }
+
+    // Fall back to standard analysis if enhanced analysis fails
+    // Note: This would cause infinite recursion, so we need to call the fallback directly
+    return this.generateFallbackAnalysis(fileName, content);
+  }
+
+  /**
+   * Enhanced analysis using the universal extractor (optional enhancement)
+   * This method provides additional insights without affecting the core analysis
+   */
+  static async analyzeWithEnhancedExtractor(
+    fileName: string,
+    content: string
+  ): Promise<ContentAnalysisResult & { enhancedExtraction?: any }> {
+
+    // Get the standard analysis first (maintains existing functionality)
+    const standardAnalysis = await this.analyzeDocument(fileName, content);
+
+    try {
+      // Import and use the enhanced extractor for additional insights
+      const { EnhancedUniversalExtractor } = await import('./enhanced_universal_extractor');
+
+      // Get page count estimate
+      const pageCount = Math.ceil(content.length / 2000); // Rough estimate
+
+      // Extract enhanced information
+      const enhancedResult = await EnhancedUniversalExtractor.extractDocumentInfo(
+        content,
+        fileName,
+        pageCount
+      );
+
+      // Enhance the standard analysis with additional insights
+      const enhancedAnalysis = {
+        ...standardAnalysis,
+        enhancedExtraction: {
+          documentType: enhancedResult.doc_type,
+          confidence: enhancedResult.confidence,
+          metadata: enhancedResult.meta,
+          sections: enhancedResult.sections
+        }
+      };
+
+      return enhancedAnalysis;
+
+    } catch (error) {
+      console.log('Enhanced extraction not available, using standard analysis');
+      // Return standard analysis if enhanced extraction fails
+      return standardAnalysis;
+    }
+  }
+
+  /**
+   * Get enhanced document classification using the universal extractor
+   */
+  static async getEnhancedDocumentType(content: string): Promise<{ type: string; confidence: number }> {
+    try {
+      const { EnhancedUniversalExtractor } = await import('./enhanced_universal_extractor');
+
+      // Use the enhanced classifier
+      const enhancedType = EnhancedUniversalExtractor.classifyDocumentType(content);
+
+      return {
+        type: enhancedType,
+        confidence: 0.9 // High confidence for enhanced classification
+      };
+
+    } catch (error) {
+      // Fallback to existing classification
+      const fallbackType = this.classifyDocumentType(content, 'unknown');
+      return {
+        type: fallbackType,
+        confidence: 0.7
+      };
+    }
+  }
+
+  /**
+   * Map enhanced document types to legacy types for compatibility
+   */
+  private static mapEnhancedToLegacyType(enhancedType: string): string {
+    const typeMapping: { [key: string]: string } = {
+      'court_opinion_or_order': 'court_document',
+      'complaint_or_docket': 'court_document',
+      'government_form': 'government_form',
+      'council_or_rfp': 'government_document',
+      'grant_notice_or_rfa': 'proposal',
+      'meeting_minutes': 'government_document',
+      'procurement_sow_or_contract': 'contract',
+      'audit_or_investigation_report': 'report',
+      'federal_report_to_congress': 'government_report',
+      'country_or_policy_report': 'country_report',
+      'academic_program_or_clinic_brochure': 'program_description',
+      'proposal_or_whitepaper': 'proposal',
+      'other_legal': 'other'
+    };
+
+    return typeMapping[enhancedType] || 'other';
   }
 
   private static countWords(content: string): number {
@@ -626,5 +840,324 @@ export class ContentBasedAnalyzer {
       wordCount: this.countWords(content),
       estimatedReadingTime: 0
     };
+  }
+
+  /**
+   * Generate enhanced summary using universal extraction results
+   */
+  private static generateEnhancedSummary(universalResult: UniversalExtractionResult, content: string): string {
+    const { doc_type, meta, sections } = universalResult;
+
+    let summary = `Enhanced analysis identifies this as a ${doc_type.replace(/_/g, ' ')}`;
+
+    if (meta.title) {
+      summary += ` titled "${meta.title}"`;
+    }
+
+    if (meta.jurisdiction_or_body) {
+      summary += ` from ${meta.jurisdiction_or_body}`;
+    }
+
+    if (meta.date_iso) {
+      summary += ` dated ${meta.date_iso}`;
+    }
+
+    summary += `. `;
+
+    // Add document-specific details based on sections
+    if (sections) {
+      switch (doc_type) {
+        case 'grant_notice_or_rfa':
+          if (sections.program_name) {
+            summary += `Program: ${sections.program_name}. `;
+          }
+          if (sections.funding_ceiling?.amount) {
+            summary += `Funding ceiling: $${sections.funding_ceiling.amount}. `;
+          }
+          break;
+
+        case 'meeting_minutes':
+          if (sections.meeting_datetime_iso) {
+            summary += `Meeting held: ${sections.meeting_datetime_iso}. `;
+          }
+          if (sections.attendees?.length > 0) {
+            summary += `${sections.attendees.length} attendees present. `;
+          }
+          break;
+
+        case 'procurement_sow_or_contract':
+          if (sections.agency_or_buyer) {
+            summary += `Agency: ${sections.agency_or_buyer}. `;
+          }
+          if (sections.period_of_performance?.start) {
+            summary += `Performance period: ${sections.period_of_performance.start} to ${sections.period_of_performance.end}. `;
+          }
+          break;
+
+        case 'audit_or_investigation_report':
+          if (sections.issuing_body) {
+            summary += `Issued by: ${sections.issuing_body}. `;
+          }
+          if (sections.findings?.length > 0) {
+            summary += `${sections.findings.length} findings identified. `;
+          }
+          break;
+      }
+    }
+
+    return summary;
+  }
+
+  /**
+   * Generate enhanced improvements based on universal extraction
+   */
+  private static generateEnhancedImprovements(universalResult: UniversalExtractionResult): string[] {
+    const improvements: string[] = [];
+    const { doc_type, sections } = universalResult;
+
+    // Document type specific improvements
+    switch (doc_type) {
+      case 'grant_notice_or_rfa':
+        if (sections.deadlines?.length === 0) {
+          improvements.push('Add clear application deadlines');
+        }
+        if (sections.eligibility?.length === 0) {
+          improvements.push('Specify eligibility criteria');
+        }
+        break;
+
+      case 'meeting_minutes':
+        if (sections.actions_or_followups?.length === 0) {
+          improvements.push('Include action items and follow-ups');
+        }
+        break;
+
+      case 'procurement_sow_or_contract':
+        if (sections.qualifications?.length === 0) {
+          improvements.push('Define vendor qualifications');
+        }
+        if (sections.compliance?.length === 0) {
+          improvements.push('Specify compliance requirements');
+        }
+        break;
+
+      case 'audit_or_investigation_report':
+        if (sections.recommendations?.length === 0) {
+          improvements.push('Include actionable recommendations');
+        }
+        break;
+    }
+
+    // Generic improvements if none specific
+    if (improvements.length === 0) {
+      improvements.push('Enhance document structure and clarity');
+      improvements.push('Add specific dates and deadlines where applicable');
+      improvements.push('Include measurable objectives or deliverables');
+    }
+
+    return improvements.slice(0, 5);
+  }
+
+  /**
+   * Generate enhanced toolkit recommendations
+   */
+  private static generateEnhancedToolkit(universalResult: UniversalExtractionResult): string[] {
+    const toolkit: string[] = [];
+    const { doc_type } = universalResult;
+
+    switch (doc_type) {
+      case 'grant_notice_or_rfa':
+        toolkit.push('Grant management software for tracking applications');
+        toolkit.push('Budget planning tools for financial projections');
+        toolkit.push('Project management platform for deliverables');
+        break;
+
+      case 'meeting_minutes':
+        toolkit.push('Meeting management software for agenda tracking');
+        toolkit.push('Action item tracking system');
+        toolkit.push('Document collaboration platform');
+        break;
+
+      case 'procurement_sow_or_contract':
+        toolkit.push('Contract management system');
+        toolkit.push('Vendor evaluation tools');
+        toolkit.push('Compliance monitoring software');
+        break;
+
+      case 'audit_or_investigation_report':
+        toolkit.push('Audit trail documentation system');
+        toolkit.push('Risk assessment tools');
+        toolkit.push('Compliance monitoring dashboard');
+        break;
+
+      default:
+        toolkit.push('Document management system');
+        toolkit.push('Collaboration platform');
+        toolkit.push('Version control tools');
+    }
+
+    return toolkit.slice(0, 5);
+  }
+
+  /**
+   * Extract enhanced key findings from universal result
+   */
+  private static extractEnhancedKeyFindings(universalResult: UniversalExtractionResult): string[] {
+    const findings: string[] = [];
+    const { doc_type, sections } = universalResult;
+
+    if (sections) {
+      switch (doc_type) {
+        case 'grant_notice_or_rfa':
+          if (sections.funding_ceiling?.amount) {
+            findings.push(`Funding available: $${sections.funding_ceiling.amount}`);
+          }
+          if (sections.deadlines?.length > 0) {
+            findings.push(`Key deadline: ${sections.deadlines[0].label} on ${sections.deadlines[0].date_iso}`);
+          }
+          break;
+
+        case 'meeting_minutes':
+          if (sections.motions?.length > 0) {
+            findings.push(`Motion ${sections.motions[0].result}: ${sections.motions[0].motion}`);
+          }
+          break;
+
+        case 'audit_or_investigation_report':
+          if (sections.findings?.length > 0) {
+            findings.push(`Critical finding: ${sections.findings[0].statement}`);
+          }
+          break;
+      }
+    }
+
+    // Add evidence-based findings
+    if (universalResult.evidence.length > 0) {
+      findings.push(`Document evidence: ${universalResult.evidence[0]}`);
+    }
+
+    return findings.slice(0, 5);
+  }
+
+  /**
+   * Extract enhanced dates from universal result
+   */
+  private static extractEnhancedDates(universalResult: UniversalExtractionResult): string[] {
+    const dates: string[] = [];
+    const { doc_type, sections, meta } = universalResult;
+
+    // Add meta date if available
+    if (meta.date_iso) {
+      dates.push(meta.date_iso);
+    }
+
+    // Extract dates from sections
+    if (sections) {
+      switch (doc_type) {
+        case 'grant_notice_or_rfa':
+          if (sections.deadlines) {
+            sections.deadlines.forEach((deadline: any) => {
+              dates.push(`${deadline.label}: ${deadline.date_iso}`);
+            });
+          }
+          break;
+
+        case 'meeting_minutes':
+          if (sections.meeting_datetime_iso) {
+            dates.push(`Meeting: ${sections.meeting_datetime_iso}`);
+          }
+          break;
+
+        case 'procurement_sow_or_contract':
+          if (sections.period_of_performance) {
+            if (sections.period_of_performance.start) {
+              dates.push(`Start: ${sections.period_of_performance.start}`);
+            }
+            if (sections.period_of_performance.end) {
+              dates.push(`End: ${sections.period_of_performance.end}`);
+            }
+          }
+          break;
+      }
+    }
+
+    return dates.slice(0, 5);
+  }
+
+  /**
+   * Extract enhanced financial information from universal result
+   */
+  private static extractEnhancedFinancialInfo(universalResult: UniversalExtractionResult): string[] {
+    const financialInfo: string[] = [];
+    const { doc_type, sections } = universalResult;
+
+    if (sections) {
+      switch (doc_type) {
+        case 'grant_notice_or_rfa':
+          if (sections.funding_ceiling?.amount) {
+            financialInfo.push(`Funding ceiling: $${sections.funding_ceiling.amount}`);
+          }
+          break;
+
+        case 'proposal_or_whitepaper':
+          if (sections.budget_or_funding) {
+            sections.budget_or_funding.forEach((budget: any) => {
+              if (budget.amount) {
+                financialInfo.push(`${budget.context}: $${budget.amount}`);
+              }
+            });
+          }
+          break;
+      }
+    }
+
+    return financialInfo.slice(0, 5);
+  }
+
+  /**
+   * Extract enhanced compliance information from universal result
+   */
+  private static extractEnhancedComplianceInfo(universalResult: UniversalExtractionResult): string[] {
+    const complianceInfo: string[] = [];
+    const { doc_type, sections } = universalResult;
+
+    if (sections) {
+      switch (doc_type) {
+        case 'procurement_sow_or_contract':
+          if (sections.compliance) {
+            sections.compliance.forEach((compliance: any) => {
+              complianceInfo.push(compliance.standard_or_policy);
+            });
+          }
+          break;
+
+        case 'grant_notice_or_rfa':
+          if (sections.eligibility) {
+            sections.eligibility.forEach((eligibility: any) => {
+              complianceInfo.push(`Eligibility: ${eligibility.criterion}`);
+            });
+          }
+          break;
+      }
+    }
+
+    return complianceInfo.slice(0, 5);
+  }
+
+  /**
+   * Generate enhanced reasoning based on universal result
+   */
+  private static generateEnhancedReasoning(universalResult: UniversalExtractionResult): string {
+    const { doc_type, confidence, evidence } = universalResult;
+
+    let reasoning = `Document classified as ${doc_type.replace(/_/g, ' ')} with ${Math.round(confidence * 100)}% confidence. `;
+
+    if (evidence.length > 0) {
+      reasoning += `Evidence includes: ${evidence.slice(0, 2).join(', ')}. `;
+    }
+
+    reasoning += `This classification is based on content analysis using enhanced legal document extraction patterns.`;
+
+    return reasoning;
   }
 }
