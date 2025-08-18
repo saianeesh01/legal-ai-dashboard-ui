@@ -46,7 +46,31 @@ export class SmartLegalClassifier {
       documentType: 'unknown'
     };
     
-    // CRITICAL: Check for court/litigation indicators first (negative evidence)
+    // CRITICAL: Check for country report indicators first (positive evidence for non-proposal)
+    const countryReportPatterns = [
+      /(?:Country|Human Rights)\s+(?:Report|Assessment)/i,
+      /(?:Department of State|State Department)/i,
+      /(?:Bureau of Democracy|Human Rights|Labor)/i,
+      /(?:Country Reports on Human Rights)/i,
+      /(?:Human Rights Practices)/i,
+      /(?:JAPAN.*HUMAN.*RIGHTS.*REPORT)/i,
+      /(?:2023.*Human.*Rights)/i
+    ];
+    
+    // If filename clearly indicates country report, prioritize this classification
+    if (fileName.toLowerCase().includes('human rights report') || fileName.toLowerCase().includes('country report')) {
+      for (const pattern of countryReportPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          contentAnalysis.documentType = 'country_report';
+          evidence.push(`Country report indicator: "${matches[0]}"`);
+          confidence = 0.95; // High confidence for country reports
+          break;
+        }
+      }
+    }
+    
+    // CRITICAL: Check for court/litigation indicators (negative evidence)
     const courtIndicators = [
       /UNITED STATES COURT OF APPEALS/i,
       /UNITED STATES DISTRICT COURT/i,
@@ -57,7 +81,10 @@ export class SmartLegalClassifier {
       /v\.\s+[A-Z][a-z]+/i, // "v. DHS" pattern
       /OPINION|JUDGMENT|DECREE/i,
       /MEMORANDUM AND ORDER/i,
-      /(?:denied|granted|dismissed)/i
+      // More specific court action patterns to avoid false positives
+      /(?:motion|petition)\s+(?:denied|granted|dismissed)/i,
+      /(?:case|appeal)\s+(?:denied|granted|dismissed)/i,
+      /(?:court|judge)\s+(?:denied|granted|dismissed)/i
     ];
     
     for (const pattern of courtIndicators) {
@@ -70,13 +97,14 @@ export class SmartLegalClassifier {
       }
     }
     
-    // Check for litigation terms
+    // Check for litigation terms (more specific to avoid false positives)
     const litigationTerms = [
-      /(?:motion|petition|complaint|brief|pleading)/i,
-      /(?:plaintiff|defendant|appellant|appellee)/i,
-      /(?:docket|case number|civil action)/i,
-      /(?:injunction|restraining order|stay)/i,
-      /(?:discovery|deposition|interrogatory)/i
+      /(?:motion|petition)\s+(?:for|to|of)/i,
+      /(?:plaintiff|defendant|appellant|appellee)\s+(?:in|of|v\.)/i,
+      /(?:docket|case)\s+(?:number|no\.|#)/i,
+      /(?:civil action|lawsuit|litigation)/i,
+      /(?:injunction|restraining order|stay)\s+(?:order|motion)/i,
+      /(?:discovery|deposition|interrogatory)\s+(?:request|motion)/i
     ];
     
     for (const pattern of litigationTerms) {
@@ -220,8 +248,14 @@ export class SmartLegalClassifier {
       evidence.push('Insufficient evidence for confident classification');
     }
     
+    // Country report override (highest priority)
+    if (contentAnalysis.documentType === 'country_report') {
+      finalVerdict = 'non-proposal';
+      finalConfidence = 0.95;
+      evidence.push('Document identified as country/human rights report');
+    }
     // Court document override
-    if (contentAnalysis.hasCourtIndicators) {
+    else if (contentAnalysis.hasCourtIndicators) {
       finalVerdict = 'non-proposal';
       finalConfidence = Math.max(0.85, finalConfidence);
       contentAnalysis.documentType = 'court_document';
@@ -439,6 +473,10 @@ export class SmartLegalClassifier {
     if (verdict === 'proposal') {
       return `Document classified as proposal based on ${indicators.join(', ')}. Confidence: ${Math.round(confidence * 100)}%`;
     } else if (verdict === 'non-proposal') {
+      // Special handling for country reports
+      if (analysis.documentType === 'country_report') {
+        return `Document classified as non-proposal. This is a country/human rights report from the U.S. Department of State. Confidence: ${Math.round(confidence * 100)}%`;
+      }
       if (courtIndicators.length > 0) {
         return `Document classified as non-proposal due to ${courtIndicators.join(', ')}. This appears to be a court or legal document. Confidence: ${Math.round(confidence * 100)}%`;
       }

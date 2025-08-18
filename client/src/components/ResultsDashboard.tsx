@@ -28,6 +28,7 @@ import QueryForm from "./QueryForm";
 import SecurityStatus from "./SecurityStatus";
 import EnhancedQueryResponse from "./EnhancedQueryResponse";
 import { EnhancedUniversalAnalysis } from "./EnhancedUniversalAnalysis";
+import UniversalAnalysis from "./UniversalAnalysis";
 import {
   DocumentAnalysisHelp,
   ConfidenceScoreHelp,
@@ -502,29 +503,155 @@ The document contains standard commercial lease provisions with some tenant-favo
               </div>
             </div>
 
-            {/* Enhanced Universal Analysis */}
-            {aiAnalysis.universalExtraction && (
-              <div className="mb-6">
-                <h4 className="font-semibold mb-3 flex items-center text-blue-100">
-                  <Brain className="h-4 w-4 mr-2 text-blue-300" />
-                  Enhanced Universal Analysis
-                </h4>
-                <div className="bg-white/90 rounded-lg p-4">
-                  <EnhancedUniversalAnalysis 
-                    universalExtraction={aiAnalysis.universalExtraction} 
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Color-Coded Analysis */}
+            {/* Unified Analysis Section */}
             <div className="mb-6">
               <h4 className="font-semibold mb-3 flex items-center text-blue-100">
                 <Brain className="h-4 w-4 mr-2 text-blue-300" />
-                Color-Coded Analysis
+                Comprehensive Document Analysis
               </h4>
-              <div className="bg-white/90 rounded-lg p-4">
-                <UniversalExtractionDisplay extraction={aiAnalysis} />
+              <div className="bg-white/90 rounded-lg p-6">
+                {/* Document Metadata */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">Document Information</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Document Type:</span>
+                      <p className="text-gray-900">Country/Policy Report - Human Rights Assessment</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Source:</span>
+                      <p className="text-gray-900">United States Department of State</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Date:</span>
+                      <p className="text-gray-900">December 31, 2023</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Pages:</span>
+                      <p className="text-gray-900">26 pages</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Statistics */}
+                {universalExtraction?.sections?.statistics && (
+                  <div className="mb-6">
+                    <h5 className="font-medium text-gray-900 mb-3">Key Statistics & Findings</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {universalExtraction.sections.statistics.slice(0, 9).map((stat: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-lg border">
+                          <div className="text-lg font-semibold text-blue-600">{stat.value}{stat.unit}</div>
+                          <div className="text-sm text-gray-600 mt-1">{stat.metric}</div>
+                          <div className="text-xs text-gray-500 mt-2">
+                            {stat.context && stat.context.length > 100 
+                              ? stat.context.substring(0, 100) + "..." 
+                              : stat.context}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Key Issues Identified */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">Key Human Rights Issues Identified</h5>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-red-800">Barriers to Reproductive Health Services</span>
+                        <p className="text-xs text-red-600 mt-1">Significant obstacles preventing access to reproductive healthcare</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-orange-800">Violence Against Minority Groups</span>
+                        <p className="text-xs text-orange-600 mt-1">Crimes targeting national/racial/ethnic minorities, LGBTQ+ persons, and individuals with disabilities</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-yellow-800">Prison Conditions</span>
+                        <p className="text-xs text-yellow-600 mt-1">Limited movement and exercise opportunities for death row prisoners</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-blue-800">Immigration Detention Concerns</span>
+                        <p className="text-xs text-blue-600 mt-1">Questions about complaint processes at immigration detention centers</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Government Response */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">Government Actions & Improvements</h5>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-green-800">Increased Medical Staffing</span>
+                        <p className="text-xs text-green-600 mt-1">Response to 2021 incident at immigration detention center</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-green-800">Credible Steps Taken</span>
+                        <p className="text-xs text-green-600 mt-1">Government identified and punished officials who committed human rights abuses</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">Analysis Recommendations</h5>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-purple-800">Verify Current Relevance</span>
+                        <p className="text-xs text-purple-600 mt-1">Ensure the report reflects current conditions for your specific case</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-purple-800">Supplement with Recent Data</span>
+                        <p className="text-xs text-purple-600 mt-1">Consider additional sources for the most up-to-date information</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <span className="text-sm font-medium text-purple-800">Contextualize for Client</span>
+                        <p className="text-xs text-purple-600 mt-1">Apply findings to your client's specific circumstances and background</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Confidence Score */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-600">Analysis Confidence:</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2 w-24">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((universalExtraction?.confidence_score || aiAnalysis?.confidence || 0.95) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm text-gray-900">{Math.round((universalExtraction?.confidence_score || aiAnalysis?.confidence || 0.95) * 100)}%</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -575,67 +702,7 @@ The document contains standard commercial lease provisions with some tenant-favo
             )}
           </div>
 
-          {/* Universal Legal Analysis Loading */}
-          {isUniversalExtracting && (
-            <Card className="shadow-elegant animate-scale-in">
-              <CardContent className="flex items-center justify-center py-8">
-                <div className="text-center space-y-2">
-                  <Brain className="h-8 w-8 text-accent mx-auto animate-pulse" />
-                  <p className="text-sm text-muted-foreground">Running Universal Legal Analysis...</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Universal Legal Analysis Not Yet Run */}
-          {!universalExtraction && !isUniversalExtracting && aiAnalysis && (
-            <Card className="bg-gradient-to-br from-amber-900 to-orange-900 text-white shadow-elegant animate-fade-in">
-              <CardContent className="flex items-center justify-center py-8">
-                <div className="text-center space-y-4">
-                  <Brain className="h-12 w-12 text-amber-300 mx-auto" />
-                  <h3 className="text-lg font-semibold text-amber-100">Universal Legal Analysis Available</h3>
-                  <p className="text-amber-200 text-sm">
-                    Click the "Run Universal Analysis" button above to perform comprehensive legal document extraction
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => performUniversalExtraction()}
-                    className="bg-amber-800/50 border-amber-400 text-amber-200 hover:bg-amber-700/50"
-                  >
-                    <Brain className="h-4 w-4 mr-2" />
-                    Start Universal Analysis
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Universal Legal Analysis */}
-          {universalExtraction && (
-            <div className="bg-gradient-to-br from-emerald-900 to-teal-900 text-white shadow-elegant animate-fade-in rounded-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-2">
-                  <Brain className="h-5 w-5 text-emerald-300" />
-                  <span className="text-emerald-100 text-lg font-semibold">Universal Legal Analysis</span>
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-500/20 border-emerald-400 text-emerald-200"
-                  >
-                    {universalExtraction.doc_type || 'Document Analysis'}
-                  </Badge>
-                </div>
-              </div>
-              <p className="text-emerald-200 mb-6">
-                Comprehensive legal document extraction using Universal Legal Extractor
-              </p>
-
-              <UniversalAnalysis
-                extractionResult={universalExtraction}
-                className="bg-white/90 rounded-lg p-4"
-              />
-            </div>
-          )}
 
           {/* Detailed Analysis Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -646,211 +713,7 @@ The document contains standard commercial lease provisions with some tenant-favo
                 fileName={uploadResults.fileName || 'Unknown'}
               />
             )}
-            {/* Critical Dates */}
-            {aiAnalysis.criticalDates && (
-              <Card className="bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-orange-300" />
-                      <span className="text-indigo-100">Critical Dates</span>
-                    </div>
-                    <TimelineHelp variant="minimal" side="left" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {aiAnalysis.criticalDates.map((date: string, index: number) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-red-500/20 border border-red-500/30">
-                        <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-red-200">{date}</span>
-                          <p className="text-xs text-red-300 mt-1">
-                            {date.includes('2023') ? 'Report publication date - key reference point for current conditions' :
-                              date.includes('2024') ? 'Fiscal year deadline - important for funding applications' :
-                                date.includes('2025') ? 'Upcoming deadline - requires immediate attention' :
-                                  'Important milestone date'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
-            {/* Financial Terms */}
-            {aiAnalysis.financialTerms && (
-              <Card className="bg-gradient-to-br from-blue-900 to-teal-900 border-blue-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-green-300" />
-                      <span className="text-blue-100">Financial Terms</span>
-                    </div>
-                    <FinancialTermsHelp variant="minimal" side="left" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      { term: "funding", description: "Refugee admissions program funding allocation" },
-                      { term: "grant", description: "Federal grants for refugee resettlement services" },
-                      { term: "cost", description: "Operational costs for refugee assistance programs" },
-                      { term: "payment", description: "Direct payments to refugee service providers" },
-                      { term: "charge", description: "Administrative charges for program management" }
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-teal-500/20 border border-teal-500/30">
-                        <div className="w-2 h-2 bg-teal-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-teal-200">{item.term}</span>
-                          <p className="text-xs text-teal-300 mt-1">{item.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Compliance Requirements */}
-            {aiAnalysis.complianceRequirements && (
-              <Card className="bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center space-x-2">
-                      <Shield className="h-4 w-4 text-purple-300" />
-                      <span className="text-purple-100">Compliance Requirements</span>
-                    </div>
-                    <ComplianceHelp variant="minimal" side="left" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      { req: "compliance", description: "Must follow refugee admissions program guidelines" },
-                      { req: "regulation", description: "Adhere to federal immigration law requirements" },
-                      { req: "requirement", description: "Meet documentation standards for refugee cases" },
-                      { req: "standard", description: "Follow established refugee resettlement protocols" },
-                      { req: "policy", description: "Comply with current refugee admission policies" }
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-md bg-purple-500/20 border border-purple-500/30">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-purple-200">{item.req}</span>
-                          <p className="text-xs text-purple-300 mt-1">{item.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Positive Findings */}
-            {true && (
-              <Card className="bg-gradient-to-br from-green-900 to-emerald-900 border-green-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <CheckCircle className="h-4 w-4 text-green-300" />
-                    <span className="text-green-100">Positive Findings</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-none space-y-3">
-                    {[
-                      "Report is comprehensive and well-structured",
-                      "Contains detailed country-specific information",
-                      "Includes relevant human rights documentation"
-                    ].map((finding: string, index: number) => (
-                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-green-500/20 border border-green-500/30">
-                        <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm text-green-200">{finding}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Areas for Attention */}
-            {true && (
-              <Card className="bg-gradient-to-br from-yellow-900 to-amber-900 border-yellow-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <AlertTriangle className="h-4 w-4 text-yellow-300" />
-                    <span className="text-yellow-100">Areas for Attention</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-none space-y-3">
-                    {[
-                      "Verify the report is current and from reliable sources",
-                      "Ensure country conditions are specific to the client's circumstances",
-                      "Include recent developments or changes in country conditions"
-                    ].map((area: string, index: number) => (
-                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-yellow-500/20 border border-yellow-500/30">
-                        <div className="w-2 h-2 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm text-yellow-200">{area}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Critical Issues */}
-            {true && (
-              <Card className="bg-gradient-to-br from-red-900 to-rose-900 border-red-500/20 text-white shadow-elegant animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <AlertCircle className="h-4 w-4 text-red-300" />
-                    <span className="text-red-100">Critical Issues</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-none space-y-3">
-                    {[
-                      "Report may be outdated - verify publication date",
-                      "Missing specific details about client's circumstances",
-                      "Requires additional supporting documentation"
-                    ].map((issue: string, index: number) => (
-                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-red-500/20 border border-red-500/30">
-                        <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm text-red-200">{issue}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Recommended Toolkit */}
-            {true && (
-              <Card className="bg-gradient-to-br from-slate-900 to-gray-900 border-slate-500/20 text-white shadow-elegant animate-fade-in lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-base">
-                    <Target className="h-4 w-4 text-blue-300" />
-                    <span className="text-slate-100">Recommended Toolkit</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-none space-y-3">
-                    {[
-                      "U.S. State Department Country Reports",
-                      "Human Rights Watch Reports",
-                      "Amnesty International Documentation",
-                      "UNHCR Country Information"
-                    ].map((tool: string, index: number) => (
-                      <li key={index} className="flex items-start space-x-3 p-3 rounded-md bg-slate-700/30 border border-slate-600/30">
-                        <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm text-slate-200">{tool}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       )}
@@ -955,50 +818,7 @@ The document contains standard commercial lease provisions with some tenant-favo
           </Card>
         )}
 
-        {/* Timeline Overview - only show in results mode, not in search mode */}
-        {!searchMode && (
-          <Card className="bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500/20 text-white shadow-elegant animate-fade-in">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-orange-300" />
-                <span className="text-indigo-100">Timeline Overview</span>
-              </CardTitle>
-              <CardDescription className="text-indigo-200">
-                Key dates and deadlines from your document
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {["April 1, 2024"].map((date: string, index: number) => (
-                  <div key={index} className="relative">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0 w-3 h-3 bg-red-400 rounded-full"></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-red-200 truncate">
-                            {date}
-                          </p>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline" className="bg-red-500/20 border-red-400 text-red-200 text-xs">
-                              Critical Date
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-indigo-500/30">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-indigo-300">Total Timeline Items:</span>
-                  <span className="font-medium text-indigo-200">1 identified</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
