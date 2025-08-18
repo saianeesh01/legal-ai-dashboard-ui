@@ -484,6 +484,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "healthy", timestamp: new Date().toISOString() });
   });
 
+  
+
   // ✅ Enhanced file upload endpoint with multiple file support
   app.post("/api/upload", upload.array('file', 10), async (req, res) => {
     try {
@@ -976,6 +978,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Analysis error:", error);
       res.status(500).json({ error: "Analysis failed" });
+    }
+  });
+
+  // Universal Legal Document Extractor endpoint
+  app.post("/api/extract-universal", async (req, res) => {
+    try {
+      const { job_id } = req.body;
+
+      if (!job_id) {
+        return res.status(400).json({ error: "Missing job_id" });
+      }
+
+      const job = await storage.getJob(job_id);
+      if (!job || job.status !== "DONE") {
+        return res.status(400).json({ error: "Document not ready for universal extraction" });
+      }
+
+      const fileContent = job.fileContent || '';
+      console.log(`Starting Universal Legal Document Extraction for ${job.fileName}, content length: ${fileContent.length}`);
+
+      // Call the AI service for universal extraction
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:5001';
+      const response = await fetch(`${aiServiceUrl}/api/extract-universal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: fileContent,
+          filename: job.fileName
+        }),
+        timeout: 120000 // 2 minutes timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI service error: ${response.status} ${response.statusText}`);
+      }
+
+      const extractionResult = await response.json();
+      console.log(`✅ Universal extraction completed for ${job.fileName}`);
+
+      // Update the job with universal extraction results
+      const currentAnalysis = job.aiAnalysis ? JSON.parse(job.aiAnalysis) : {};
+      currentAnalysis.universalExtraction = extractionResult.extraction;
+      
+      await storage.updateJob(job_id, {
+        aiAnalysis: JSON.stringify(currentAnalysis)
+      });
+
+      res.json({
+        success: true,
+        extraction: extractionResult.extraction,
+        message: "Universal Legal Document Extraction completed successfully"
+      });
+
+    } catch (error) {
+      console.error("Universal extraction error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Universal extraction failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

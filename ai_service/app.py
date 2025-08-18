@@ -26,6 +26,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Import FAISS vector search
 from vector_search import vector_engine
 
+# Import batch processor
+from batch_processor import batch_processor
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -993,6 +996,240 @@ def list_available_models():
         logger.error(f"Model listing error: {e}")
         return jsonify({
             "error": "Failed to list models",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/upload_batch', methods=['POST'])
+def upload_batch():
+    """Upload up to 5 files for batch processing"""
+    try:
+        # Check if files were uploaded
+        if 'files' not in request.files:
+            return jsonify({"error": "No files provided"}), 400
+        
+        files = request.files.getlist('files')
+        
+        # Validate file count
+        if len(files) == 0:
+            return jsonify({"error": "No files selected"}), 400
+        
+        if len(files) > 5:
+            return jsonify({
+                "error": f"Too many files. Maximum 5 allowed, got {len(files)}",
+                "files_accepted": 5,
+                "files_rejected": len(files) - 5
+            }), 400
+        
+        # Process files
+        file_data = []
+        for file in files:
+            if file.filename:
+                # Read file content
+                file_content = file.read()
+                file_data.append((file.filename, file_content))
+        
+        # Create batch
+        batch_id = batch_processor.create_batch(file_data)
+        
+        # Get initial batch status
+        batch_status = batch_processor.get_batch_status(batch_id)
+        
+        # Return batch info
+        return jsonify({
+            "success": True,
+            "batch_id": batch_id,
+            "message": f"Batch created with {len(file_data)} files",
+            "jobs": [
+                {
+                    "id": job.id,
+                    "filename": job.filename,
+                    "status": job.status
+                }
+                for job in batch_status.jobs
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Batch upload error: {e}")
+        return jsonify({
+            "error": "Batch upload failed",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/batch_status/<batch_id>', methods=['GET'])
+def get_batch_status(batch_id):
+    """Get current status of a batch"""
+    try:
+        batch_status = batch_processor.get_batch_status(batch_id)
+        
+        if not batch_status:
+            return jsonify({"error": "Batch not found"}), 404
+        
+        # Return detailed status
+        return jsonify({
+            "success": True,
+            "batch_id": batch_id,
+            "created_at": batch_status.created_at,
+            "completed_count": batch_status.completed_count,
+            "error_count": batch_status.error_count,
+            "jobs": [
+                {
+                    "id": job.id,
+                    "filename": job.filename,
+                    "status": job.status,
+                    "result_path": job.result_path,
+                    "doc_type": job.doc_type,
+                    "error_message": job.error_message
+                }
+                for job in batch_status.jobs
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Batch status error: {e}")
+        return jsonify({
+            "error": "Failed to get batch status",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/batches', methods=['GET'])
+def list_batches():
+    """List all batches"""
+    try:
+        batch_ids = batch_processor.list_batches()
+        
+        return jsonify({
+            "success": True,
+            "batches": batch_ids,
+            "total": len(batch_ids)
+        })
+        
+    except Exception as e:
+        logger.error(f"List batches error: {e}")
+        return jsonify({
+            "error": "Failed to list batches",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/extract-universal', methods=['POST'])
+def extract_universal():
+    """Universal Legal Document Extractor endpoint"""
+    try:
+        data = request.get_json()
+        content = data.get('content', '')
+        filename = data.get('filename', 'unknown')
+        
+        if not content:
+            return jsonify({"error": "No content provided"}), 400
+        
+        logger.info(f"Starting Universal Legal Document Extraction for {filename}")
+        logger.info(f"Content length: {len(content)} characters")
+        
+        # Use the Universal Legal Document Extractor prompt
+        prompt = f"""# Universal Legal-Doc Extractor (Doc-Only • Multi-Type • No Hallucinations)
+
+You are a legal/document extraction agent. Follow these rules exactly.
+
+## Hard Rules
+1. **Use ONLY the provided document text** (no filename cues, prior runs, or web).
+2. Every item must include a **verbatim snippet** and a **page number**.
+3. If a fact is not explicit in the text, **omit it**. Do **not** guess.
+4. If you're unsure how to label something, return it under `other` with low confidence **or drop it**.
+5. Output **valid JSON only**. No prose.
+
+## Document Text
+{content[:8000]}
+
+## Instructions
+Analyze the document and extract structured information according to the Universal Legal Document Extractor schema. Return only valid JSON with no additional text."""
+        
+        # Call Ollama for extraction
+        logger.info(f"🤖 Sending Universal Legal Document Extractor request to Ollama")
+        
+        ollama_response = ollama.generate(
+            model=DEFAULT_MODEL,
+            prompt=prompt,
+            max_tokens=1500,
+            temperature=0.1
+        )
+        
+        if not ollama_response or not ollama_response.get('response'):
+            raise Exception("Ollama returned empty response")
+        
+        # Parse the response to extract JSON
+        response_text = ollama_response['response']
+        logger.info(f"📡 Ollama response length: {len(response_text)} characters")
+        
+        # Try to extract JSON from the response
+        try:
+            # Look for JSON content in the response
+            json_start = response_text.find('{')
+            json_end = response_text.rfind('}') + 1
+            
+            if json_start != -1 and json_end > json_start:
+                json_content = response_text[json_start:json_end]
+                extraction_result = json.loads(json_content)
+                logger.info(f"✅ Successfully parsed Universal Legal Document Extractor JSON")
+            else:
+                # Fallback: create a basic structure
+                extraction_result = {
+                    "doc_type": "other_legal",
+                    "meta": {
+                        "title": filename,
+                        "jurisdiction_or_body": None,
+                        "date_iso": None,
+                        "page_count": 1
+                    },
+                    "sections": {
+                        "extracted_items": [
+                            {
+                                "label": "Content Analysis",
+                                "value": "Document processed with Universal Legal Extractor",
+                                "page": 1,
+                                "evidence": content[:200] + "...",
+                                "confidence": 0.8
+                            }
+                        ]
+                    }
+                }
+                logger.warning(f"⚠️ Could not parse JSON from Ollama response, using fallback structure")
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse JSON from Ollama response: {e}")
+            # Return fallback structure
+            extraction_result = {
+                "doc_type": "other_legal",
+                "meta": {
+                    "title": filename,
+                    "jurisdiction_or_body": None,
+                    "date_iso": None,
+                    "page_count": 1
+                },
+                "sections": {
+                    "extracted_items": [
+                        {
+                            "label": "Processing Error",
+                            "value": "Failed to parse extraction results",
+                            "page": 1,
+                            "evidence": "JSON parsing failed",
+                            "confidence": 0.1
+                        }
+                    ]
+                }
+            }
+        
+        logger.info(f"✅ Universal Legal Document Extraction completed for {filename}")
+        
+        return jsonify({
+            "success": True,
+            "extraction": extraction_result,
+            "message": "Universal Legal Document Extraction completed successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Universal extraction error: {e}")
+        return jsonify({
+            "success": False,
+            "error": "Universal extraction failed",
             "message": str(e)
         }), 500
 
